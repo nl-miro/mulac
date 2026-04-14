@@ -162,4 +162,3 @@ A background process runs on a configurable interval (default: every 10 minutes)
 | Version | Author | Reviewers | Summary | Date |
 |---------|--------|-----------|---------|------|
 | 0.1.0   | Miro, Claude & Codex | Miro, Claude & Codex | All component contracts defined | 2026-04-14 |
-| 0.2.0   | Miro, Claude & Codex | Miro, Claude & Codex | Align state names; add retry/backoff/dead contract; explicit command type; outbox mapping boundary | 2026-04-14 |

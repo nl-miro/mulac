@@ -6,8 +6,6 @@ For component responsibilities, models, lifecycle states, and rules, see [compon
 
 ## Flows
 
-> **Scope:** These flows describe the happy path only. Failure handling, retry scheduling, and stale reservation release are defined in [components.md](components.md) and [contracts.md](contracts.md).
-
 ### Regular flow (two-phased command dispatcher + two-phased event dispatcher)
 
 1. A `CommandEnvelope` is sent to the command dispatcher.
@@ -42,8 +40,10 @@ For component responsibilities, models, lifecycle states, and rules, see [compon
 6. The command handler executes the command and produces events.
 7. The command queue consumer encapsulates the produced events into `EventEnvelope` instances, taking metadata from the `CommandEnvelope`, and sends them to the event dispatcher. The `CommandEntry` is marked as `completed`.
 8. The event dispatcher stores each `EventEnvelope` as an `EventEntry` in the event queue.
-9. The event queue consumer reserves the `EventEntry` and delivers the event to all registered subscribers; if one subscriber is the Outbox, the Outbox stores the event as an `OutboxEntry`. Once all subscribers have accepted the event, the `EventEntry` is marked as `completed`.
-10. The outbox consumer reserves the `OutboxEntry` and sends the message to an AMQP producer. After broker acceptance, the `OutboxEntry` is marked as `completed`.
+9. The event queue consumer reserves the `EventEntry` and delivers the event to all registered subscribers. The `EventEntry` is marked as `completed`.
+10. One of the subscribers can be the Outbox if events need to be sent to an external system.
+11. The Outbox stores the event as an `OutboxEntry`.
+12. The outbox consumer reserves the `OutboxEntry` and sends the message to an AMQP producer. After broker acceptance, the `OutboxEntry` is marked as `completed`.
 
 ## Document Metadata
 

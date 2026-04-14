@@ -18,7 +18,8 @@ Use the following filename format:
 Example: `S001_improve-heading-clarity_claude-sonnet-4-6-high.md`
 
 - `number` must be sequential and zero-padded to three digits: `001`, `002`, `003`, and so on.
-- Suggestion numbers are never reused. Each new suggestion gets the next available number, and gaps from rejected or removed suggestions are acceptable.
+- Suggestion numbers are tracked per target file suggestion folder (for example `docs/suggestions/contracts/` or `docs/suggestions/components/`), not globally across all suggestion folders.
+- Suggestion numbers are never reused within the same target file suggestion folder. Each new suggestion gets the next available number in that folder, and gaps from rejected or removed suggestions are acceptable.
 - `title` must be a short lowercase kebab-case summary, for example `improve-heading-clarity`.
 - `tool-model-effort` must be a lowercase hyphenated identifier for the authoring tool, model, and effort level, for example `claude-sonnet-4-6-high` or `codex-gpt-5-medium`.
 
