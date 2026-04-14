@@ -1,0 +1,46 @@
+# mulac Architecture Spec
+
+This document describes the end-to-end flows at a detailed, step-by-step level.
+
+For component responsibilities, models, lifecycle states, and rules, see [components.md](components.md).
+
+## Flows
+
+### Regular flow (two-phased command dispatcher + two-phased event dispatcher)
+
+1. A `CommandEnvelope` is sent to the command dispatcher.
+2. The command dispatcher stores the `CommandEnvelope` as a `CommandEntry` in the command queue.
+3. The command queue consumer reserves the `CommandEntry` and sends the command to the command handler.
+4. The command handler executes the command and produces events.
+5. The command queue consumer encapsulates the produced events into `EventEnvelope` instances and sends them to the event dispatcher.
+6. The event dispatcher stores each `EventEnvelope` as an `EventEntry` in the event queue.
+7. The event queue consumer reserves the `EventEntry` and delivers the event to all registered subscribers.
+
+### Externally triggered flow (Inbox + two-phased dispatchers)
+
+1. An AMQP consumer receives a message from an external system.
+2. The AMQP consumer sends the message to the inbox.
+3. The inbox consumer picks up the message and sends a `CommandEnvelope` to the command dispatcher.
+4. The command dispatcher stores the `CommandEnvelope` as a `CommandEntry` in the command queue.
+5. The command queue consumer reserves the `CommandEntry` and sends the command to the command handler.
+6. The command handler executes the command and produces events.
+7. The command queue consumer encapsulates the produced events into `EventEnvelope` instances and sends them to the event dispatcher.
+8. The event dispatcher stores each `EventEnvelope` as an `EventEntry` in the event queue.
+9. The event queue consumer reserves the `EventEntry` and delivers the event to all registered subscribers.
+10. One of the subscribers can be the outbox service if outbound messages need to be sent to an external system.
+
+### Full flow (Inbox + two-phased dispatchers + Outbox)
+
+1. An AMQP consumer picks up an incoming message and sends it to the inbox service. The AMQP consumer will `ack` when the message is stored in the inbox.
+2. The inbox service converts the incoming message into an `InboxEntry` and stores it durably.
+3. The inbox consumer reserves the `InboxEntry`, converts it to a `CommandEnvelope`, and sends it to the command dispatcher. After successful handoff, the `InboxEntry` is marked as `completed`.
+4. The command dispatcher stores the `CommandEnvelope` as a `CommandEntry` in the command queue.
+5. The command queue consumer reserves the `CommandEntry` and sends the command to the command handler.
+6. The command handler executes the command and produces events.
+7. The command queue consumer encapsulates the produced events into `EventEnvelope` instances, taking metadata from the `CommandEnvelope`, and sends them to the event dispatcher. The `CommandEntry` is marked as `completed`.
+8. The event dispatcher stores each `EventEnvelope` as an `EventEntry` in the event queue.
+9. The event queue consumer reserves the `EventEntry` and delivers the event to all registered subscribers. The `EventEntry` is marked as `completed`.
+10. One of the subscribers can be the outbox service if events need to be sent to an external system.
+11. The outbox service stores the event as an `OutboxEntry`.
+12. The outbox consumer reserves the `OutboxEntry` and sends the message to an AMQP producer. After broker acceptance, the `OutboxEntry` is marked as `completed`.
+
