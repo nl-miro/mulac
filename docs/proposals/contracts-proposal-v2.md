@@ -159,6 +159,6 @@ A background process runs on a configurable interval (default: every 10 minutes)
 
 ## Document Metadata
 
-| Version | Author | Reviewers | Summary | Date |
-|---------|--------|-----------|---------|------|
+| Version | Author               | Reviewers            | Summary                         | Date       |
+|---------|----------------------|----------------------|---------------------------------|------------|
 | 0.1.0   | Miro, Claude & Codex | Miro, Claude & Codex | All component contracts defined | 2026-04-14 |

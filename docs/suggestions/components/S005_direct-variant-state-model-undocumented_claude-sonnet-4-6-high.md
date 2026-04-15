@@ -1,14 +1,14 @@
 # S005 - Direct variant state model is left undocumented
 
-| Field                    | Value                                 |
-|--------------------------|---------------------------------------|
-| Priority                 | low                                   |
-| File                     | `docs/components.md`                  |
-| Decision                 | accepted                              |
-| Implementation reference | abf59e4                               |
-| Created at               | 2026-04-14                            |
-| Author                   | Claude Code, claude-sonnet-4-6, high  |
-| Reviewer                 | Codex, gpt-5, medium                  |
+| Field                    | Value                                |
+|--------------------------|--------------------------------------|
+| Priority                 | low                                  |
+| File                     | `docs/components.md`                 |
+| Decision                 | accepted                             |
+| Implementation reference | abf59e4                              |
+| Created at               | 2026-04-14                           |
+| Author                   | Claude Code, claude-sonnet-4-6, high |
+| Reviewer                 | Codex, gpt-5, medium                 |
 
 ## Issue
 The States sections for both Command Dispatcher and Event Dispatcher only address the TwoPhased variant:

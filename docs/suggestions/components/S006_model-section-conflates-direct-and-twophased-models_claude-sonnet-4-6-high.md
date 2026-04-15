@@ -1,14 +1,14 @@
 # S006 - Model section conflates Direct and TwoPhased models without labeling
 
-| Field                    | Value                                 |
-|--------------------------|---------------------------------------|
-| Priority                 | low                                   |
-| File                     | `docs/components.md`                  |
-| Decision                 | accepted                              |
-| Implementation reference | d8be889                               |
-| Created at               | 2026-04-14                            |
-| Author                   | Claude Code, claude-sonnet-4-6, high  |
-| Reviewer                 | Codex, gpt-5, medium                  |
+| Field                    | Value                                |
+|--------------------------|--------------------------------------|
+| Priority                 | low                                  |
+| File                     | `docs/components.md`                 |
+| Decision                 | accepted                             |
+| Implementation reference | d8be889                              |
+| Created at               | 2026-04-14                           |
+| Author                   | Claude Code, claude-sonnet-4-6, high |
+| Reviewer                 | Codex, gpt-5, medium                 |
 
 ## Issue
 The Model sections for Command Dispatcher and Event Dispatcher list both models together without indicating which applies to which variant:

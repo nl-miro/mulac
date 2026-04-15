@@ -1,14 +1,14 @@
 # S002 - Define retry exhaustion and backoff
 
-| Field                    | Value                         |
-|--------------------------|-------------------------------|
-| Priority                 | high                          |
-| File                     | `docs/contracts.md`           |
-| Decision                 | accepted                      |
-| Implementation reference | e9d70b6                       |
-| Created at               | 2026-04-14                    |
-| Author                   | Codex, gpt-5, medium          |
-| Reviewer                 |                               |
+| Field                    | Value                |
+|--------------------------|----------------------|
+| Priority                 | high                 |
+| File                     | `docs/contracts.md`  |
+| Decision                 | accepted             |
+| Implementation reference | e9d70b6              |
+| Created at               | 2026-04-14           |
+| Author                   | Codex, gpt-5, medium |
+| Reviewer                 |                      |
 
 ## Issue
 Across Inbox, Command Dispatcher, Event Dispatcher, and Outbox, the contract says `failed(entry_id)` makes work "eligible for retry", but it does not define whether retries are immediate or scheduled, whether backoff is part of the contract, or what happens when the retry policy is exhausted. `docs/components.md` already introduces a `dead` terminal state and retry waiting semantics, so the contracts document currently drops behavior that materially affects collaborators and operators.

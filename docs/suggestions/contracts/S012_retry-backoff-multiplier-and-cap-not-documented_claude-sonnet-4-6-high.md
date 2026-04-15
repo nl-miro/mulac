@@ -1,14 +1,14 @@
 # S012 - Retry backoff multiplier and cap not documented
 
-| Field                    | Value                                 |
-|--------------------------|---------------------------------------|
-| Priority                 | medium                                |
-| File                     | `docs/contracts.md`                   |
-| Decision                 | accepted                              |
-| Implementation reference | fad8265                               |
-| Created at               | 2026-04-14                            |
-| Author                   | Claude Code, claude-sonnet-4-6, high  |
-| Reviewer                 |                                       |
+| Field                    | Value                                |
+|--------------------------|--------------------------------------|
+| Priority                 | medium                               |
+| File                     | `docs/contracts.md`                  |
+| Decision                 | accepted                             |
+| Implementation reference | fad8265                              |
+| Created at               | 2026-04-14                           |
+| Author                   | Claude Code, claude-sonnet-4-6, high |
+| Reviewer                 |                                      |
 
 ## Issue
 The entry retry policy states "exponential backoff starting at 30 seconds" but does not define the multiplier or any cap on the per-attempt delay. With 5 retries and a typical 2× multiplier the delays would be approximately 30 s, 60 s, 120 s, 240 s, 480 s — a total wait of roughly 16 minutes before an entry reaches `dead`. Without knowing the multiplier or cap, operators and callers cannot calculate the worst-case time-to-dead for any entry, which is necessary for setting alerts, SLAs, and consumer timeout budgets.

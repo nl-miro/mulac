@@ -1,14 +1,14 @@
 # S005 - EventEntry completes before Outbox acceptance
 
-| Field                    | Value                                 |
-|--------------------------|---------------------------------------|
-| Priority                 | high                                  |
-| File                     | `docs/architecture-spec.md`           |
-| Decision                 | accepted                              |
-| Implementation reference | 1bd169e                               |
-| Created at               | 2026-04-14                            |
-| Author                   | Codex, gpt-5, medium                  |
-| Reviewer                 |                                       |
+| Field                    | Value                       |
+|--------------------------|-----------------------------|
+| Priority                 | high                        |
+| File                     | `docs/architecture-spec.md` |
+| Decision                 | accepted                    |
+| Implementation reference | 1bd169e                     |
+| Created at               | 2026-04-14                  |
+| Author                   | Codex, gpt-5, medium        |
+| Reviewer                 |                             |
 
 ## Issue
 In the Full flow, step 9 says the event queue consumer delivers the `EventEntry` to all subscribers and marks it `completed`, but the Outbox-specific subscriber path is only described afterward in steps 10-12. That ordering makes it read as though the Event Dispatcher can complete the `EventEntry` before the Outbox has durably accepted the event. This conflicts with `docs/contracts.md`, which requires the Event Dispatcher not to consider delivery complete until the Outbox has confirmed storage of the `OutboxEntry`.
