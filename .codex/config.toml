@@ -1,0 +1,18 @@
+# OpenAI Codex Configuration
+
+# Reference the main AGENTS.md file for developer guidelines
+model_instructions_file = "../AGENTS.md"
+
+[conventions]
+commits = "conventional"
+llm_attribution = true
+
+[allowed_commands]
+git_add = "git add *"
+git_commit = "git commit *"
+git_status = "git status"
+git_diff = "git diff"
+git_log = "git log *"
+
+[features]
+# Add any optional or experimental capabilities here

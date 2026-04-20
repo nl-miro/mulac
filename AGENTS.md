@@ -1,0 +1,52 @@
+# Agent Guidelines
+
+These guidelines apply to all AI code assistants working in this repository.
+
+## Conventional Commits
+
+All commits must follow the [Conventional Commits](https://www.conventionalcommits.org/) format.
+
+Format: `<type>(<scope>): <subject>`
+
+- **type**: feat, fix, docs, style, refactor, perf, test, chore, ci
+- **scope**: optional, e.g., library name or component
+- **subject**: lowercase, imperative, no period
+
+Example: `feat(kernel): add event handler initialization`
+
+## LLM Attribution
+
+If an LLM only committed code (did not write the code itself), it should only be attributed for the commit message, not as a co-author. Omit the `Co-authored-by` trailer in such cases.
+
+If an LLM is attributed as `Author`, `CoAuthor`, or `Committer`, use the format `{toolname}::{model}::{effort}`.
+
+Do not include an email address in LLM attribution.
+
+Never use the `Co-authored-by:` trailer for LLM attribution. Use only `Author:`, `CoAuthor:`, or `Committer:`.
+
+Use the following rules to choose the correct trailer:
+
+| Situation                                                     | Required trailer(s)                        | Notes                                                                            |
+|---------------------------------------------------------------|--------------------------------------------|----------------------------------------------------------------------------------|
+| LLM wrote the change and created the commit                   | `Author: {toolname}::{model}::{effort}`    | Use when the LLM produced the substantive code or documentation being committed. |
+| LLM helped write the change and a human is the primary author | `CoAuthor: {toolname}::{model}::{effort}`  | Use for material contribution without making the LLM the primary author.         |
+| LLM only created the commit for human-written code            | `Committer: {toolname}::{model}::{effort}` | Use only for commit mechanics.                                                   |
+| LLM only suggested the commit message text                    | no trailer                                 | No attribution is required.                                                      |
+
+Use the model ID in the `model` field, for example `gpt-5.4`.
+
+Use one of the following values in the `effort` field: `low`, `medium`, `high`.
+
+Examples:
+
+```text
+docs(dx): clarify llm attribution format
+
+CoAuthor: copilot-cli::gpt-5.4::medium
+```
+
+```text
+chore(repo): add cargo make targets
+
+Author: copilot-cli::gpt-5.4::medium
+```

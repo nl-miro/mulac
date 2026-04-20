@@ -1,0 +1,9 @@
+{
+  // OpenClaw project configuration
+  // See root AGENTS.md for developer guidelines
+
+  tools: {
+    // Allow execution tools; git commands (add, commit, status, diff, log) are pre-approved
+    allow: ["exec", "read", "write", "edit", "apply_patch"],
+  },
+}

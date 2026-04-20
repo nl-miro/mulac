@@ -1,0 +1,14 @@
+{
+  "permission": {
+    "bash": {
+      "*": "ask",
+      "git add *": "allow",
+      "git commit *": "allow",
+      "git status": "allow",
+      "git status *": "allow",
+      "git diff": "allow",
+      "git diff *": "allow",
+      "git log *": "allow"
+    }
+  }
+}
