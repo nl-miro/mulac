@@ -20,8 +20,8 @@ For component responsibilities, models, lifecycle states, and rules, see [compon
 
 ### Externally triggered flow (Inbox + two-phased dispatchers)
 
-1. An AMQP consumer receives a message from an external system.
-2. The AMQP consumer sends the message to the Inbox.
+1. An AMQP worker receives a message from an external system.
+2. The AMQP worker sends the message to the Inbox.
 3. The Inbox stores the message durably as an `InboxEntry`.
 4. The inbox consumer reserves the `InboxEntry` and sends a `CommandEnvelope` to the command dispatcher. After successful handoff, the `InboxEntry` is marked as `completed`.
 5. The command dispatcher stores the `CommandEnvelope` as a `CommandEntry` in the command queue.
@@ -34,7 +34,7 @@ For component responsibilities, models, lifecycle states, and rules, see [compon
 
 ### Full flow (Inbox + two-phased dispatchers + Outbox)
 
-1. An AMQP consumer picks up an incoming message and sends it to the Inbox. The AMQP consumer will `ack` when the message is stored in the Inbox.
+1. An AMQP worker picks up an incoming message and sends it to the Inbox. The AMQP worker will `ack` when the message is stored in the Inbox.
 2. The Inbox converts the incoming message into an `InboxEntry` and stores it durably.
 3. The inbox consumer reserves the `InboxEntry`, converts it to a `CommandEnvelope`, and sends it to the command dispatcher. After successful handoff, the `InboxEntry` is marked as `completed`.
 4. The command dispatcher stores the `CommandEnvelope` as a `CommandEntry` in the command queue.
