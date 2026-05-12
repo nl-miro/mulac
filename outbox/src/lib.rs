@@ -1,4 +1,5 @@
 pub mod amqp_publisher;
+pub mod model;
 pub mod outbox_consumer;
 pub mod outbox_publisher;
 pub mod outbox_storage;
