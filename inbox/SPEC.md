@@ -9,8 +9,8 @@
 - AMQP worker
 - AMQP client
   - returns DeliveredMessage
+- InboxRecorder
 - InboxPublisher
-- InboxConsumer
 - InboxStorage
 
 ## Models
