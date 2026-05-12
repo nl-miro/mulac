@@ -17,4 +17,4 @@ check:
 	$(call run-in-crates,check)
 
 test:
-	$(call run-in-crates,test)
+	$(call run-in-crates,test --all-features)

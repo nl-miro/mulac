@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev, feat/gtd]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            . -> target
+            test_apps -> target
+
+      - name: Format check
+        run: |
+          cargo fmt --all --check
+          cargo fmt --manifest-path test_apps/Cargo.toml --all --check
+
+      - name: Check workspace
+        run: make check
+
+      - name: Test workspace
+        run: make test
