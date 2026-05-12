@@ -19,7 +19,7 @@ This policy applies to every durable queue-backed entry type (`InboxEntry`, `Com
 
 **Accepts:**
 An `InboundMessage` containing:
-- An opaque byte payload
+- A UTF-8 text payload; non-UTF-8 deliveries are rejected at the transport boundary and dead-lettered without retry
 - Required transport metadata: stable message ID, source identifier, received-at timestamp
 
 **Produces:**
