@@ -1,26 +1,17 @@
 pub mod io {
-    pub use super::event_dispatch::EventDispatchPort;
     pub use super::handler::CommandHandlerPort;
+    pub use crate::eventing::assembly::io::EventDispatchPort;
 }
 
 mod handler {
     use crate::commanding::assembly::io::{CommandError, NewCommandEnvelope};
-    use crate::eventing::assembly::application::EventEnvelope;
+    use crate::eventing::assembly::io::NewEventEnvelope;
 
     pub trait CommandHandlerPort: Send + Sync {
         fn execute(
             &self,
             envelope: &NewCommandEnvelope,
-        ) -> Result<Vec<EventEnvelope>, CommandError>;
-    }
-}
-
-mod event_dispatch {
-    use crate::commanding::assembly::io::CommandError;
-    use crate::eventing::assembly::application::EventEnvelope;
-
-    pub trait EventDispatchPort: Send + Sync {
-        fn dispatch(&self, event: EventEnvelope) -> Result<(), CommandError>;
+        ) -> Result<Vec<NewEventEnvelope>, CommandError>;
     }
 }
 
@@ -28,8 +19,8 @@ mod dispatcher {
     use std::sync::Arc;
 
     use crate::commanding::assembly::io::{CommandError, NewCommandEnvelope};
+    use crate::eventing::assembly::io::EventDispatchPort;
 
-    use super::event_dispatch::EventDispatchPort;
     use super::handler::CommandHandlerPort;
 
     pub struct CommandDispatcher {

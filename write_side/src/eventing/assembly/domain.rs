@@ -1,0 +1,120 @@
+use chrono::{DateTime, Utc};
+use thiserror::Error;
+
+/// Persistent event status codes.
+///
+/// Values are stored as `Int4` in the database and must remain stable. The gaps
+/// at `1`, `3`, and `6` are intentionally reserved for compatibility with
+/// existing data and must not be reused without a schema/data migration.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(i32)]
+pub enum EventStatus {
+    /// Stored and awaiting a consumer.
+    Received = 0,
+    /// Claimed by a consumer; blocked from re-reservation until released.
+    Reserved = 2,
+    /// Delivery attempt failed; scheduled for retry.
+    Failed = 4,
+    /// Delivered successfully to the subscriber port.
+    Completed = 5,
+    /// Retry limit exhausted; will not be retried automatically.
+    Dead = 7,
+    /// Archived.
+    Archive = 8,
+}
+
+#[derive(Debug, Error)]
+#[error("unknown event status: {0}")]
+pub struct UnknownEventStatus(pub i32);
+
+impl TryFrom<i32> for EventStatus {
+    type Error = UnknownEventStatus;
+
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Self::Received),
+            2 => Ok(Self::Reserved),
+            4 => Ok(Self::Failed),
+            5 => Ok(Self::Completed),
+            7 => Ok(Self::Dead),
+            8 => Ok(Self::Archive),
+            _ => Err(UnknownEventStatus(value)),
+        }
+    }
+}
+
+impl From<EventStatus> for i32 {
+    fn from(status: EventStatus) -> i32 {
+        status as i32
+    }
+}
+
+impl EventStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Received => "received",
+            Self::Reserved => "reserved",
+            Self::Failed => "failed",
+            Self::Completed => "completed",
+            Self::Dead => "dead",
+            Self::Archive => "archive",
+        }
+    }
+}
+
+#[cfg(feature = "diesel")]
+pub(crate) enum Criterion {
+    StatusIn(Vec<EventStatus>),
+    ScheduledBeforeNow,
+    MaxAttempts(i32),
+    ReservedBefore(DateTime<Utc>),
+    OrderByScheduledAtAsc,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn status_round_trips_through_i32() {
+        let cases = [
+            (0, EventStatus::Received),
+            (2, EventStatus::Reserved),
+            (4, EventStatus::Failed),
+            (5, EventStatus::Completed),
+            (7, EventStatus::Dead),
+            (8, EventStatus::Archive),
+        ];
+        for (value, expected) in cases {
+            let status = EventStatus::try_from(value).expect("valid status");
+            assert_eq!(status, expected);
+            assert_eq!(i32::from(status), value);
+        }
+    }
+
+    #[test]
+    fn reserved_gaps_are_unknown() {
+        for value in [1, 3, 6] {
+            assert!(
+                EventStatus::try_from(value).is_err(),
+                "value {value} should be unknown"
+            );
+        }
+    }
+
+    #[test]
+    fn arbitrary_unknown_value_returns_error() {
+        assert!(EventStatus::try_from(99).is_err());
+        assert!(EventStatus::try_from(-1).is_err());
+    }
+
+    #[test]
+    fn as_str_matches_variant() {
+        assert_eq!(EventStatus::Received.as_str(), "received");
+        assert_eq!(EventStatus::Reserved.as_str(), "reserved");
+        assert_eq!(EventStatus::Failed.as_str(), "failed");
+        assert_eq!(EventStatus::Completed.as_str(), "completed");
+        assert_eq!(EventStatus::Dead.as_str(), "dead");
+        assert_eq!(EventStatus::Archive.as_str(), "archive");
+    }
+}
