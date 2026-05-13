@@ -253,19 +253,27 @@ mod client {
         pub async fn next(
             &mut self,
         ) -> Result<Option<(AmqpMessage, DeliveryHandle)>, AmqpClientError> {
-            match self.consumer.next().await {
-                Some(Ok(delivery)) => {
-                    let (handle, result) = unpack(delivery);
-                    match result {
-                        Ok(msg) => Ok(Some((msg, handle))),
-                        Err(e) => {
-                            let _ = handle.0.nack(BasicNackOptions::default()).await;
-                            Err(e)
+            loop {
+                match self.consumer.next().await {
+                    Some(Ok(delivery)) => {
+                        let (handle, result) = unpack(delivery);
+                        match result {
+                            Ok(msg) => return Ok(Some((msg, handle))),
+                            Err(AmqpClientError::InvalidUtf8(_)) => {
+                                // Malformed delivery: nack and continue to the next one
+                                // so a single poison message cannot stop the worker.
+                                let _ = handle.0.nack(BasicNackOptions::default()).await;
+                                continue;
+                            }
+                            Err(e) => {
+                                let _ = handle.0.nack(BasicNackOptions::default()).await;
+                                return Err(e);
+                            }
                         }
                     }
+                    Some(Err(e)) => return Err(AmqpClientError::Lapin(e)),
+                    None => return Ok(None),
                 }
-                Some(Err(e)) => Err(AmqpClientError::Lapin(e)),
-                None => Ok(None),
             }
         }
     }

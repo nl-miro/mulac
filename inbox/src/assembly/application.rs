@@ -75,6 +75,8 @@ mod models {
         PublishFailed(String),
         #[error("Missing reservation for message {id}")]
         MissingReservation { id: Uuid },
+        #[error("conversion error: {0}")]
+        Conversion(String),
     }
 }
 

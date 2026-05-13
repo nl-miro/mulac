@@ -188,14 +188,31 @@ mod repository {
 }
 
 mod conversions {
-    use crate::assembly::io::{InboxError, InboxMessageEnvelope};
-    use write_side::commanding::gateway::Command;
+    use uuid::Uuid;
 
-    impl TryFrom<InboxMessageEnvelope> for Command {
+    use crate::assembly::io::{InboxError, InboxMessageEnvelope};
+    use write_side::commanding::assembly::io::{NewCommandEnvelope, NewCommandMetadata};
+
+    impl TryFrom<InboxMessageEnvelope> for NewCommandEnvelope {
         type Error = InboxError;
 
         fn try_from(value: InboxMessageEnvelope) -> Result<Self, Self::Error> {
-            Ok(Command::Publish(value.payload().to_string()))
+            let payload = value.payload().to_string();
+            let command_type = value
+                .meta
+                .routing_key
+                .ok_or_else(|| InboxError::Conversion("missing routing_key".into()))?;
+            let metadata = NewCommandMetadata {
+                command_id: Uuid::now_v7(),
+                correlation_id: value.meta.correlation_id,
+                causation_id: value.meta.message_id,
+                source: value.meta.source,
+            };
+            Ok(NewCommandEnvelope {
+                command_type,
+                payload,
+                metadata: Some(metadata),
+            })
         }
     }
 }
@@ -204,7 +221,7 @@ mod consumer {
     use uuid::Uuid;
 
     use crate::assembly::io::InboxError;
-    use write_side::commanding::gateway::CommandGateway;
+    use write_side::commanding::gateway::io::CommandGateway;
 
     use super::repository::InboxConsumerRepository;
     use super::reservable::ReservableInboxSpec;
@@ -235,8 +252,8 @@ mod consumer {
                     continue;
                 };
 
-                let cmd = match message.try_into() {
-                    Ok(cmd) => cmd,
+                let envelope = match message.try_into() {
+                    Ok(env) => env,
                     Err(e) => {
                         self.failed(id, reservation_id, spec.max_attempts)
                             .unwrap_or_else(|err| errors.push(err));
@@ -245,7 +262,7 @@ mod consumer {
                     }
                 };
 
-                match self.next.publish(cmd) {
+                match self.next.dispatch(envelope) {
                     Ok(_) => self
                         .completed(id, reservation_id)
                         .unwrap_or_else(|e| errors.push(e)),
@@ -375,7 +392,7 @@ mod infra_diesel_pg {
                 inbox_entries::processed_at.eq(diesel::dsl::now),
                 inbox_entries::updated_at.eq(diesel::dsl::now),
                 inbox_entries::reservation_id.eq(None::<Uuid>),
-                //inbox_entries::reserved_at.eq(None::<DateTime<Utc>>),
+                inbox_entries::reserved_at.eq(None::<DateTime<Utc>>),
             ))
             .execute(&mut conn)
             .map_err(|e| InboxError::Storage(e.to_string()))?;

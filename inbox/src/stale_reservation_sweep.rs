@@ -84,7 +84,7 @@ mod spec {
         #[test]
         fn criteria_max_attempts_reflects_custom_value() {
             let spec = StaleReservationSpec::new(Duration::minutes(5));
-            let criteria = spec.criteria();
+            let _criteria = spec.criteria();
         }
 
         #[cfg(feature = "diesel")]
@@ -93,11 +93,8 @@ mod spec {
             use chrono::Utc;
             let spec = StaleReservationSpec::new(Duration::minutes(5));
             let criteria = spec.criteria();
-            if let SweepCriterion::ReservedBefore(cutoff) = &criteria[0] {
-                assert!(*cutoff < Utc::now());
-            } else {
-                panic!("first criterion should be ReservedBefore");
-            }
+            let SweepCriterion::ReservedBefore(cutoff) = &criteria[0];
+            assert!(*cutoff < Utc::now());
         }
     }
 }

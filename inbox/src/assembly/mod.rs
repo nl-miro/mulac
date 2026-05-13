@@ -10,7 +10,7 @@ pub mod io {
         InboxTransportResult,
     };
 
-    pub use super::domain::{InboxStatus, UnknownInboxStatus};
+    pub use super::domain::InboxStatus;
 
     #[cfg(feature = "diesel")]
     pub(crate) use super::domain::Criterion;
