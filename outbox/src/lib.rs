@@ -1,20 +1,29 @@
-pub mod amqp_publisher;
-pub mod model;
-pub mod outbox_consumer;
-pub mod outbox_publisher;
-pub mod outbox_storage;
+pub mod io {
+    pub use crate::assembly::io::*;
+    pub use crate::outbox_consumer::io::{
+        OutboxConsumer, OutboxConsumerRepository, ReservableOutboxSpec,
+    };
+    pub use crate::record_events::io::{OutboxRecorder, OutboxRecorderRepository};
+    pub use crate::stale_reservation_sweep::io::{ReservationSweeper, StaleReservationSpec};
 
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
+    #[cfg(feature = "diesel")]
+    pub use crate::assembly::infra_diesel::io::{
+        DbPool, OutboxConsumerStorage, OutboxStoreStorage, build_pool,
+    };
+    #[cfg(feature = "diesel")]
+    pub use crate::outbox_consumer::io::repository as consumer_repository;
+    #[cfg(feature = "diesel")]
+    pub use crate::record_events::io::repository as recorder_repository;
+    #[cfg(feature = "diesel")]
+    pub use crate::stale_reservation_sweep::io::sweeper as reservation_sweeper;
+
+    #[cfg(feature = "amqp")]
+    pub use crate::amqp_publisher::io::{AmqpPublishConfig, AmqpPublisher};
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
+#[cfg(feature = "amqp")]
+mod amqp_publisher;
+mod assembly;
+mod outbox_consumer;
+mod record_events;
+mod stale_reservation_sweep;
