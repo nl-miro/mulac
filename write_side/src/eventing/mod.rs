@@ -1,3 +1,4 @@
+pub mod assembly;
 pub mod dispatcher;
 pub mod gateway;
 pub mod model;

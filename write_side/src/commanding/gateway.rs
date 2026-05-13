@@ -1,20 +1,40 @@
-use thiserror::Error;
-
-pub struct CommandGateway {
-    // TODO: implement . spec is write_side/SPEC.md
+pub mod io {
+    pub use super::gateway::CommandGateway;
 }
 
-impl CommandGateway {
-    pub fn publish(&self, cmd: Command) -> Result<(), CommandError> {
-        Err(CommandError::NotImplemented)
+mod gateway {
+    use std::sync::Arc;
+
+    use crate::commanding::assembly::io::{CommandError, NewCommandEnvelope};
+    use crate::commanding::dispatcher::CommandDispatcher;
+    use crate::commanding::record_commands::io::CommandRecorder;
+
+    pub enum CommandGateway {
+        Direct { dispatcher: Arc<CommandDispatcher> },
+        TwoPhased { recorder: Arc<CommandRecorder> },
+    }
+
+    impl CommandGateway {
+        pub fn direct(dispatcher: Arc<CommandDispatcher>) -> Self {
+            Self::Direct { dispatcher }
+        }
+
+        pub fn two_phased(recorder: Arc<CommandRecorder>) -> Self {
+            Self::TwoPhased { recorder }
+        }
+
+        pub fn dispatch(&self, envelope: NewCommandEnvelope) -> Result<(), CommandError> {
+            if envelope.metadata.is_none() {
+                return Err(CommandError::Conversion(
+                    "command_id is required: metadata is missing".into(),
+                ));
+            }
+            match self {
+                Self::Direct { dispatcher } => dispatcher.dispatch(&envelope),
+                Self::TwoPhased { recorder } => recorder.record(&envelope),
+            }
+        }
     }
 }
-pub enum Command {
-    Publish(String),
-}
 
-#[derive(Debug, Error)]
-pub enum CommandError {
-    #[error("Not implemented")]
-    NotImplemented,
-}
+pub use gateway::CommandGateway;
