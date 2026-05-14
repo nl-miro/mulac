@@ -15,7 +15,10 @@ impl OutboxStorePort for NoopStore {
 struct NoopReserve;
 
 impl OutboxReservePort for NoopReserve {
-    fn reserve(&self, _spec: &ReservableOutboxSpec) -> Result<Vec<OutboxEntryEnvelope>, OutboxError> {
+    fn reserve(
+        &self,
+        _spec: &ReservableOutboxSpec,
+    ) -> Result<Vec<OutboxEntryEnvelope>, OutboxError> {
         Ok(vec![])
     }
 }
@@ -86,8 +89,7 @@ fn io_facade_reexports_core_outbox_api() {
     let recorder = OutboxRecorder::new(recorder_repo);
     recorder.record(&envelope).expect("record succeeds");
 
-    let consumer_repo =
-        OutboxConsumerRepository::new(Arc::new(NoopReserve), Arc::new(NoopProcess));
+    let consumer_repo = OutboxConsumerRepository::new(Arc::new(NoopReserve), Arc::new(NoopProcess));
     let consumer = OutboxConsumer::new(consumer_repo, Arc::new(NoopPublisher));
     consumer
         .publish_batch(&ReservableOutboxSpec::new(10))

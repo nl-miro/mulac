@@ -3,8 +3,13 @@
 //! Application types are added incrementally according to the implementation checklist.
 
 pub mod io {
-    pub use super::models::{NewOutboxEnvelope, NewOutboxMetadata, OutboundMessageEnvelope, OutboxEntryEnvelope, OutboxError};
-    pub use super::ports::{OutboxProcessPort, OutboxPublisherPort, OutboxReservePort, OutboxStorePort, OutboxSweepPort};
+    pub use super::models::{
+        NewOutboxEnvelope, NewOutboxMetadata, OutboundMessageEnvelope, OutboxEntryEnvelope,
+        OutboxError,
+    };
+    pub use super::ports::{
+        OutboxProcessPort, OutboxPublisherPort, OutboxReservePort, OutboxStorePort, OutboxSweepPort,
+    };
 }
 
 mod models {
@@ -98,7 +103,10 @@ mod ports {
     }
 
     pub trait OutboxPublisherPort: Send + Sync {
-        fn publish(&self, envelope: super::models::OutboundMessageEnvelope) -> Result<(), OutboxError>;
+        fn publish(
+            &self,
+            envelope: super::models::OutboundMessageEnvelope,
+        ) -> Result<(), OutboxError>;
     }
 
     pub trait OutboxSweepPort: Send + Sync {

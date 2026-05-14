@@ -128,16 +128,28 @@ fn concurrent_reservations_do_not_claim_the_same_row() {
 
     let first_id = Uuid::now_v7();
     let second_id = Uuid::now_v7();
-    store.record(&new_entry(first_id)).expect("store first entry");
-    store.record(&new_entry(second_id)).expect("store second entry");
+    store
+        .record(&new_entry(first_id))
+        .expect("store first entry");
+    store
+        .record(&new_entry(second_id))
+        .expect("store second entry");
 
     let left = {
         let storage = storage.clone();
-        thread::spawn(move || storage.reserve(&ReservableOutboxSpec::new(1)).expect("reserve left"))
+        thread::spawn(move || {
+            storage
+                .reserve(&ReservableOutboxSpec::new(1))
+                .expect("reserve left")
+        })
     };
     let right = {
         let storage = storage.clone();
-        thread::spawn(move || storage.reserve(&ReservableOutboxSpec::new(1)).expect("reserve right"))
+        thread::spawn(move || {
+            storage
+                .reserve(&ReservableOutboxSpec::new(1))
+                .expect("reserve right")
+        })
     };
 
     let mut ids = left
@@ -164,7 +176,9 @@ fn lifecycle_transitions_update_status_and_metadata() {
     let storage = OutboxConsumerStorage::new(pool.clone());
 
     let completed_id = Uuid::now_v7();
-    store.record(&new_entry(completed_id)).expect("store completed entry");
+    store
+        .record(&new_entry(completed_id))
+        .expect("store completed entry");
     let completed = storage
         .reserve(&ReservableOutboxSpec::new(1))
         .expect("reserve completed entry")
@@ -181,7 +195,9 @@ fn lifecycle_transitions_update_status_and_metadata() {
     assert!(completed_row.reservation_id.is_none());
 
     let failed_id = Uuid::now_v7();
-    store.record(&new_entry(failed_id)).expect("store failed entry");
+    store
+        .record(&new_entry(failed_id))
+        .expect("store failed entry");
     let failed = storage
         .reserve(&ReservableOutboxSpec::new(1))
         .expect("reserve failed entry")

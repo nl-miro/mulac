@@ -293,8 +293,8 @@ pub(crate) mod entity {
 
 mod storage {
     use chrono::{DateTime, Duration, Utc};
-    use diesel::prelude::*;
     use diesel::PgConnection;
+    use diesel::prelude::*;
     use diesel::r2d2::{ConnectionManager, Pool};
     use diesel::sql_types::{Array, BigInt, Int4, Uuid as SqlUuid};
     use uuid::Uuid;
@@ -361,7 +361,10 @@ mod storage {
     }
 
     impl OutboxReservePort for OutboxConsumerStorage {
-        fn reserve(&self, spec: &ReservableOutboxSpec) -> Result<Vec<OutboxEntryEnvelope>, OutboxError> {
+        fn reserve(
+            &self,
+            spec: &ReservableOutboxSpec,
+        ) -> Result<Vec<OutboxEntryEnvelope>, OutboxError> {
             let mut conn = self
                 .pool
                 .get()

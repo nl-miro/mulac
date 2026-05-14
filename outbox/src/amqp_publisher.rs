@@ -6,7 +6,9 @@ use lapin::options::{BasicPublishOptions, ConfirmSelectOptions};
 use lapin::types::{AMQPValue, FieldTable, LongString, ShortString};
 use lapin::{BasicProperties, Channel, Confirmation};
 
-use crate::assembly::io::{OutboxEntryMetadata, OutboxError, OutboxPublisherPort, OutboundMessageEnvelope};
+use crate::assembly::io::{
+    OutboundMessageEnvelope, OutboxEntryMetadata, OutboxError, OutboxPublisherPort,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AmqpPublishConfig {
@@ -40,7 +42,10 @@ impl AmqpPublisher {
         &self.config
     }
 
-    pub async fn publish_async(&self, envelope: OutboundMessageEnvelope) -> Result<(), OutboxError> {
+    pub async fn publish_async(
+        &self,
+        envelope: OutboundMessageEnvelope,
+    ) -> Result<(), OutboxError> {
         self.channel
             .confirm_select(ConfirmSelectOptions::default())
             .await
@@ -88,7 +93,10 @@ impl OutboxPublisherPort for AmqpPublisher {
     }
 }
 
-fn properties_for(config: &AmqpPublishConfig, envelope: &OutboundMessageEnvelope) -> BasicProperties {
+fn properties_for(
+    config: &AmqpPublishConfig,
+    envelope: &OutboundMessageEnvelope,
+) -> BasicProperties {
     let mut properties = BasicProperties::default()
         .with_message_id(envelope.metadata.message_id.to_string().into())
         .with_content_type(
@@ -189,7 +197,10 @@ mod tests {
                 .as_deref()
         );
         assert_eq!(
-            properties.content_type().as_ref().map(|value| value.as_str()),
+            properties
+                .content_type()
+                .as_ref()
+                .map(|value| value.as_str()),
             Some("application/cloudevents+json")
         );
     }
@@ -206,7 +217,10 @@ mod tests {
         let properties = properties_for(&config, &envelope);
 
         assert_eq!(
-            properties.content_type().as_ref().map(|value| value.as_str()),
+            properties
+                .content_type()
+                .as_ref()
+                .map(|value| value.as_str()),
             Some("application/json")
         );
     }
@@ -229,7 +243,10 @@ mod tests {
             map.get("event_id").map(String::as_str),
             Some(envelope.metadata.event_id.to_string().as_str())
         );
-        assert_eq!(map.get("event_type").map(String::as_str), Some("UserRegistered"));
+        assert_eq!(
+            map.get("event_type").map(String::as_str),
+            Some("UserRegistered")
+        );
         assert_eq!(
             map.get("causation_id").map(String::as_str),
             envelope
@@ -238,6 +255,9 @@ mod tests {
                 .map(|value| value.to_string())
                 .as_deref()
         );
-        assert_eq!(map.get("source").map(String::as_str), Some("identity-service"));
+        assert_eq!(
+            map.get("source").map(String::as_str),
+            Some("identity-service")
+        );
     }
 }

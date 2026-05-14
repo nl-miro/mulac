@@ -128,10 +128,7 @@ mod repository {
     }
 
     impl EventConsumerRepository {
-        pub fn new(
-            reserve: Arc<dyn EventReservePort>,
-            process: Arc<dyn EventProcessPort>,
-        ) -> Self {
+        pub fn new(reserve: Arc<dyn EventReservePort>, process: Arc<dyn EventProcessPort>) -> Self {
             Self { reserve, process }
         }
 
@@ -202,10 +199,7 @@ mod consumer {
     }
 
     impl EventConsumer {
-        pub fn new(
-            repository: EventConsumerRepository,
-            dispatcher: Arc<EventDispatcher>,
-        ) -> Self {
+        pub fn new(repository: EventConsumerRepository, dispatcher: Arc<EventDispatcher>) -> Self {
             Self {
                 repository,
                 dispatcher,

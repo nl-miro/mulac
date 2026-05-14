@@ -121,7 +121,9 @@ fn record_reserve_publish_complete_updates_row() {
     let consumer = OutboxConsumer::new(consumer_repository(pool.clone()), publisher.clone());
     let event_id = Uuid::now_v7();
 
-    recorder.record(&envelope(event_id)).expect("record succeeds");
+    recorder
+        .record(&envelope(event_id))
+        .expect("record succeeds");
     consumer
         .publish_batch(&ReservableOutboxSpec::new(10))
         .expect("publish batch succeeds");
@@ -147,10 +149,14 @@ fn transport_failure_moves_entry_to_failed() {
     let consumer = OutboxConsumer::new(consumer_repository(pool.clone()), publisher.clone());
     let event_id = Uuid::now_v7();
 
-    recorder.record(&envelope(event_id)).expect("record succeeds");
-    assert!(consumer
-        .publish_batch(&ReservableOutboxSpec::new(10))
-        .is_err());
+    recorder
+        .record(&envelope(event_id))
+        .expect("record succeeds");
+    assert!(
+        consumer
+            .publish_batch(&ReservableOutboxSpec::new(10))
+            .is_err()
+    );
 
     let row = fetch_entry(&pool, event_id);
     assert_eq!(row.status, i32::from(OutboxStatus::Failed));
@@ -168,10 +174,14 @@ fn failed_entries_become_reservable_after_scheduled_at() {
     let storage = OutboxConsumerStorage::new(pool.clone());
     let event_id = Uuid::now_v7();
 
-    recorder.record(&envelope(event_id)).expect("record succeeds");
-    assert!(consumer
-        .publish_batch(&ReservableOutboxSpec::new(10))
-        .is_err());
+    recorder
+        .record(&envelope(event_id))
+        .expect("record succeeds");
+    assert!(
+        consumer
+            .publish_batch(&ReservableOutboxSpec::new(10))
+            .is_err()
+    );
 
     let mut conn = pool.get().expect("pool connection");
     diesel::sql_query("UPDATE outbox_entries SET scheduled_at = $2 WHERE id = $1")
@@ -197,7 +207,9 @@ fn conversion_failure_moves_entry_to_dead() {
     let consumer = OutboxConsumer::new(consumer_repository(pool.clone()), publisher);
     let event_id = Uuid::now_v7();
 
-    recorder.record(&envelope(event_id)).expect("record succeeds");
+    recorder
+        .record(&envelope(event_id))
+        .expect("record succeeds");
 
     let mut conn = pool.get().expect("pool connection");
     diesel::sql_query(
@@ -211,9 +223,11 @@ fn conversion_failure_moves_entry_to_dead() {
     .execute(&mut conn)
     .expect("blank routing key");
 
-    assert!(consumer
-        .publish_batch(&ReservableOutboxSpec::new(10))
-        .is_err());
+    assert!(
+        consumer
+            .publish_batch(&ReservableOutboxSpec::new(10))
+            .is_err()
+    );
 
     let row = fetch_entry(&pool, event_id);
     assert_eq!(row.status, i32::from(OutboxStatus::Dead));
@@ -309,9 +323,11 @@ fn duplicate_publish_after_completion_failure_keeps_message_id_stable() {
     );
     let consumer = OutboxConsumer::new(repository, publisher.clone());
 
-    assert!(consumer
-        .publish_batch(&ReservableOutboxSpec::new(1))
-        .is_err());
+    assert!(
+        consumer
+            .publish_batch(&ReservableOutboxSpec::new(1))
+            .is_err()
+    );
     consumer
         .publish_batch(&ReservableOutboxSpec::new(1))
         .expect("second completion succeeds");

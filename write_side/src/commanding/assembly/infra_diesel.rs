@@ -57,9 +57,7 @@ mod conversions {
             })?;
 
             let now = Utc::now();
-            let meta = serde_json::to_value(metadata)
-                .ok()
-                .map(MetadataJsonb);
+            let meta = serde_json::to_value(metadata).ok().map(MetadataJsonb);
 
             Ok(NewCommandEntry {
                 id: metadata.command_id,

@@ -293,10 +293,7 @@ mod tests {
             reservation_id: Uuid,
             reason: Option<String>,
         ) -> Result<(), OutboxError> {
-            self.dead
-                .lock()
-                .unwrap()
-                .push((id, reservation_id, reason));
+            self.dead.lock().unwrap().push((id, reservation_id, reason));
             Ok(())
         }
     }

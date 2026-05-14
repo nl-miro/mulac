@@ -235,9 +235,7 @@ mod consumer_impl {
     use diesel::sql_types::{Array, BigInt, Int4, Uuid as SqlUuid};
     use uuid::Uuid;
 
-    use crate::eventing::assembly::application::io::{
-        EventEnvelope, EventError, EventProcessPort,
-    };
+    use crate::eventing::assembly::application::io::{EventEnvelope, EventError, EventProcessPort};
     use crate::eventing::assembly::domain::{Criterion, EventStatus};
     use crate::eventing::event_consumer::io::{EventReservePort, ReservableEventSpec};
     use crate::eventing::stale_event_sweep::io::{EventSweepPort, StaleEventSpec};
@@ -246,10 +244,7 @@ mod consumer_impl {
     use super::storage::EventConsumerStorage;
 
     impl EventReservePort for EventConsumerStorage {
-        fn reserve(
-            &self,
-            spec: &ReservableEventSpec,
-        ) -> Result<Vec<EventEnvelope>, EventError> {
+        fn reserve(&self, spec: &ReservableEventSpec) -> Result<Vec<EventEnvelope>, EventError> {
             let mut conn = self
                 .pool
                 .get()
