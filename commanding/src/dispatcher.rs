@@ -1,11 +1,10 @@
 pub mod io {
     pub use super::handler::CommandHandlerPort;
-    pub use crate::eventing::assembly::io::EventDispatchPort;
 }
 
 mod handler {
-    use crate::commanding::assembly::io::{CommandError, NewCommandEnvelope};
-    use crate::eventing::assembly::io::NewEventEnvelope;
+    use crate::assembly::io::{CommandError, NewCommandEnvelope};
+    use eventing::io::NewEventEnvelope;
 
     pub trait CommandHandlerPort: Send + Sync {
         fn execute(
@@ -16,10 +15,9 @@ mod handler {
 }
 
 mod dispatcher {
+    use crate::assembly::io::{CommandError, NewCommandEnvelope};
+    use eventing::io::EventDispatchPort;
     use std::sync::Arc;
-
-    use crate::commanding::assembly::io::{CommandError, NewCommandEnvelope};
-    use crate::eventing::assembly::io::EventDispatchPort;
 
     use super::handler::CommandHandlerPort;
 

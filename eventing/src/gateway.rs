@@ -3,12 +3,10 @@ pub mod io {
 }
 
 mod gateway {
+    use crate::assembly::io::{EventDispatchPort, EventError, NewEventEnvelope};
+    use crate::dispatcher::io::EventDispatcher;
+    use crate::record_events::io::EventRecorder;
     use std::sync::Arc;
-
-    use crate::commanding::assembly::io::CommandError;
-    use crate::eventing::assembly::io::{EventDispatchPort, EventError, NewEventEnvelope};
-    use crate::eventing::dispatcher::EventDispatcher;
-    use crate::eventing::record_events::io::EventRecorder;
 
     pub enum EventGateway {
         Direct { dispatcher: Arc<EventDispatcher> },
@@ -38,22 +36,20 @@ mod gateway {
     }
 
     impl EventDispatchPort for EventGateway {
-        fn dispatch(&self, event: NewEventEnvelope) -> Result<(), CommandError> {
+        fn dispatch(&self, event: NewEventEnvelope) -> Result<(), EventError> {
             if event.metadata.is_none() {
-                return Err(CommandError::EventDispatch(
+                return Err(EventError::EventDispatch(
                     "event_id is required: metadata is missing".into(),
                 ));
             }
             match self {
                 Self::Direct { dispatcher } => dispatcher
                     .dispatch(&event)
-                    .map_err(|e| CommandError::EventDispatch(e.to_string())),
+                    .map_err(|e| EventError::EventDispatch(e.to_string())),
                 Self::TwoPhased { recorder } => recorder
                     .record(&event)
-                    .map_err(|e| CommandError::EventDispatch(e.to_string())),
+                    .map_err(|e| EventError::EventDispatch(e.to_string())),
             }
         }
     }
 }
-
-pub use gateway::EventGateway;

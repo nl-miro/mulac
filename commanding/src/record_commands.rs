@@ -6,7 +6,7 @@ pub mod io {
 mod repository {
     use std::sync::Arc;
 
-    use crate::commanding::assembly::io::{
+    use crate::assembly::io::{
         CommandError,
         CommandStorePort,
         NewCommandEnvelope, //
@@ -30,7 +30,7 @@ mod repository {
 mod recorder {
     use std::sync::Arc;
 
-    use crate::commanding::assembly::io::{CommandError, NewCommandEnvelope};
+    use crate::assembly::io::{CommandError, NewCommandEnvelope};
 
     use super::repository::CommandRecorderRepository;
 
@@ -53,15 +53,14 @@ mod recorder {
 mod infra_diesel_pg {
     use diesel::prelude::*;
 
-    use crate::commanding::assembly::io::{
+    use crate::assembly::io::{
         CommandError,
         CommandStorePort,
         CommandStoreStorage,
         NewCommandEntry,
-        command_entries, //
+        NewCommandEnvelope, //
+        command_entries,
     };
-
-    use crate::commanding::assembly::io::NewCommandEnvelope;
 
     impl CommandStorePort for CommandStoreStorage {
         fn record(&self, envelope: &NewCommandEnvelope) -> Result<(), CommandError> {

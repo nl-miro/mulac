@@ -1,6 +1,6 @@
 pub mod io {
     pub use super::entity::{EventEntry, NewEventEntry};
-    pub use super::storage::{DbPool, EventConsumerStorage, EventStoreStorage, build_pool};
+    pub use super::storage::{EventConsumerStorage, EventStoreStorage};
 }
 
 pub(crate) mod models {
@@ -39,14 +39,12 @@ pub(crate) mod models {
 }
 
 mod conversions {
-    use chrono::Utc;
-
-    use crate::eventing::assembly::application::io::{
-        EventEnvelope, EventError, EventMetadata, NewEventEnvelope, NewEventMetadata,
-    };
-
     use super::entity::{EventEntry, NewEventEntry};
     use super::models::MetadataJsonb;
+    use crate::assembly::application::io::{
+        EventEnvelope, EventError, EventMetadata, NewEventEnvelope, NewEventMetadata,
+    };
+    use chrono::Utc;
 
     impl TryFrom<&NewEventEnvelope> for NewEventEntry {
         type Error = EventError;
@@ -168,11 +166,6 @@ mod storage {
 
     pub type DbPool = Pool<ConnectionManager<PgConnection>>;
 
-    pub fn build_pool(database_url: &str) -> Result<DbPool, diesel::r2d2::PoolError> {
-        let manager = ConnectionManager::<PgConnection>::new(database_url);
-        Pool::builder().build(manager)
-    }
-
     pub struct EventStoreStorage {
         pub(crate) pool: DbPool,
     }
@@ -198,15 +191,11 @@ mod storage {
 }
 
 mod store_impl {
-    use diesel::prelude::*;
-
-    use crate::eventing::assembly::application::io::{
-        EventError, EventStorePort, NewEventEnvelope,
-    };
-
     use super::entity::NewEventEntry;
     use super::schema::event_entries;
     use super::storage::EventStoreStorage;
+    use crate::assembly::application::io::{EventError, EventStorePort, NewEventEnvelope};
+    use diesel::prelude::*;
 
     impl EventStorePort for EventStoreStorage {
         fn record(&self, envelope: &NewEventEnvelope) -> Result<(), EventError> {
@@ -235,10 +224,10 @@ mod consumer_impl {
     use diesel::sql_types::{Array, BigInt, Int4, Uuid as SqlUuid};
     use uuid::Uuid;
 
-    use crate::eventing::assembly::application::io::{EventEnvelope, EventError, EventProcessPort};
-    use crate::eventing::assembly::domain::{Criterion, EventStatus};
-    use crate::eventing::event_consumer::io::{EventReservePort, ReservableEventSpec};
-    use crate::eventing::stale_event_sweep::io::{EventSweepPort, StaleEventSpec};
+    use crate::assembly::application::io::{EventEnvelope, EventError, EventProcessPort};
+    use crate::assembly::domain::{Criterion, EventStatus};
+    use crate::event_consumer::io::{EventReservePort, ReservableEventSpec};
+    use crate::stale_event_sweep::io::{EventSweepPort, StaleEventSpec};
 
     use super::entity::EventEntry;
     use super::storage::EventConsumerStorage;
@@ -302,7 +291,7 @@ mod consumer_impl {
 
     impl EventProcessPort for EventConsumerStorage {
         fn completed(&self, id: Uuid, reservation_id: Uuid) -> Result<(), EventError> {
-            use crate::eventing::assembly::infra_diesel::schema::event_entries;
+            use crate::assembly::infra_diesel::schema::event_entries;
 
             let mut conn = self
                 .pool
@@ -338,7 +327,7 @@ mod consumer_impl {
             reservation_id: Uuid,
             max_attempts: i32,
         ) -> Result<(), EventError> {
-            use crate::eventing::assembly::infra_diesel::schema::event_entries;
+            use crate::assembly::infra_diesel::schema::event_entries;
 
             let mut conn = self
                 .pool

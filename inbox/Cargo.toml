@@ -9,7 +9,7 @@ diesel = ["dep:diesel"]
 amqp = ["diesel", "dep:lapin", "dep:futures-lite", "dep:tokio", "dep:tokio-util"]
 
 [dependencies]
-write_side= { path = "../write_side" }
+commanding= { path = "../commanding" }
 thiserror = "2"
 uuid = { version = "1", features = ["v4", "v7", "serde"] }
 chrono = "0.4"

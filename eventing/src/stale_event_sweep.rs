@@ -11,7 +11,7 @@ mod spec {
     use chrono::Utc;
 
     #[cfg(feature = "diesel")]
-    use crate::eventing::assembly::io::Criterion;
+    use crate::assembly::io::Criterion;
 
     pub struct StaleEventSpec {
         pub timeout: Duration,
@@ -73,7 +73,7 @@ mod spec {
 }
 
 mod ports {
-    use crate::eventing::assembly::io::EventError;
+    use crate::assembly::io::EventError;
 
     use super::spec::StaleEventSpec;
 
@@ -85,7 +85,7 @@ mod ports {
 mod sweeper {
     use std::sync::Arc;
 
-    use crate::eventing::assembly::io::EventError;
+    use crate::assembly::io::EventError;
 
     use super::ports::EventSweepPort;
     use super::spec::StaleEventSpec;

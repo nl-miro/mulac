@@ -5,15 +5,14 @@ mod domain;
 mod infra_diesel;
 
 pub mod io {
+
     pub use super::application::io::{
         EventDispatchPort,
         EventEnvelope,
         EventError,
         EventMetadata,
         EventProcessPort,
-        EventStorePort,
-        NewEventEnvelope,
-        NewEventMetadata, //
+        EventStorePort, //
     };
 
     pub use super::domain::{EventStatus, UnknownEventStatus};
@@ -23,11 +22,11 @@ pub mod io {
 
     #[cfg(feature = "diesel")]
     pub use super::infra_diesel::io::{
-        DbPool,
         EventConsumerStorage,
         EventEntry,
         EventStoreStorage,
-        NewEventEntry,
-        build_pool, //
+        NewEventEntry, //
     };
+
+    pub use super::application::io::{NewEventEnvelope, NewEventMetadata};
 }

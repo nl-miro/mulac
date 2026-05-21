@@ -22,9 +22,7 @@ jobs:
             test_apps -> target
 
       - name: Format check
-        run: |
-          cargo fmt --all --check
-          cargo fmt --manifest-path test_apps/Cargo.toml --all --check
+        run:  make fmt
 
       - name: Check workspace
         run: make check

@@ -2,9 +2,9 @@ pub mod io {
     pub use super::models::{
         EventEnvelope,
         EventError,
-        EventMetadata,
+        EventMetadata, //
         NewEventEnvelope,
-        NewEventMetadata, //
+        NewEventMetadata,
     };
     pub use super::ports::{EventDispatchPort, EventProcessPort, EventStorePort};
 }
@@ -12,8 +12,9 @@ pub mod io {
 mod models {
     use uuid::Uuid;
 
-    /// Gateway input envelope. The caller must supply `event_id` inside metadata;
-    /// no ID generation occurs inside the system boundary.
+    /// Event envelope produced by a command handler and forwarded to the event
+    /// dispatch port. Defined here (in commanding) because both commanding and
+    /// eventing depend on this shared type; eventing re-exports it.
     #[derive(Debug, Clone)]
     pub struct NewEventEnvelope {
         pub event_type: String,
@@ -65,18 +66,21 @@ mod models {
         MissingReservation { id: Uuid },
         #[error("conversion error: {0}")]
         Conversion(String),
+        #[error("event dispatch error: {0}")]
+        EventDispatch(String),
     }
 }
 
 mod ports {
+    use super::models::EventError;
+    use crate::io::NewEventEnvelope;
     use uuid::Uuid;
 
-    use crate::commanding::assembly::io::CommandError;
-
-    use super::models::{EventError, NewEventEnvelope};
-
+    /// Port implemented by the event gateway to dispatch events produced by
+    /// command handlers. Defined in commanding so eventing can implement it
+    /// while depending on commanding (not the reverse).
     pub trait EventDispatchPort: Send + Sync {
-        fn dispatch(&self, event: NewEventEnvelope) -> Result<(), CommandError>;
+        fn dispatch(&self, event: NewEventEnvelope) -> Result<(), EventError>;
     }
 
     pub trait EventStorePort: Send + Sync {

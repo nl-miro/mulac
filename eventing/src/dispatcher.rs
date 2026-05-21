@@ -4,7 +4,9 @@ pub mod io {
 }
 
 mod ports {
-    use crate::eventing::assembly::io::{EventError, NewEventEnvelope};
+
+    use crate::assembly::io::EventError;
+    use crate::assembly::io::NewEventEnvelope;
 
     pub trait EventSubscriberPort: Send + Sync {
         fn handle(&self, envelope: &NewEventEnvelope) -> Result<(), EventError>;
@@ -12,11 +14,10 @@ mod ports {
 }
 
 mod dispatcher {
-    use std::sync::Arc;
-
-    use crate::eventing::assembly::io::{EventError, NewEventEnvelope};
-
     use super::ports::EventSubscriberPort;
+    use crate::assembly::io::EventError;
+    use crate::assembly::io::NewEventEnvelope;
+    use std::sync::Arc;
 
     pub struct EventDispatcher {
         subscriber: Arc<dyn EventSubscriberPort>,
@@ -32,5 +33,3 @@ mod dispatcher {
         }
     }
 }
-
-pub use dispatcher::EventDispatcher;

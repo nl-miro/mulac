@@ -11,7 +11,7 @@ mod spec {
     use chrono::Utc;
 
     #[cfg(feature = "diesel")]
-    use crate::commanding::assembly::io::Criterion;
+    use crate::assembly::io::Criterion;
 
     pub struct StaleCommandSpec {
         pub timeout: Duration,
@@ -73,7 +73,7 @@ mod spec {
 }
 
 mod ports {
-    use crate::commanding::assembly::io::CommandError;
+    use crate::assembly::io::CommandError;
 
     use super::spec::StaleCommandSpec;
 
@@ -85,7 +85,7 @@ mod ports {
 mod sweeper {
     use std::sync::Arc;
 
-    use crate::commanding::assembly::io::CommandError;
+    use crate::assembly::io::CommandError;
 
     use super::ports::CommandSweepPort;
     use super::spec::StaleCommandSpec;
@@ -112,9 +112,7 @@ mod infra_diesel_pg {
     use diesel::prelude::*;
     use diesel::sql_types::{BigInt, Int4, Timestamptz};
 
-    use crate::commanding::assembly::io::{
-        CommandConsumerStorage, CommandError, CommandStatus, Criterion,
-    };
+    use crate::assembly::io::{CommandConsumerStorage, CommandError, CommandStatus, Criterion};
 
     use super::io::{CommandSweepPort, StaleCommandSpec};
 

@@ -5,9 +5,9 @@ pub mod io {
 mod gateway {
     use std::sync::Arc;
 
-    use crate::commanding::assembly::io::{CommandError, NewCommandEnvelope};
-    use crate::commanding::dispatcher::CommandDispatcher;
-    use crate::commanding::record_commands::io::CommandRecorder;
+    use crate::assembly::io::{CommandError, NewCommandEnvelope};
+    use crate::dispatcher::CommandDispatcher;
+    use crate::record_commands::io::CommandRecorder;
 
     pub enum CommandGateway {
         Direct { dispatcher: Arc<CommandDispatcher> },
@@ -36,5 +36,3 @@ mod gateway {
         }
     }
 }
-
-pub use gateway::CommandGateway;

@@ -41,7 +41,7 @@ pub(crate) mod models {
 mod conversions {
     use chrono::Utc;
 
-    use crate::commanding::assembly::application::io::{
+    use crate::assembly::io::{
         CommandEnvelope, CommandError, CommandMetadata, NewCommandEnvelope, NewCommandMetadata,
     };
 

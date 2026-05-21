@@ -4,13 +4,12 @@ pub mod io {
 }
 
 mod repository {
-    use std::sync::Arc;
-
-    use crate::eventing::assembly::io::{
+    use crate::assembly::io::{
         EventError,
-        EventStorePort,
-        NewEventEnvelope, //
+        EventStorePort, //
+        NewEventEnvelope,
     };
+    use std::sync::Arc;
 
     pub struct EventRecorderRepository {
         pub(super) store: Arc<dyn EventStorePort>,
@@ -28,11 +27,10 @@ mod repository {
 }
 
 mod recorder {
-    use std::sync::Arc;
-
-    use crate::eventing::assembly::io::{EventError, NewEventEnvelope};
-
     use super::repository::EventRecorderRepository;
+    use crate::assembly::io::EventError;
+    use crate::assembly::io::NewEventEnvelope;
+    use std::sync::Arc;
 
     pub struct EventRecorder {
         repo: Arc<EventRecorderRepository>,

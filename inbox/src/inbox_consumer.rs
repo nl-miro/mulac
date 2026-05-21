@@ -188,10 +188,9 @@ mod repository {
 }
 
 mod conversions {
-    use uuid::Uuid;
-
     use crate::assembly::io::{InboxError, InboxMessageEnvelope};
-    use write_side::commanding::assembly::io::{NewCommandEnvelope, NewCommandMetadata};
+    use commanding::io::{NewCommandEnvelope, NewCommandMetadata};
+    use uuid::Uuid;
 
     impl TryFrom<InboxMessageEnvelope> for NewCommandEnvelope {
         type Error = InboxError;
@@ -221,7 +220,7 @@ mod consumer {
     use uuid::Uuid;
 
     use crate::assembly::io::InboxError;
-    use write_side::commanding::gateway::io::CommandGateway;
+    use commanding::io::CommandGateway;
 
     use super::repository::InboxConsumerRepository;
     use super::reservable::ReservableInboxSpec;

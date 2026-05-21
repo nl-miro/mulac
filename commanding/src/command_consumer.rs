@@ -7,7 +7,7 @@ pub mod io {
 
 mod reservable {
     #[cfg(feature = "diesel")]
-    use crate::commanding::assembly::io::{CommandStatus, Criterion};
+    use crate::assembly::io::{CommandStatus, Criterion};
 
     /// Parameters for selecting command entries eligible for consumption.
     pub struct ReservableCommandSpec {
@@ -101,7 +101,7 @@ mod reservable {
 }
 
 mod ports {
-    use crate::commanding::assembly::io::{CommandEnvelope, CommandError};
+    use crate::assembly::io::{CommandEnvelope, CommandError};
 
     use super::reservable::ReservableCommandSpec;
 
@@ -118,7 +118,7 @@ mod repository {
 
     use uuid::Uuid;
 
-    use crate::commanding::assembly::io::{
+    use crate::assembly::io::{
         CommandEnvelope,
         CommandError,
         CommandProcessPort, //
@@ -164,7 +164,7 @@ mod repository {
 }
 
 mod conversions {
-    use crate::commanding::assembly::io::{
+    use crate::assembly::io::{
         CommandEnvelope,
         CommandMetadata,
         NewCommandEnvelope,
@@ -196,8 +196,8 @@ mod conversions {
 mod consumer {
     use std::sync::Arc;
 
-    use crate::commanding::assembly::io::{CommandEnvelope, CommandError};
-    use crate::commanding::dispatcher::CommandDispatcher;
+    use crate::assembly::io::{CommandEnvelope, CommandError};
+    use crate::dispatcher::CommandDispatcher;
 
     use super::repository::CommandConsumerRepository;
     use super::reservable::ReservableCommandSpec;
@@ -271,7 +271,7 @@ mod infra_diesel_pg {
     use diesel::sql_types::{Array, BigInt, Int4, Uuid as SqlUuid};
     use uuid::Uuid;
 
-    use crate::commanding::assembly::io::{
+    use crate::assembly::io::{
         CommandConsumerStorage,
         CommandEntry,
         CommandEnvelope,

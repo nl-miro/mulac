@@ -6,6 +6,7 @@ pub mod io {
         NewCommandEnvelope,
         NewCommandMetadata, //
     };
+
     pub use super::ports::{CommandProcessPort, CommandStorePort};
 }
 
@@ -61,12 +62,12 @@ mod models {
         HandlerNotFound(String),
         #[error("handler execution error: {0}")]
         HandlerExecution(String),
-        #[error("event dispatch error: {0}")]
-        EventDispatch(String),
         #[error("missing reservation for entry {id}")]
         MissingReservation { id: Uuid },
         #[error("conversion error: {0}")]
         Conversion(String),
+        #[error("eventing error: {0}")]
+        Eventing(#[from] eventing::io::EventError),
     }
 }
 
