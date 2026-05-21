@@ -1,5 +1,7 @@
 pub mod io {
-    pub use super::storage::{DbPool, OutboxConsumerStorage, OutboxStoreStorage, build_pool};
+    pub use mulac_diesel::{DbPool, build_pool};
+
+    pub use super::storage::{OutboxConsumerStorage, OutboxStoreStorage};
 }
 
 mod models {
@@ -293,10 +295,9 @@ pub(crate) mod entity {
 
 mod storage {
     use chrono::{DateTime, Duration, Utc};
-    use diesel::PgConnection;
     use diesel::prelude::*;
-    use diesel::r2d2::{ConnectionManager, Pool};
     use diesel::sql_types::{Array, BigInt, Int4, Uuid as SqlUuid};
+    use mulac_diesel::DbPool;
     use uuid::Uuid;
 
     use crate::assembly::application::io::{
@@ -310,13 +311,6 @@ mod storage {
 
     use super::entity::{NewOutboxEntryRecord, OutboxEntryRecord};
     use super::schema::outbox_entries;
-
-    pub type DbPool = Pool<ConnectionManager<PgConnection>>;
-
-    pub fn build_pool(database_url: &str) -> Result<DbPool, diesel::r2d2::PoolError> {
-        let manager = ConnectionManager::<PgConnection>::new(database_url);
-        Pool::builder().build(manager)
-    }
 
     pub struct OutboxStoreStorage {
         pub(crate) pool: DbPool,

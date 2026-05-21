@@ -3,7 +3,9 @@ pub mod io {
     pub use crate::inbox_consumer::io::{
         InboxConsumer, InboxConsumerRepository, InboxReservePort, ReservableInboxSpec,
     };
-    pub use crate::record_messages::io::{InboxRecorder, InboxRecorderRepository, InboxStorePort};
+    pub use crate::record_messages::io::{
+        InboxRecorder, InboxRecorderRepository, InboxStorePort, NewInboxMessageEnvelope,
+    };
     pub use crate::stale_reservation_sweep::io::{
         InboxSweepPort, ReservationSweeper, StaleReservationSpec,
     };

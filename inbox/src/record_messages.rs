@@ -3,7 +3,7 @@ pub mod io {
     use std::sync::Arc;
 
     #[cfg(feature = "diesel")]
-    use crate::io::{InboxStoreStorage, build_pool};
+    use crate::io::{DbPool, InboxStoreStorage};
 
     pub use super::inbox_repository::InboxRecorderRepository;
     pub use super::models::NewInboxMessageEnvelope;
@@ -11,12 +11,11 @@ pub mod io {
     pub use super::recorder::InboxRecorder;
 
     #[cfg(feature = "diesel")]
-    pub fn repository(database_url: String) -> Result<Arc<InboxRecorderRepository>, String> {
-        let pool = build_pool(&database_url).map_err(|e| e.to_string())?;
+    pub fn repository(pool: DbPool) -> Arc<InboxRecorderRepository> {
         let store = Arc::new(InboxStoreStorage::new(pool));
         let repository = InboxRecorderRepository::new(store);
 
-        Ok(Arc::new(repository))
+        Arc::new(repository)
     }
 }
 

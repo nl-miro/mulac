@@ -1,5 +1,7 @@
 pub mod io {
-    pub use super::storage::{DbPool, InboxConsumerStorage, InboxStoreStorage, build_pool};
+    pub use mulac_diesel::{DbPool, build_pool};
+
+    pub use super::storage::{InboxConsumerStorage, InboxStoreStorage};
 }
 
 mod models {
@@ -207,15 +209,7 @@ pub(crate) mod entity {
 }
 
 mod storage {
-    use diesel::PgConnection;
-    use diesel::r2d2::{ConnectionManager, Pool};
-
-    pub type DbPool = Pool<ConnectionManager<PgConnection>>;
-
-    pub fn build_pool(database_url: &str) -> Result<DbPool, diesel::r2d2::PoolError> {
-        let manager = ConnectionManager::<PgConnection>::new(database_url);
-        Pool::builder().build(manager)
-    }
+    use mulac_diesel::DbPool;
 
     pub struct InboxStoreStorage {
         pub(crate) pool: DbPool,
