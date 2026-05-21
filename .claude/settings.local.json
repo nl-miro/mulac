@@ -1,7 +1,16 @@
 {
   "permissions": {
     "allow": [
-      "Bash(make test *)"
+      "Bash(make test *)",
+      "Bash(cargo build *)",
+      "Bash(cargo check *)",
+      "Bash(cargo fix *)",
+      "Bash(cat)",
+      "Bash(chmod +x /tmp/verify.sh)",
+      "Bash(/tmp/verify.sh)",
+      "Bash(chmod +x /tmp/verify_alignment.sh)",
+      "Bash(/tmp/verify_alignment.sh)"
     ]
-  }
+  },
+  "prefersReducedMotion": true
 }

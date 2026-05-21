@@ -2,6 +2,26 @@
 
 These guidelines apply to all AI code assistants working in this repository.
 
+## Feature Module Structure
+
+Every feature module must expose a single `pub mod io` as its only public interface. All internal implementation sub-modules (`commanding`, `eventing`, `http`, `infra_sqlx_pg`, etc.) must be declared without `pub` so they remain private to the feature.
+
+```rust
+mod commanding { ... }    // private: command structs and handlers
+mod eventing { ... }      // private: event structs and subscribers
+mod infra_sqlx_pg { ... } // private: database queries
+mod http { ... }          // private: HTTP API handlers and request types
+
+pub mod io {              // public: re-exports only
+    pub use super::commanding::{MyCommand, MyHandler};
+    pub use super::eventing::{MyEvent, MySubscriber};
+    pub use super::infra_sqlx_pg::my_query;
+    pub use super::http::{Api, MyRequest};
+}
+```
+
+Callers must import through `feature::io::*`, never through internal sub-modules like `feature::commanding::*` or `feature::http::*`.
+
 ## Conventional Commits
 
 All commits must follow the [Conventional Commits](https://www.conventionalcommits.org/) format.
