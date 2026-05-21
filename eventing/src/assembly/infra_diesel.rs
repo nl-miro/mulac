@@ -161,10 +161,7 @@ pub mod entity {
 }
 
 mod storage {
-    use diesel::PgConnection;
-    use diesel::r2d2::{ConnectionManager, Pool};
-
-    pub type DbPool = Pool<ConnectionManager<PgConnection>>;
+    use mulac_diesel::DbPool;
 
     pub struct EventStoreStorage {
         pub(crate) pool: DbPool,

@@ -1,8 +1,10 @@
 pub mod io {
     pub use super::models::{
+        Command,
         CommandEnvelope,
         CommandError,
         CommandMetadata,
+        NewCommand,
         NewCommandEnvelope,
         NewCommandMetadata, //
     };
@@ -13,12 +15,17 @@ pub mod io {
 mod models {
     use uuid::Uuid;
 
+    #[derive(Debug, Clone)]
+    pub struct NewCommand {
+        pub command_type: String,
+        pub payload: String,
+    }
+
     /// Gateway input envelope. The caller must supply `command_id`; no ID
     /// generation occurs inside the system boundary.
     #[derive(Debug, Clone)]
     pub struct NewCommandEnvelope {
-        pub command_type: String,
-        pub payload: String,
+        pub command: NewCommand,
         pub metadata: Option<NewCommandMetadata>,
     }
 
@@ -30,17 +37,22 @@ mod models {
         pub source: Option<String>,
     }
 
+    #[derive(Debug)]
+    pub struct Command {
+        pub id: Uuid,
+        pub reservation_id: Uuid,
+        pub command_type: String,
+        pub payload: String,
+        pub attempts: i32,
+    }
+
     /// Read-side envelope returned to the consumer after reservation.
     ///
     /// Constructed by the infra layer from the stored entry; contains all fields
     /// the consumer needs without exposing infra types.
     #[derive(Debug)]
     pub struct CommandEnvelope {
-        pub id: Uuid,
-        pub reservation_id: Uuid,
-        pub command_type: String,
-        pub payload: String,
-        pub attempts: i32,
+        pub command: Command,
         pub metadata: Option<CommandMetadata>,
     }
 

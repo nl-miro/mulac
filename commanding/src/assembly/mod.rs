@@ -11,6 +11,7 @@ pub mod io {
         CommandMetadata,
         CommandProcessPort,
         CommandStorePort,
+        NewCommand,
         NewCommandEnvelope,
         NewCommandMetadata, //
     };
@@ -25,9 +26,7 @@ pub mod io {
         CommandConsumerStorage,
         CommandEntry,
         CommandStoreStorage,
-        DbPool,
-        NewCommandEntry,
-        build_pool, //
+        NewCommandEntry, //
     };
 
     #[cfg(feature = "diesel")]

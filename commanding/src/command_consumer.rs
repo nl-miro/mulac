@@ -167,6 +167,7 @@ mod conversions {
     use crate::assembly::io::{
         CommandEnvelope,
         CommandMetadata,
+        NewCommand,
         NewCommandEnvelope,
         NewCommandMetadata, //
     };
@@ -185,8 +186,10 @@ mod conversions {
     impl From<&CommandEnvelope> for NewCommandEnvelope {
         fn from(envelope: &CommandEnvelope) -> Self {
             NewCommandEnvelope {
-                command_type: envelope.command_type.clone(),
-                payload: envelope.payload.clone(),
+                command: NewCommand {
+                    command_type: envelope.command.command_type.clone(),
+                    payload: envelope.command.payload.clone(),
+                },
                 metadata: envelope.metadata.as_ref().map(NewCommandMetadata::from),
             }
         }
@@ -243,8 +246,8 @@ mod consumer {
             spec: &ReservableCommandSpec,
             errors: &mut Vec<CommandError>,
         ) {
-            let id = entry.id;
-            let reservation_id = entry.reservation_id;
+            let id = entry.command.id;
+            let reservation_id = entry.command.reservation_id;
             let envelope = entry.into();
 
             match self.dispatcher.dispatch(&envelope) {

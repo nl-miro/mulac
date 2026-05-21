@@ -1,6 +1,7 @@
 pub mod io {
     pub use super::entity::{CommandEntry, NewCommandEntry};
-    pub use super::storage::{CommandConsumerStorage, CommandStoreStorage, DbPool, build_pool};
+
+    pub use super::storage::{CommandConsumerStorage, CommandStoreStorage};
 }
 
 pub(crate) mod models {
@@ -41,8 +42,9 @@ pub(crate) mod models {
 mod conversions {
     use chrono::Utc;
 
-    use crate::assembly::io::{
-        CommandEnvelope, CommandError, CommandMetadata, NewCommandEnvelope, NewCommandMetadata,
+    use crate::assembly::application::io::{
+        Command, CommandEnvelope, CommandError, CommandMetadata, NewCommandEnvelope,
+        NewCommandMetadata,
     };
 
     use super::entity::{CommandEntry, NewCommandEntry};
@@ -61,8 +63,8 @@ mod conversions {
 
             Ok(NewCommandEntry {
                 id: metadata.command_id,
-                command_type: envelope.command_type.clone(),
-                payload: envelope.payload.clone(),
+                command_type: envelope.command.command_type.clone(),
+                payload: envelope.command.payload.clone(),
                 meta,
                 scheduled_at: now,
                 received_at: now,
@@ -86,11 +88,13 @@ mod conversions {
                 .ok_or_else(|| CommandError::MissingReservation { id: entry.id })?;
 
             Ok(CommandEnvelope {
-                id: entry.id,
-                reservation_id,
-                command_type: entry.command_type,
-                payload: entry.payload,
-                attempts: entry.attempts,
+                command: Command {
+                    id: entry.id,
+                    reservation_id,
+                    command_type: entry.command_type,
+                    payload: entry.payload,
+                    attempts: entry.attempts,
+                },
                 metadata,
             })
         }
@@ -163,15 +167,7 @@ pub mod entity {
 }
 
 mod storage {
-    use diesel::PgConnection;
-    use diesel::r2d2::{ConnectionManager, Pool};
-
-    pub type DbPool = Pool<ConnectionManager<PgConnection>>;
-
-    pub fn build_pool(database_url: &str) -> Result<DbPool, diesel::r2d2::PoolError> {
-        let manager = ConnectionManager::<PgConnection>::new(database_url);
-        Pool::builder().build(manager)
-    }
+    use mulac_diesel::DbPool;
 
     pub struct CommandStoreStorage {
         pub(crate) pool: DbPool,

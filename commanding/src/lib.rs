@@ -18,7 +18,10 @@ pub mod io {
 
     // Consumer
     pub use crate::command_consumer::io::{
-        CommandConsumer, CommandConsumerRepository, CommandReservePort, ReservableCommandSpec,
+        CommandConsumer,
+        CommandConsumerRepository,
+        CommandReservePort,
+        ReservableCommandSpec, //
     };
 
     // Sweep
@@ -26,17 +29,22 @@ pub mod io {
 
     // Application types and ports — commanding
     pub use crate::assembly::io::{
-        CommandEnvelope, CommandError, CommandMetadata, CommandProcessPort, CommandStatus,
-        CommandStorePort, NewCommandEnvelope, NewCommandMetadata, UnknownCommandStatus,
+        CommandEnvelope,
+        CommandError,
+        CommandMetadata,
+        CommandProcessPort,
+        CommandStatus,
+        CommandStorePort,
+        NewCommandEnvelope,
+        NewCommandMetadata,
+        UnknownCommandStatus, //
     };
 
-    // // Shared event envelope types (produced by command handlers, consumed by event dispatch)
-    // pub use crate::assembly::io::{NewEventEnvelope, NewEventMetadata};
+    pub use crate::dispatcher::io::{ApplicationEvent, ErasedCommandHandler, wrap_handler};
 
     // Diesel infra — commanding (feature-gated)
     #[cfg(feature = "diesel")]
     pub use crate::assembly::io::{
-        CommandConsumerStorage, CommandEntry, CommandStoreStorage, DbPool, NewCommandEntry,
-        build_pool,
+        CommandConsumerStorage, CommandEntry, CommandStoreStorage, NewCommand, NewCommandEntry,
     };
 }
