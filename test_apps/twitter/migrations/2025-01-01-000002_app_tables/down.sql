@@ -1,0 +1,5 @@
+DROP TABLE IF EXISTS timelines;
+DROP TABLE IF EXISTS direct_messages;
+DROP TABLE IF EXISTS likes;
+DROP TABLE IF EXISTS follows;
+DROP TABLE IF EXISTS tweets;
