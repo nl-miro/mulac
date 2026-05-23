@@ -73,7 +73,7 @@ fn reset_schema(pool: &DbPool) {
     let mut conn = pool.get().expect("pool connection");
     conn.batch_execute("DROP TABLE IF EXISTS outbox_entries;")
         .expect("drop table");
-    conn.batch_execute(include_str!("../../docs/outbox_entries.sql"))
+    conn.batch_execute(include_str!("../../../docs/outbox_entries.sql"))
         .expect("create schema");
 }
 

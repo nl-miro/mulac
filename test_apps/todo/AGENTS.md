@@ -250,7 +250,7 @@ make reset       # docker compose down -v && up && migrate
 ```
 
 Environment variables:
-- `DATABASE_URL` — required (e.g., `postgres://todo:todo@localhost:5432/test_app_todo`)
+- `DATABASE_URL` — required (e.g., `postgres://todo:todo@127.0.0.1:5433/test_app_todo`)
 - `BIND_ADDR` — optional, default `127.0.0.1:33001`
 - `RUST_LOG` — optional, controls tracing output (e.g., `debug`, `info`)
 
