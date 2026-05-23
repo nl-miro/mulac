@@ -5,6 +5,7 @@ members = [
     "outbox",
     "commanding",
     "eventing",
+    "mulac_diesel",
 ]
 
 [workspace.package]
