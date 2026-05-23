@@ -1,0 +1,11 @@
+[workspace]
+resolver = "3"
+members = [
+    "inbox",
+    "outbox",
+    "commanding",
+    "eventing",
+]
+
+[workspace.package]
+edition = "2024"
