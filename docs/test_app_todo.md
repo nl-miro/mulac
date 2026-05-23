@@ -94,6 +94,8 @@ At minimum, define and use a small set of todo-related commands and events, such
   - `CreateTodo`
   - `CompleteTodo`
   - `ReopenTodo`
+  - `UpdateTodo`
+  - `DeleteTodo`
 - events:
   - `TodoCreated`
   - `TodoCompleted`
@@ -137,6 +139,10 @@ Recommended shape:
 test_app_todo/
   src/
     main.rs
+    lib.rs
+    commanding.rs
+    db.rs
+    workers.rs
     todos.rs
     todos/
       create.rs
@@ -146,14 +152,11 @@ test_app_todo/
       delete.rs
       complete.rs
       reopen.rs
-      filter.rs
-    scheduling.rs
-    scheduling/
-      due_dates.rs
+    schedule_due_dates.rs
     messaging.rs
 ```
 
-Each feature should live in its own named module file, and that file may define and own its internal submodules.
+Each feature should live in its own named module file, and that file may define and own its internal submodules. Filtering by status is handled within `todos/list.rs` via an optional query parameter rather than a separate module.
 
 The feature modules should be integrated into the Poem application so the final HTTP service is assembled from these feature-specific route and API definitions.
 
@@ -190,6 +193,7 @@ Suggested targets:
 - `make test`
 - `make reset`
 - `make serve`
+- `make check`
 
 The goal is that a developer can get the app and its tests running with a small number of predictable `make` commands.
 
