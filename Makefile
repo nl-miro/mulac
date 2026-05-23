@@ -1,6 +1,6 @@
-.PHONY: fmt check test
+.PHONY: fmt check test test-apps-up test-apps-down test-apps-reset test-apps-test test-apps-serve
 
-CARGO_DIRS := $(shell find . -name Cargo.toml -not -path '*/target/*' -exec dirname {} \; | sort)
+CARGO_DIRS := $(shell find . -name Cargo.toml -not -path '*/target/*' -not -path './test_apps/*' -exec dirname {} \; | sort)
 
 define run-fmt-in-crates
 	@set -e; \
@@ -30,3 +30,20 @@ check:
 
 test:
 	$(call run-in-crates,test --all-features)
+
+test-apps-up:
+	@$(MAKE) -C test_apps up
+
+test-apps-down:
+	@$(MAKE) -C test_apps down
+
+test-apps-reset:
+	@$(MAKE) -C test_apps reset
+
+test-apps-test:
+	@$(MAKE) -C test_apps/todo test
+	@$(MAKE) -C test_apps/twitter test
+
+test-apps-serve:
+	@$(MAKE) -C test_apps/todo serve
+	@$(MAKE) -C test_apps/twitter serve
