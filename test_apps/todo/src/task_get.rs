@@ -12,6 +12,7 @@ mod http {
     use crate::{
         AppState,
         assembly::io::{ApiError, TodoDto},
+        //
     };
     use poem::web::Data;
     use poem_openapi::{OpenApi, param::Path, payload::Json};
@@ -34,5 +35,4 @@ mod http {
 
 pub mod io {
     pub use super::http::Api;
-    pub use super::infra_sqlx_pg::get;
 }

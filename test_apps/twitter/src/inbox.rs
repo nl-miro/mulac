@@ -1,12 +1,19 @@
 mod models {
+    use crate::assembly::io::{
+        AppError,
+        Clock,
+        DbPool,
+        FollowDto,
+        InboundEntity,
+        fetch_direct_message,
+        fetch_follow,
+        fetch_like,
+        fetch_tweet,
+        //
+    };
     use poem_openapi::{Object, Union};
     use serde::{Deserialize, Serialize};
     use uuid::Uuid;
-
-    use crate::assembly::io::{
-        AppError, Clock, DbPool, FollowDto, InboundEntity, fetch_direct_message, fetch_follow,
-        fetch_like, fetch_tweet,
-    };
 
     #[derive(Debug, Clone, Serialize, Deserialize, Union)]
     #[oai(discriminator_name = "type")]
@@ -264,11 +271,17 @@ mod http {
     use crate::{
         AppState,
         assembly::io::{
-            ApiError, AppError, InboundResponse, NewCommandEnvelope, interpret_dispatch_error,
+            ApiError,
+            AppError,
+            InboundResponse,
+            NewCommandEnvelope,
+            interpret_dispatch_error,
             run_blocking,
+            //
         },
+        //
     };
-    use commanding::io::NewCommandMetadata;
+    use kernel::io::NewCommandMetadata;
     use poem::web::Data;
     use poem_openapi::{OpenApi, payload::Json};
 

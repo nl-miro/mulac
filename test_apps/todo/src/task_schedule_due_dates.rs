@@ -2,12 +2,11 @@ pub const UPDATE_DUE_DATE_COMMAND: &str = "UpdateDueDate";
 pub const TODO_DUE_DATE_CHANGED_EVENT: &str = "TodoDueDateChanged";
 
 mod models {
+    use crate::assembly::io::TodoDto;
     use chrono::{DateTime, Utc};
     use poem_openapi::Object;
     use serde::{Deserialize, Serialize};
     use uuid::Uuid;
-
-    use crate::assembly::io::TodoDto;
 
     #[derive(Debug, Clone, Serialize, Deserialize, Object)]
     pub struct UpdateDueDateCommand {
@@ -34,11 +33,10 @@ mod models {
 }
 
 mod handler {
+    use super::models::{TodoDueDateChanged, UpdateDueDateCommand};
     use crate::assembly::io::{TodoEvent, block_on_blocking};
     use kernel::{CommandError, CommandHandlerPort};
     use sqlx::PgPool;
-
-    use super::models::{TodoDueDateChanged, UpdateDueDateCommand};
 
     pub struct UpdateDueDateHandler {
         pool: PgPool,
@@ -70,7 +68,6 @@ mod infra_sqlx_pg {
     use chrono::{DateTime, Utc};
     use sqlx::PgPool;
     use uuid::Uuid;
-
     pub async fn set_due_date(
         pool: &PgPool,
         id: Uuid,
@@ -92,20 +89,20 @@ mod infra_sqlx_pg {
 }
 
 mod http {
+    use super::models::UpdateDueDateCommand;
     use crate::{
         AppState,
         assembly::io::{
             ApiError, AppCommand, MulacState, NewCommandEnvelope, TodoDto, fetch_todo,
             interpret_dispatch_error,
         },
+        //
     };
     use chrono::{DateTime, Utc};
     use poem::web::Data;
     use poem_openapi::{Object, OpenApi, param::Path, payload::Json};
     use serde::{Deserialize, Serialize};
     use uuid::Uuid;
-
-    use super::models::UpdateDueDateCommand;
 
     #[derive(Debug, Clone, Serialize, Deserialize, Object)]
     pub struct UpdateDueDateRequest {

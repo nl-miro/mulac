@@ -13,8 +13,6 @@ path = "src/assembly/bin/twitterapp.rs"
 
 [dependencies]
 kernel = { path = "../../kernel" }
-commanding = { path = "../../libs/commanding" }
-eventing = { path = "../../libs/eventing" }
 poem = "3"
 poem-openapi = { version = "5", features = ["swagger-ui", "uuid", "chrono"] }
 tokio = { version = "1", features = ["full"] }
@@ -29,7 +27,6 @@ diesel_migrations = "2"
 thiserror = "2"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-mulac_diesel = { path = "../../libs/mulac_diesel" }
 
 [dev-dependencies]
 dotenvy = "0.15"

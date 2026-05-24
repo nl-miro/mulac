@@ -20,7 +20,7 @@ mod models {
 mod handler {
     use super::models::Command;
     use crate::assembly::io::DbPool;
-    use commanding::io::{CommandError, CommandHandlerPort};
+    use kernel::io::{CommandError, CommandHandlerPort};
 
     pub struct Handler {
         pool: DbPool,
@@ -68,7 +68,13 @@ mod handler {
 }
 
 mod eventing {
-    use commanding::io::{CommandGateway, NewCommand, NewCommandEnvelope, NewCommandMetadata};
+    use kernel::io::{
+        CommandGateway,
+        NewCommand,
+        NewCommandEnvelope,
+        NewCommandMetadata,
+        //
+    };
     use kernel::{EventError, EventSubscriberPort, NewEventEnvelope};
     use std::sync::Arc;
     use uuid::Uuid;
@@ -125,7 +131,6 @@ mod eventing {
 }
 
 pub mod io {
-    pub use super::COMMAND_NAME;
     pub use super::eventing::Subscriber;
     pub use super::handler::Handler;
     pub use super::models::Command;

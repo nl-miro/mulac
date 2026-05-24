@@ -1,11 +1,14 @@
+use super::domain::{Clock, DirectMessageDto, FollowDto, LikeDto, TweetDto};
 use chrono::{DateTime, Utc};
 use diesel::PgConnection;
 use diesel::r2d2::{ConnectionManager, Pool};
-use diesel_migrations::{EmbeddedMigrations, MigrationHarness, embed_migrations};
+use diesel_migrations::{
+    EmbeddedMigrations,
+    MigrationHarness,
+    embed_migrations, //
+};
 use kernel::{EventError, EventSubscriberPort, NewEventEnvelope};
 use uuid::Uuid;
-
-use super::domain::{Clock, DirectMessageDto, FollowDto, LikeDto, TweetDto};
 
 pub type DbPool = Pool<ConnectionManager<PgConnection>>;
 pub const DEFAULT_DATABASE_URL: &str = "postgres://twitter:twitter@127.0.0.1:5433/twitter";

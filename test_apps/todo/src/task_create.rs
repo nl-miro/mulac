@@ -2,12 +2,11 @@ pub const CREATE_TODO_COMMAND: &str = "CreateTodo";
 pub const TODO_CREATED_EVENT: &str = "TodoCreated";
 
 mod models {
+    use crate::assembly::io::TodoDto;
     use chrono::{DateTime, Utc};
     use poem_openapi::Object;
     use serde::{Deserialize, Serialize};
     use uuid::Uuid;
-
-    use crate::assembly::io::TodoDto;
 
     #[derive(Debug, Clone, Serialize, Deserialize, Object)]
     pub struct CreateTodoCommand {
@@ -36,11 +35,10 @@ mod models {
 }
 
 mod handler {
+    use super::models::{CreateTodoCommand, TodoCreated};
     use crate::assembly::io::{TodoEvent, block_on_blocking};
     use kernel::{CommandError, CommandHandlerPort};
     use sqlx::PgPool;
-
-    use super::models::{CreateTodoCommand, TodoCreated};
 
     pub struct CreateTodoHandler {
         pool: PgPool,
@@ -66,11 +64,17 @@ mod handler {
 }
 
 mod infra_sqlx_pg {
-    use crate::assembly::io::{AppError, Clock, TodoDto, TodoRow, TodoStatus, validate_title};
-    use sqlx::PgPool;
-
     use super::models::CreateTodoCommand;
-
+    use crate::assembly::io::{
+        AppError,
+        Clock,
+        TodoDto,
+        TodoRow,
+        TodoStatus,
+        validate_title,
+        //
+    };
+    use sqlx::PgPool;
     pub async fn create_from_command(
         pool: &PgPool,
         command: CreateTodoCommand,
@@ -101,10 +105,12 @@ mod infra_sqlx_pg {
 }
 
 mod http {
+    use super::models::CreateTodoCommand;
     use crate::assembly::io::{AppCommand, AppError, NewCommandEnvelope};
     use crate::{
         AppState,
         assembly::io::{ApiError, Command, TodoDto, fetch_todo, interpret_dispatch_error},
+        //
     };
     use chrono::{DateTime, Utc};
     use kernel::NewCommandMetadata;
@@ -112,8 +118,6 @@ mod http {
     use poem_openapi::{Object, OpenApi, payload::Json};
     use serde::{Deserialize, Serialize};
     use uuid::Uuid;
-
-    use super::models::CreateTodoCommand;
 
     #[derive(Debug, Clone, Serialize, Deserialize, Object)]
     pub struct CreateTodoRequest {

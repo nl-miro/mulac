@@ -52,15 +52,19 @@ impl AppState {
 
 mod inbox {
     mod models {
+        use crate::assembly::io::TodoDto;
+        use crate::{
+            task_complete,
+            task_create,
+            task_delete,
+            task_reopen,
+            task_schedule_due_dates,
+            task_update,
+            //
+        };
         use poem_openapi::{Object, Union};
         use serde::{Deserialize, Serialize};
         use uuid::Uuid;
-
-        use crate::assembly::io::TodoDto;
-        use crate::{
-            task_complete, task_create, task_delete, task_reopen, task_schedule_due_dates,
-            task_update,
-        };
 
         #[derive(Debug, Clone, Serialize, Deserialize, Union)]
         #[oai(discriminator_name = "type")]
@@ -118,18 +122,24 @@ mod inbox {
     }
 
     mod http {
+        use super::models::{CommandEnvelope, InboundResponse, TodoCommand};
         use crate::AppState;
         use crate::assembly::io::{
-            ApiError, AppCommand, AppError, Clock, Command, MulacState, NewCommandEnvelope,
+            ApiError,
+            AppCommand,
+            AppError,
+            Clock,
+            Command,
+            MulacState,
+            NewCommandEnvelope,
             fetch_todo,
+            //
         };
         use kernel::NewCommandMetadata;
         use poem::web::Data;
         use poem_openapi::{OpenApi, payload::Json};
         use sqlx::PgPool;
         use uuid::Uuid;
-
-        use super::models::{CommandEnvelope, InboundResponse, TodoCommand};
 
         async fn record_received(
             pool: &PgPool,
@@ -308,11 +318,9 @@ mod outbox {
     }
 
     mod infra_sqlx_pg {
-        use sqlx::PgPool;
-
-        use crate::assembly::io::AppError;
-
         use super::models::{OutboxMessageDto, OutboxRow};
+        use crate::assembly::io::AppError;
+        use sqlx::PgPool;
 
         pub async fn list(pool: &PgPool) -> Result<Vec<OutboxMessageDto>, AppError> {
             let sql = "SELECT id, event_type, payload, status, created_at, published_at, attempts FROM outbox_messages ORDER BY created_at ASC";
@@ -326,12 +334,11 @@ mod outbox {
     }
 
     mod http {
+        use super::infra_sqlx_pg::list;
+        use super::models::OutboxMessageDto;
         use crate::{AppState, assembly::io::ApiError};
         use poem::web::Data;
         use poem_openapi::{OpenApi, payload::Json};
-
-        use super::infra_sqlx_pg::list;
-        use super::models::OutboxMessageDto;
 
         pub struct Api;
 
@@ -356,10 +363,30 @@ mod outbox {
 pub mod io {
     pub use super::AppState;
     pub use super::assembly::io::{
-        ApiError, AppCommand, AppError, Command, ErrorBody, MulacHandle, MulacState,
-        NewCommandEnvelope, OutboxSubscriber, TodoDto, TodoList, TodoRow, TodoStatus,
-        block_on_blocking, connect, fetch_todo, interpret_dispatch_error, migrate,
-        record_event_payload, run_command_worker, run_event_worker, start_mulac, validate_title,
+        ApiError,
+        AppCommand,
+        AppError,
+        Command,
+        ErrorBody,
+        MulacHandle,
+        MulacState,
+        NewCommandEnvelope,
+        OutboxSubscriber,
+        TodoDto,
+        TodoList,
+        TodoRow,
+        TodoStatus,
+        block_on_blocking,
+        connect,
+        fetch_todo,
+        interpret_dispatch_error,
+        migrate,
+        record_event_payload,
+        run_command_worker,
+        run_event_worker,
+        start_mulac,
+        validate_title,
+        //
     };
     pub use super::inbox::io::Api as InboxApi;
     pub use super::outbox::io::{Api as OutboxApi, OutboxMessageDto};

@@ -1,9 +1,8 @@
+use super::application::{AppError, block_on_blocking};
+use super::domain::{Clock, TodoDto};
 use kernel::{EventError, EventSubscriberPort, NewEventEnvelope};
 use sqlx::{PgPool, postgres::PgPoolOptions};
 use uuid::Uuid;
-
-use super::application::{AppError, block_on_blocking};
-use super::domain::{Clock, TodoDto};
 
 pub mod entity {
     use chrono::{DateTime, Utc};

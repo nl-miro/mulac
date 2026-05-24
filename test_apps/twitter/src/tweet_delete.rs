@@ -34,7 +34,7 @@ mod models {
 mod handler {
     use super::models::{Command, Event};
     use crate::assembly::io::{Clock, DbPool};
-    use commanding::io::{CommandError, CommandHandlerPort};
+    use kernel::io::{CommandError, CommandHandlerPort};
 
     pub struct Handler {
         pool: DbPool,
@@ -88,10 +88,16 @@ mod http {
     use crate::{
         AppState,
         assembly::io::{
-            ApiError, AppCommand, NewCommandEnvelope, interpret_dispatch_error, run_blocking,
+            ApiError,
+            AppCommand,
+            NewCommandEnvelope,
+            interpret_dispatch_error,
+            run_blocking,
+            //
         },
+        //
     };
-    use commanding::io::NewCommandMetadata;
+    use kernel::io::NewCommandMetadata;
     use poem::web::Data;
     use poem_openapi::{ApiResponse, Object, OpenApi, payload::Json};
     use serde::Deserialize;
@@ -148,5 +154,4 @@ pub mod io {
     pub use super::handler::Handler;
     pub use super::http::Api;
     pub use super::models::{Command, Event};
-    pub use super::{COMMAND_NAME, EVENT_NAME};
 }

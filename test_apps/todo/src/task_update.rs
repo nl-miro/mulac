@@ -2,11 +2,10 @@ pub const UPDATE_TODO_COMMAND: &str = "UpdateTodo";
 pub const TODO_UPDATED_EVENT: &str = "TodoUpdated";
 
 mod models {
+    use crate::assembly::io::TodoDto;
     use poem_openapi::Object;
     use serde::{Deserialize, Serialize};
     use uuid::Uuid;
-
-    use crate::assembly::io::TodoDto;
 
     #[derive(Debug, Clone, Serialize, Deserialize, Object)]
     pub struct UpdateTodoCommand {
@@ -34,11 +33,10 @@ mod models {
 }
 
 mod handler {
+    use super::models::{TodoUpdated, UpdateTodoCommand};
     use crate::assembly::io::{TodoEvent, block_on_blocking};
     use kernel::{CommandError, CommandHandlerPort};
     use sqlx::PgPool;
-
-    use super::models::{TodoUpdated, UpdateTodoCommand};
 
     pub struct UpdateTodoHandler {
         pool: PgPool,
@@ -64,10 +62,16 @@ mod handler {
 }
 
 mod infra_sqlx_pg {
-    use crate::assembly::io::{AppError, Clock, TodoDto, TodoRow, validate_title};
-    use sqlx::PgPool;
-
     use super::models::UpdateTodoCommand;
+    use crate::assembly::io::{
+        AppError,
+        Clock,
+        TodoDto,
+        TodoRow,
+        validate_title,
+        //
+    };
+    use sqlx::PgPool;
 
     pub async fn update_from_command(
         pool: &PgPool,
@@ -90,19 +94,19 @@ mod infra_sqlx_pg {
 }
 
 mod http {
+    use super::models::UpdateTodoCommand;
     use crate::{
         AppState,
         assembly::io::{
             ApiError, AppCommand, AppError, MulacState, NewCommandEnvelope, TodoDto, fetch_todo,
             interpret_dispatch_error,
         },
+        //
     };
     use poem::web::Data;
     use poem_openapi::{Object, OpenApi, param::Path, payload::Json};
     use serde::{Deserialize, Serialize};
     use uuid::Uuid;
-
-    use super::models::UpdateTodoCommand;
 
     #[derive(Debug, Clone, Serialize, Deserialize, Object)]
     pub struct UpdateTodoRequest {

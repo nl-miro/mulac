@@ -2,11 +2,10 @@ pub const REOPEN_TODO_COMMAND: &str = "ReopenTodo";
 pub const TODO_REOPENED_EVENT: &str = "TodoReopened";
 
 mod models {
+    use crate::assembly::io::TodoDto;
     use poem_openapi::Object;
     use serde::{Deserialize, Serialize};
     use uuid::Uuid;
-
-    use crate::assembly::io::TodoDto;
 
     #[derive(Debug, Clone, Serialize, Deserialize, Object)]
     pub struct ReopenTodoCommand {
@@ -32,11 +31,10 @@ mod models {
 }
 
 mod handler {
+    use super::models::{ReopenTodoCommand, TodoReopened};
     use crate::assembly::io::{TodoEvent, block_on_blocking};
     use kernel::{CommandError, CommandHandlerPort};
     use sqlx::PgPool;
-
-    use super::models::{ReopenTodoCommand, TodoReopened};
 
     pub struct ReopenTodoHandler {
         pool: PgPool,
@@ -65,7 +63,6 @@ mod infra_sqlx_pg {
     use crate::assembly::io::{AppError, Clock, TodoDto, TodoRow, TodoStatus};
     use sqlx::PgPool;
     use uuid::Uuid;
-
     pub async fn reopen(pool: &PgPool, id: Uuid) -> Result<TodoDto, AppError> {
         let sql = "UPDATE todos SET status = $2, updated_at = $3 WHERE id = $1 RETURNING id, title, description, status, created_at, updated_at, due_at";
 
@@ -82,18 +79,18 @@ mod infra_sqlx_pg {
 }
 
 mod http {
+    use super::models::ReopenTodoCommand;
     use crate::{
         AppState,
         assembly::io::{
             ApiError, AppCommand, MulacState, NewCommandEnvelope, TodoDto, fetch_todo,
             interpret_dispatch_error,
         },
+        //
     };
     use poem::web::Data;
     use poem_openapi::{OpenApi, param::Path, payload::Json};
     use uuid::Uuid;
-
-    use super::models::ReopenTodoCommand;
 
     fn dispatch_reopen_todo(mulac: &MulacState, id: Uuid) -> Result<(), ApiError> {
         let command_id = Uuid::now_v7();

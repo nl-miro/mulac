@@ -1,10 +1,30 @@
-use std::env;
-
-use poem::{EndpointExt, Route, get, handler, listener::TcpListener, middleware::AddData};
+use poem::{
+    EndpointExt,
+    Route,
+    get,
+    handler,
+    listener::TcpListener,
+    middleware::AddData, //
+};
 use poem_openapi::OpenApiService;
+use std::env;
 use test_app_todo::io::{
-    AppState, CompleteApi, CreateApi, DeleteApi, DueDatesApi, GetApi, InboxApi, ListApi, OutboxApi,
-    ReopenApi, UpdateApi, connect, migrate, run_command_worker, run_event_worker, start_mulac,
+    AppState,
+    CompleteApi,
+    CreateApi,
+    DeleteApi,
+    DueDatesApi,
+    GetApi,
+    InboxApi,
+    ListApi,
+    OutboxApi,
+    ReopenApi,
+    UpdateApi,
+    connect,
+    migrate,
+    run_command_worker,
+    run_event_worker,
+    start_mulac, //
 };
 
 #[handler]

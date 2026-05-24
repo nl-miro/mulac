@@ -1,10 +1,8 @@
 pub(crate) mod assembly;
-pub mod db;
+pub(crate) mod direct_message_send;
 mod inbox;
 mod outbox;
 pub mod schema;
-
-pub(crate) mod direct_message_send;
 pub(crate) mod timeline_fan_out;
 pub(crate) mod tweet_delete;
 pub(crate) mod tweet_like;
@@ -61,23 +59,68 @@ impl AppState {
 
 pub mod io {
     pub use super::assembly::io::{
-        ApiError, AppCommand, AppError, DEFAULT_DATABASE_URL, DbPool, ErrorBody, MulacHandle,
-        MulacState, NewCommandEnvelope, OutboxSubscriber, build_pool, interpret_dispatch_error,
-        run_blocking, run_command_worker, run_event_worker, run_migrations, start_mulac,
+        ApiError,
+        AppCommand,
+        AppError,
+        DEFAULT_DATABASE_URL,
+        DbPool,
+        ErrorBody,
+        MulacHandle,
+        MulacState,
+        NewCommandEnvelope,
+        OutboxSubscriber,
+        build_pool,
+        interpret_dispatch_error,
+        run_blocking,
+        run_command_worker,
+        run_event_worker,
+        run_migrations,
+        start_mulac,
         validate_content,
+        //
     };
     pub use super::direct_message_send::io::{
-        Api as DirectMessageSendApi, Handler as SendDirectMessageHandler,
+        Api as DirectMessageSendApi,
+        Handler as SendDirectMessageHandler,
+        //
     };
     pub use super::inbox::io::Api as InboxApi;
     pub use super::outbox::io::{Api as OutboxApi, OutboxMessageDto};
     pub use super::timeline_fan_out::io::Handler as FanOutTweetHandler;
-    pub use super::tweet_delete::io::{Api as TweetDeleteApi, Handler as DeleteTweetHandler};
-    pub use super::tweet_like::io::{Api as TweetLikeApi, Handler as LikeTweetHandler};
-    pub use super::tweet_post::io::{Api as TweetPostApi, Handler as PostTweetHandler};
-    pub use super::tweet_retweet::io::{Api as TweetRetweetApi, Handler as RetweetHandler};
-    pub use super::tweet_unlike::io::{Api as TweetUnlikeApi, Handler as UnlikeTweetHandler};
-    pub use super::user_follow::io::{Api as FollowUserApi, Handler as FollowUserHandler};
-    pub use super::user_unfollow::io::{Api as UnfollowUserApi, Handler as UnfollowUserHandler};
+    pub use super::tweet_delete::io::{
+        Api as TweetDeleteApi,
+        Handler as DeleteTweetHandler,
+        //
+    };
+    pub use super::tweet_like::io::{
+        Api as TweetLikeApi,
+        Handler as LikeTweetHandler,
+        //
+    };
+    pub use super::tweet_post::io::{
+        Api as TweetPostApi,
+        Handler as PostTweetHandler,
+        //
+    };
+    pub use super::tweet_retweet::io::{
+        Api as TweetRetweetApi,
+        Handler as RetweetHandler,
+        //
+    };
+    pub use super::tweet_unlike::io::{
+        Api as TweetUnlikeApi,
+        Handler as UnlikeTweetHandler,
+        //
+    };
+    pub use super::user_follow::io::{
+        Api as FollowUserApi,
+        Handler as FollowUserHandler,
+        //
+    };
+    pub use super::user_unfollow::io::{
+        Api as UnfollowUserApi,
+        Handler as UnfollowUserHandler,
+        //
+    };
     pub use super::{AppState, TwitterEvent};
 }

@@ -2,11 +2,10 @@ pub const DELETE_TODO_COMMAND: &str = "DeleteTodo";
 pub const TODO_DELETED_EVENT: &str = "TodoDeleted";
 
 mod models {
+    use crate::assembly::io::TodoDto;
     use poem_openapi::Object;
     use serde::{Deserialize, Serialize};
     use uuid::Uuid;
-
-    use crate::assembly::io::TodoDto;
 
     #[derive(Debug, Clone, Serialize, Deserialize, Object)]
     pub struct DeleteTodoCommand {
@@ -32,11 +31,10 @@ mod models {
 }
 
 mod handler {
+    use super::models::{DeleteTodoCommand, TodoDeleted};
     use crate::assembly::io::{TodoEvent, block_on_blocking};
     use kernel::{CommandError, CommandHandlerPort};
     use sqlx::PgPool;
-
-    use super::models::{DeleteTodoCommand, TodoDeleted};
 
     pub struct DeleteTodoHandler {
         pool: PgPool,
@@ -62,10 +60,9 @@ mod handler {
 }
 
 mod infra_sqlx_pg {
+    use super::models::DeleteTodoCommand;
     use crate::assembly::io::{AppError, TodoDto, TodoRow};
     use sqlx::PgPool;
-
-    use super::models::DeleteTodoCommand;
 
     pub async fn delete_from_command(
         pool: &PgPool,
@@ -84,18 +81,18 @@ mod infra_sqlx_pg {
 }
 
 mod http {
+    use super::models::DeleteTodoCommand;
     use crate::{
         AppState,
         assembly::io::{
             ApiError, AppCommand, AppError, MulacState, NewCommandEnvelope,
             interpret_dispatch_error,
         },
+        //
     };
     use poem::web::Data;
     use poem_openapi::{ApiResponse, OpenApi, param::Path};
     use uuid::Uuid;
-
-    use super::models::DeleteTodoCommand;
 
     #[derive(ApiResponse)]
     enum DeleteResponse {
