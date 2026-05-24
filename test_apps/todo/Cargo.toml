@@ -20,7 +20,7 @@ uuid = { version = "1", features = ["v7", "serde"] }
 kernel = { path = "../../kernel" }
 commanding = { path = "../../libs/commanding", default-features = false }
 eventing = { path = "../../libs/eventing", default-features = false }
-mulac_diesel = { path = "../../libs/mulac_diesel"}
+mulac_diesel = { path = "../../libs/mulac_diesel" }
 
 [[bin]]
 name = "test_app_todo"
