@@ -1,18 +1,60 @@
-pub use commanding::io::{ApplicationEvent, CommandError, CommandHandlerPort, NewCommandMetadata};
+mod command_handler_registry;
+mod event_subscriber_registry;
+mod workers;
+
+pub mod io {
+    pub use super::command_handler_registry::CommandHandlerRegistry;
+    pub use super::event_subscriber_registry::EventSubscriberRegistry;
+    pub use super::workers::{run_command_worker, run_event_worker};
+    pub use super::{block_on_blocking, first_command_error, first_event_error};
+    pub use commanding::io::{
+        CommandConsumer,
+        CommandConsumerRepository,
+        CommandConsumerStorage,
+        CommandDispatcher,
+        CommandError,
+        CommandGateway,
+        CommandHandlerPort,
+        CommandRecorder,
+        CommandRecorderRepository,
+        CommandStoreStorage,
+        NewCommand,
+        NewCommandEnvelope,
+        NewCommandMetadata,
+        ReservableCommandSpec,
+        wrap_handler, //
+    };
+    pub use mulac_diesel::{DbPool, build_pool};
+
+    pub use eventing::io::{
+        EventConsumer,
+        EventConsumerRepository,
+        EventConsumerStorage,
+        EventDispatcher,
+        EventGateway,
+        EventRecorder,
+        EventRecorderRepository,
+        EventStoreStorage,
+        ReservableEventSpec, //
+    };
+}
+
+use crate::command_handler_registry::CommandHandlerRegistry;
+use crate::event_subscriber_registry::EventSubscriberRegistry;
+pub use commanding::io::{
+    ApplicationEvent,
+    CommandError,
+    CommandHandlerPort,
+    NewCommandMetadata, //
+};
 use commanding::io::{
     CommandConsumer,
     CommandConsumerRepository,
     CommandDispatcher,
-    CommandEnvelope,
     CommandGateway,
-    CommandMetadata,
-    CommandProcessPort,
-    CommandReservePort,
     ErasedCommandHandler,
-    ErasedCommandHandler as GatewayCommandHandler,
     NewCommand as GatewayNewCommand,
     NewCommandEnvelope as GatewayCommandEnvelope,
-    ReservableCommandSpec,
     wrap_handler, //
 };
 pub use eventing::io::{
@@ -31,11 +73,16 @@ pub use eventing::io::{
     ReservableEventSpec, //
 };
 pub use inbox::io::{
-    InboundMessageEnvelope, InboxError, InboxMessageMetadata, InboxRecorder,
-    InboxRecorderRepository, InboxStorePort, NewInboxMessageEnvelope,
+    InboundMessageEnvelope,
+    InboxError,
+    InboxMessageMetadata,
+    InboxRecorder,
+    InboxRecorderRepository,
+    InboxStorePort,
+    NewInboxMessageEnvelope, //
 };
 pub use outbox::io::{NewOutboxEnvelope, NewOutboxMetadata, OutboxError};
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 
 pub type GatewayNewCommandEnvelope = GatewayCommandEnvelope;
@@ -125,8 +172,42 @@ impl AppState {
 pub struct KernelBuilder {
     _config: KernelConfig,
     command_handlers: Vec<(String, Arc<dyn ErasedCommandHandler>)>,
-    event_subscribers: Vec<(String, String, Arc<dyn EventSubscriberPort>)>,
+    event_subscribers: Vec<EventSubscriberRegistration>,
     outbox_subscribers: Vec<String>,
+}
+
+enum EventSubscriberRegistration {
+    Direct {
+        event_type: String,
+        subscriber_name: String,
+        subscriber: Arc<dyn EventSubscriberPort>,
+    },
+    WithCommandGateway {
+        event_type: String,
+        subscriber_name: String,
+        factory: Arc<dyn Fn(Arc<CommandGateway>) -> Arc<dyn EventSubscriberPort> + Send + Sync>,
+    },
+}
+
+impl EventSubscriberRegistration {
+    fn event_type(&self) -> &str {
+        match self {
+            Self::Direct { event_type, .. } | Self::WithCommandGateway { event_type, .. } => {
+                event_type
+            }
+        }
+    }
+
+    fn subscriber_name(&self) -> &str {
+        match self {
+            Self::Direct {
+                subscriber_name, ..
+            }
+            | Self::WithCommandGateway {
+                subscriber_name, ..
+            } => subscriber_name,
+        }
+    }
 }
 
 impl KernelBuilder {
@@ -160,7 +241,29 @@ impl KernelBuilder {
         subscriber: Arc<dyn EventSubscriberPort>,
     ) -> Self {
         self.event_subscribers
-            .push((event_type.into(), subscriber_name.into(), subscriber));
+            .push(EventSubscriberRegistration::Direct {
+                event_type: event_type.into(),
+                subscriber_name: subscriber_name.into(),
+                subscriber,
+            });
+        self
+    }
+
+    pub fn event_subscriber_with_command_gateway<F>(
+        mut self,
+        event_type: impl Into<String>,
+        subscriber_name: impl Into<String>,
+        factory: F,
+    ) -> Self
+    where
+        F: Fn(Arc<CommandGateway>) -> Arc<dyn EventSubscriberPort> + Send + Sync + 'static,
+    {
+        self.event_subscribers
+            .push(EventSubscriberRegistration::WithCommandGateway {
+                event_type: event_type.into(),
+                subscriber_name: subscriber_name.into(),
+                factory: Arc::new(factory),
+            });
         self
     }
 
@@ -172,7 +275,37 @@ impl KernelBuilder {
     pub async fn start(self) -> Result<KernelHandle, KernelError> {
         self.validate()?;
 
-        let event_registry = Arc::new(EventSubscriberRegistry::from_builder(&self));
+        let mut subscribers: Vec<(String, String, Arc<dyn EventSubscriberPort>)> = self
+            .outbox_subscribers
+            .iter()
+            .map(|event_type| {
+                (
+                    event_type.clone(),
+                    OUTBOX_SUBSCRIBER.to_string(),
+                    Arc::new(NoopEventSubscriber) as Arc<dyn EventSubscriberPort>,
+                )
+            })
+            .collect();
+        subscribers.extend(self.event_subscribers.into_iter().map(
+            |registration| match registration {
+                EventSubscriberRegistration::Direct {
+                    event_type,
+                    subscriber_name,
+                    subscriber,
+                } => (event_type, subscriber_name, subscriber),
+                EventSubscriberRegistration::WithCommandGateway {
+                    event_type,
+                    subscriber_name,
+                    ..
+                } => (
+                    event_type,
+                    subscriber_name,
+                    Arc::new(NoopEventSubscriber) as Arc<dyn EventSubscriberPort>,
+                ),
+            },
+        ));
+
+        let event_registry = Arc::new(EventSubscriberRegistry::from_subscribers(subscribers));
         let event_dispatcher = Arc::new(EventDispatcher::new(event_registry));
         let event_gateway = Arc::new(EventGateway::direct(event_dispatcher.clone()));
 
@@ -202,6 +335,90 @@ impl KernelBuilder {
         })
     }
 
+    pub fn start_persistent(
+        self,
+        db_pool: io::DbPool,
+        drain_rounds: usize,
+    ) -> Result<PersistentKernelHandle, KernelError> {
+        self.validate()?;
+
+        let command_registry =
+            Arc::new(CommandHandlerRegistry::from_handlers(self.command_handlers));
+
+        let command_store = Arc::new(io::CommandStoreStorage::new(db_pool.clone()));
+        let command_recorder = Arc::new(io::CommandRecorder::new(Arc::new(
+            io::CommandRecorderRepository::new(command_store),
+        )));
+        let command_gateway = Arc::new(CommandGateway::two_phased(command_recorder));
+
+        let mut subscribers: Vec<(String, String, Arc<dyn EventSubscriberPort>)> = self
+            .outbox_subscribers
+            .iter()
+            .map(|event_type| {
+                (
+                    event_type.clone(),
+                    OUTBOX_SUBSCRIBER.to_string(),
+                    Arc::new(NoopEventSubscriber) as Arc<dyn EventSubscriberPort>,
+                )
+            })
+            .collect();
+        subscribers.extend(self.event_subscribers.into_iter().map(
+            |registration| match registration {
+                EventSubscriberRegistration::Direct {
+                    event_type,
+                    subscriber_name,
+                    subscriber,
+                } => (event_type, subscriber_name, subscriber),
+                EventSubscriberRegistration::WithCommandGateway {
+                    event_type,
+                    subscriber_name,
+                    factory,
+                } => (
+                    event_type,
+                    subscriber_name,
+                    factory(command_gateway.clone()),
+                ),
+            },
+        ));
+
+        let event_registry = Arc::new(EventSubscriberRegistry::from_subscribers(subscribers));
+        let event_dispatcher = Arc::new(EventDispatcher::new(event_registry));
+
+        let event_store = Arc::new(io::EventStoreStorage::new(db_pool.clone()));
+        let event_recorder = Arc::new(io::EventRecorder::new(Arc::new(
+            io::EventRecorderRepository::new(event_store),
+        )));
+        let event_gateway = Arc::new(EventGateway::two_phased(event_recorder));
+
+        let command_dispatcher = Arc::new(CommandDispatcher::new(command_registry, event_gateway));
+
+        let command_storage = Arc::new(io::CommandConsumerStorage::new(db_pool.clone()));
+        let command_consumer_repository =
+            CommandConsumerRepository::new(command_storage.clone(), command_storage);
+        let command_consumer = Arc::new(CommandConsumer::new(
+            command_consumer_repository,
+            command_dispatcher,
+        ));
+
+        let event_storage = Arc::new(io::EventConsumerStorage::new(db_pool));
+        let event_consumer_repository =
+            EventConsumerRepository::new(event_storage.clone(), event_storage);
+        let event_consumer = Arc::new(EventConsumer::new(
+            event_consumer_repository,
+            event_dispatcher,
+        ));
+
+        Ok(PersistentKernelHandle {
+            state: PersistentKernelState {
+                command_gateway,
+                command_consumer,
+                event_consumer,
+                drain_rounds,
+            },
+            token: CancellationToken::new(),
+        })
+    }
+
     fn validate(&self) -> Result<(), KernelError> {
         let mut command_types = std::collections::HashSet::new();
         for (command_type, _) in &self.command_handlers {
@@ -211,14 +428,16 @@ impl KernelBuilder {
         }
 
         let mut event_subscribers = std::collections::HashSet::new();
-        for (event_type, subscriber, _) in &self.event_subscribers {
+        for registration in &self.event_subscribers {
+            let event_type = registration.event_type();
+            let subscriber = registration.subscriber_name();
             if subscriber == OUTBOX_SUBSCRIBER {
-                return Err(KernelError::ReservedSubscriberName(subscriber.clone()));
+                return Err(KernelError::ReservedSubscriberName(subscriber.to_string()));
             }
-            if !event_subscribers.insert((event_type.clone(), subscriber.clone())) {
+            if !event_subscribers.insert((event_type.to_string(), subscriber.to_string())) {
                 return Err(KernelError::DuplicateEventSubscriber {
-                    event_type: event_type.clone(),
-                    subscriber: subscriber.clone(),
+                    event_type: event_type.to_string(),
+                    subscriber: subscriber.to_string(),
                 });
             }
         }
@@ -241,6 +460,74 @@ pub struct KernelHandle {
     token: CancellationToken,
     command_dispatcher: Arc<CommandDispatcher>,
     event_dispatcher: Arc<EventDispatcher>,
+}
+
+#[derive(Clone)]
+pub struct PersistentKernelState {
+    command_gateway: Arc<CommandGateway>,
+    command_consumer: Arc<CommandConsumer>,
+    event_consumer: Arc<EventConsumer>,
+    drain_rounds: usize,
+}
+
+impl PersistentKernelState {
+    pub fn dispatch_command<C>(&self, envelope: NewCommandEnvelope<C>) -> Result<(), KernelError>
+    where
+        C: ApplicationCommand,
+    {
+        let envelope = envelope
+            .into_gateway_envelope()
+            .map_err(|e| KernelError::Command(CommandError::Conversion(e.to_string())))?;
+
+        self.command_gateway.dispatch(envelope)?;
+
+        for _ in 0..self.drain_rounds {
+            self.command_consumer
+                .consume(&io::ReservableCommandSpec::new(64))
+                .map_err(first_command_error)?;
+            self.event_consumer
+                .consume(&io::ReservableEventSpec::new(64))
+                .map_err(first_event_error)?;
+        }
+
+        Ok(())
+    }
+
+    pub fn command_gateway(&self) -> Arc<CommandGateway> {
+        self.command_gateway.clone()
+    }
+}
+
+pub struct PersistentKernelHandle {
+    state: PersistentKernelState,
+    token: CancellationToken,
+}
+
+impl PersistentKernelHandle {
+    pub fn state(&self) -> PersistentKernelState {
+        self.state.clone()
+    }
+
+    pub fn child_token(&self) -> CancellationToken {
+        self.token.child_token()
+    }
+
+    pub fn command_consumer(&self) -> Arc<CommandConsumer> {
+        self.state.command_consumer.clone()
+    }
+
+    pub fn event_consumer(&self) -> Arc<EventConsumer> {
+        self.state.event_consumer.clone()
+    }
+
+    pub fn shutdown(&self) {
+        self.token.cancel();
+    }
+
+    pub async fn wait(self) -> Result<(), KernelError> {
+        self.token.cancel();
+        Ok(())
+    }
 }
 
 impl KernelHandle {
@@ -269,72 +556,6 @@ impl KernelHandle {
     }
 }
 
-struct CommandHandlerRegistry {
-    handlers: HashMap<String, Arc<dyn ErasedCommandHandler>>,
-}
-
-impl CommandHandlerRegistry {
-    fn from_handlers(handlers: Vec<(String, Arc<dyn ErasedCommandHandler>)>) -> Self {
-        Self {
-            handlers: handlers.into_iter().collect(),
-        }
-    }
-}
-
-impl ErasedCommandHandler for CommandHandlerRegistry {
-    fn execute(
-        &self,
-        envelope: &GatewayNewCommandEnvelope,
-    ) -> Result<Vec<NewEventEnvelope>, CommandError> {
-        let handler = self
-            .handlers
-            .get(&envelope.command.command_type)
-            .ok_or_else(|| CommandError::HandlerNotFound(envelope.command.command_type.clone()))?;
-        handler.execute(envelope)
-    }
-}
-
-struct EventSubscriberRegistry {
-    subscribers: HashMap<String, Vec<(String, Arc<dyn EventSubscriberPort>)>>,
-}
-
-impl EventSubscriberRegistry {
-    fn from_builder(builder: &KernelBuilder) -> Self {
-        let mut subscribers: HashMap<String, Vec<(String, Arc<dyn EventSubscriberPort>)>> =
-            HashMap::new();
-
-        for event_type in &builder.outbox_subscribers {
-            subscribers
-                .entry(event_type.clone())
-                .or_default()
-                .push((OUTBOX_SUBSCRIBER.into(), Arc::new(NoopEventSubscriber)));
-        }
-
-        for (event_type, subscriber_name, subscriber) in &builder.event_subscribers {
-            subscribers
-                .entry(event_type.clone())
-                .or_default()
-                .push((subscriber_name.clone(), subscriber.clone()));
-        }
-
-        Self { subscribers }
-    }
-}
-
-impl EventSubscriberPort for EventSubscriberRegistry {
-    fn handle(&self, envelope: &NewEventEnvelope) -> Result<(), EventError> {
-        for (_, subscriber) in self
-            .subscribers
-            .get(&envelope.event_type)
-            .into_iter()
-            .flatten()
-        {
-            subscriber.handle(envelope)?;
-        }
-        Ok(())
-    }
-}
-
 struct NoopEventSubscriber;
 
 impl EventSubscriberPort for NoopEventSubscriber {
@@ -349,6 +570,28 @@ impl InboxStorePort for NoopInboxStore {
     fn store(&self, _msg: NewInboxMessageEnvelope) -> Result<(), InboxError> {
         Ok(())
     }
+}
+
+pub fn first_command_error(errors: Vec<CommandError>) -> KernelError {
+    match errors.into_iter().next() {
+        Some(error) => KernelError::Command(error),
+        None => KernelError::Worker("command consumer failed without an error".to_string()),
+    }
+}
+
+pub fn first_event_error(errors: Vec<EventError>) -> KernelError {
+    match errors.into_iter().next() {
+        Some(error) => KernelError::Event(error),
+        None => KernelError::Worker("event consumer failed without an error".to_string()),
+    }
+}
+
+pub fn block_on_blocking<F>(future: F) -> F::Output
+where
+    F: std::future::Future + Send + 'static,
+    F::Output: Send + 'static,
+{
+    tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(future))
 }
 
 #[derive(Debug, thiserror::Error)]

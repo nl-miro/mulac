@@ -11,7 +11,10 @@ inbox = { path = "../libs/inbox", default-features = false }
 commanding = { path = "../libs/commanding", default-features = false }
 eventing = { path = "../libs/eventing", default-features = false }
 outbox = { path = "../libs/outbox", default-features = false }
+mulac_diesel = { path = "../libs/mulac_diesel", default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "time", "macros"] }
 tokio-util = "0.7"
+tracing = "0.1"
