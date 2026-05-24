@@ -1,6 +1,6 @@
 .PHONY: fmt check test test-apps-up test-apps-down test-apps-reset test-apps-test test-apps-serve
 
-CARGO_DIRS := $(shell find . -name Cargo.toml -not -path '*/target/*' -not -path './test_apps/*' -exec dirname {} \; | sort)
+CARGO_DIRS := $(shell find . -name Cargo.toml -not -path '*/target/*' -exec dirname {} \; | sort)
 
 define run-fmt-in-crates
 	@set -e; \
