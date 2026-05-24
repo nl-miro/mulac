@@ -3,14 +3,16 @@ pub mod io {
         InboundMessageEnvelope,
         InboxError,
         InboxMessageEnvelope,
-        InboxMessageMetadata, //
+        InboxMessageMetadata,
+        //
     };
     pub use super::ports::{
         AcknowledgeHandle,
         InboxProcessPort,
         InboxTransportFuture,
         InboxTransportPort,
-        InboxTransportResult, //
+        InboxTransportResult,
+        //
     };
 }
 

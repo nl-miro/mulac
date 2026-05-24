@@ -4,7 +4,6 @@ pub mod io {
 }
 
 mod ports {
-
     use crate::assembly::io::EventError;
     use crate::assembly::io::NewEventEnvelope;
 

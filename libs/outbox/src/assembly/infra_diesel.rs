@@ -1,10 +1,10 @@
 pub mod io {
-    pub use mulac_diesel::{DbPool, build_pool};
-
     pub use super::storage::{OutboxConsumerStorage, OutboxStoreStorage};
+    pub use mulac_diesel::{DbPool, build_pool};
 }
 
 mod models {
+    use crate::assembly::domain::OutboxEntryMetadata;
     use diesel::deserialize::{FromSql, Result as DeserializeResult};
     use diesel::pg::{Pg, PgValue};
     use diesel::serialize::{IsNull, Output, Result as SerializeResult, ToSql};
@@ -12,8 +12,6 @@ mod models {
     use diesel::{AsExpression, FromSqlRow};
     use serde_json::{from_slice, to_writer};
     use std::io::Write;
-
-    use crate::assembly::domain::OutboxEntryMetadata;
 
     #[derive(Debug, Clone, PartialEq, Eq, AsExpression, FromSqlRow)]
     #[diesel(sql_type = Jsonb)]
@@ -46,7 +44,10 @@ mod models {
 mod conversions {
     use crate::assembly::application::io::{OutboxEntryEnvelope, OutboxError};
     use crate::assembly::domain::{
-        NewOutboxEntry as DomainNewOutboxEntry, OutboxEntry as DomainOutboxEntry, OutboxStatus,
+        NewOutboxEntry as DomainNewOutboxEntry,
+        OutboxEntry as DomainOutboxEntry,
+        OutboxStatus,
+        //
     };
 
     use super::entity::{NewOutboxEntryRecord, OutboxEntryRecord};
@@ -116,13 +117,11 @@ pub(crate) mod schema {
 }
 
 pub(crate) mod entity {
+    use super::models::MetadataJsonb;
+    use crate::assembly::domain::OutboxEntryMetadata;
     use chrono::{DateTime, Utc};
     use diesel::{Insertable, Queryable, QueryableByName, Selectable};
     use uuid::Uuid;
-
-    use crate::assembly::domain::OutboxEntryMetadata;
-
-    use super::models::MetadataJsonb;
 
     #[derive(Debug, Insertable)]
     #[diesel(table_name = super::schema::outbox_entries)]
@@ -294,23 +293,26 @@ pub(crate) mod entity {
 }
 
 mod storage {
-    use chrono::{DateTime, Duration, Utc};
-    use diesel::prelude::*;
-    use diesel::sql_types::{Array, BigInt, Int4, Uuid as SqlUuid};
-    use mulac_diesel::DbPool;
-    use uuid::Uuid;
-
+    use super::entity::{NewOutboxEntryRecord, OutboxEntryRecord};
+    use super::schema::outbox_entries;
     use crate::assembly::application::io::{
-        OutboxEntryEnvelope, OutboxError, OutboxProcessPort, OutboxReservePort, OutboxStorePort,
+        OutboxEntryEnvelope,
+        OutboxError,
+        OutboxProcessPort,
+        OutboxReservePort,
+        OutboxStorePort,
         OutboxSweepPort,
+        //
     };
     use crate::assembly::domain::NewOutboxEntry;
     use crate::assembly::domain::OutboxStatus;
     use crate::outbox_consumer::io::ReservableOutboxSpec;
     use crate::stale_reservation_sweep::io::StaleReservationSpec;
-
-    use super::entity::{NewOutboxEntryRecord, OutboxEntryRecord};
-    use super::schema::outbox_entries;
+    use chrono::{DateTime, Duration, Utc};
+    use diesel::prelude::*;
+    use diesel::sql_types::{Array, BigInt, Int4, Uuid as SqlUuid};
+    use mulac_diesel::DbPool;
+    use uuid::Uuid;
 
     pub struct OutboxStoreStorage {
         pub(crate) pool: DbPool,
@@ -608,14 +610,17 @@ mod storage {
 
 #[cfg(test)]
 mod tests {
-    use chrono::Utc;
-    use uuid::Uuid;
-
-    use crate::assembly::application::io::OutboxEntryEnvelope;
-    use crate::assembly::domain::{NewOutboxEntry, OutboxEntryMetadata, OutboxStatus};
-
     use super::entity::{NewOutboxEntryRecord, OutboxEntryRecord};
     use super::models::MetadataJsonb;
+    use crate::assembly::application::io::OutboxEntryEnvelope;
+    use crate::assembly::domain::{
+        NewOutboxEntry,
+        OutboxEntryMetadata,
+        OutboxStatus,
+        //
+    };
+    use chrono::Utc;
+    use uuid::Uuid;
 
     fn metadata(event_id: Uuid) -> OutboxEntryMetadata {
         OutboxEntryMetadata {

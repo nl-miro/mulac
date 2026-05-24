@@ -100,9 +100,8 @@ mod spec {
 }
 
 mod ports {
-    use crate::assembly::io::InboxError;
-
     use super::spec::StaleReservationSpec;
+    use crate::assembly::io::InboxError;
 
     /// Output port for releasing stale reservations back into the processable pool.
     pub trait InboxSweepPort: Send + Sync {
@@ -117,12 +116,10 @@ mod ports {
 }
 
 mod sweeper {
-    use std::sync::Arc;
-
-    use crate::assembly::io::InboxError;
-
     use super::ports::InboxSweepPort;
     use super::spec::StaleReservationSpec;
+    use crate::assembly::io::InboxError;
+    use std::sync::Arc;
 
     /// Releases messages that have been stuck in `Reserved` status longer than a
     /// configured timeout, making them eligible for re-reservation.
@@ -153,16 +150,14 @@ mod sweeper {
 
 #[cfg(feature = "diesel")]
 mod infra_diesel_pg {
-    use chrono::{DateTime, Utc};
-    use diesel::prelude::*;
-    use diesel::sql_types::{BigInt, Int4, Timestamptz};
-
+    use super::criterion::SweepCriterion;
+    use super::io::{InboxSweepPort, StaleReservationSpec};
     use crate::assembly::io::InboxConsumerStorage;
     use crate::assembly::io::InboxError;
     use crate::assembly::io::InboxStatus;
-
-    use super::criterion::SweepCriterion;
-    use super::io::{InboxSweepPort, StaleReservationSpec};
+    use chrono::{DateTime, Utc};
+    use diesel::prelude::*;
+    use diesel::sql_types::{BigInt, Int4, Timestamptz};
 
     impl InboxSweepPort for InboxConsumerStorage {
         fn sweep(&self, spec: &StaleReservationSpec) -> Result<usize, InboxError> {

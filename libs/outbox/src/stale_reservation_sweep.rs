@@ -1,13 +1,10 @@
 pub mod io {
-    #[cfg(feature = "diesel")]
-    use std::sync::Arc;
-
-    #[cfg(feature = "diesel")]
-    use crate::assembly::infra_diesel::io::{DbPool, OutboxConsumerStorage};
-
     pub use super::spec::StaleReservationSpec;
     pub use super::sweeper::ReservationSweeper;
-
+    #[cfg(feature = "diesel")]
+    use crate::assembly::infra_diesel::io::{DbPool, OutboxConsumerStorage};
+    #[cfg(feature = "diesel")]
+    use std::sync::Arc;
     #[cfg(feature = "diesel")]
     pub fn sweeper(pool: DbPool) -> ReservationSweeper {
         let storage = Arc::new(OutboxConsumerStorage::new(pool));
@@ -40,11 +37,9 @@ mod spec {
 }
 
 mod sweeper {
-    use std::sync::Arc;
-
-    use crate::assembly::io::{OutboxError, OutboxSweepPort};
-
     use super::spec::StaleReservationSpec;
+    use crate::assembly::io::{OutboxError, OutboxSweepPort};
+    use std::sync::Arc;
 
     pub struct ReservationSweeper {
         sweep: Arc<dyn OutboxSweepPort>,
@@ -63,13 +58,10 @@ mod sweeper {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::{Arc, Mutex};
-
-    use chrono::Duration;
-
-    use crate::assembly::io::{OutboxError, OutboxSweepPort};
-
     use super::io::{ReservationSweeper, StaleReservationSpec};
+    use crate::assembly::io::{OutboxError, OutboxSweepPort};
+    use chrono::Duration;
+    use std::sync::{Arc, Mutex};
 
     struct FakeSweepPort {
         result: Mutex<Result<u64, String>>,

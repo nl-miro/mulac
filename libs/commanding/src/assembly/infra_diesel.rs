@@ -1,6 +1,5 @@
 pub mod io {
     pub use super::entity::{CommandEntry, NewCommandEntry};
-
     pub use super::storage::{CommandConsumerStorage, CommandStoreStorage};
 }
 
@@ -40,15 +39,18 @@ pub(crate) mod models {
 }
 
 mod conversions {
-    use chrono::Utc;
-
-    use crate::assembly::application::io::{
-        Command, CommandEnvelope, CommandError, CommandMetadata, NewCommandEnvelope,
-        NewCommandMetadata,
-    };
-
     use super::entity::{CommandEntry, NewCommandEntry};
     use super::models::MetadataJsonb;
+    use crate::assembly::application::io::{
+        Command,
+        CommandEnvelope,
+        CommandError,
+        CommandMetadata,
+        NewCommandEnvelope,
+        NewCommandMetadata,
+        //
+    };
+    use chrono::Utc;
 
     impl TryFrom<&NewCommandEnvelope> for NewCommandEntry {
         type Error = CommandError;

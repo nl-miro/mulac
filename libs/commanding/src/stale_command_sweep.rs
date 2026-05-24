@@ -5,13 +5,11 @@ pub mod io {
 }
 
 mod spec {
-    use chrono::Duration;
-
-    #[cfg(feature = "diesel")]
-    use chrono::Utc;
-
     #[cfg(feature = "diesel")]
     use crate::assembly::io::Criterion;
+    use chrono::Duration;
+    #[cfg(feature = "diesel")]
+    use chrono::Utc;
 
     pub struct StaleCommandSpec {
         pub timeout: Duration,
@@ -73,9 +71,8 @@ mod spec {
 }
 
 mod ports {
-    use crate::assembly::io::CommandError;
-
     use super::spec::StaleCommandSpec;
+    use crate::assembly::io::CommandError;
 
     pub trait CommandSweepPort: Send + Sync {
         fn sweep(&self, spec: &StaleCommandSpec) -> Result<u64, CommandError>;
@@ -83,12 +80,10 @@ mod ports {
 }
 
 mod sweeper {
-    use std::sync::Arc;
-
-    use crate::assembly::io::CommandError;
-
     use super::ports::CommandSweepPort;
     use super::spec::StaleCommandSpec;
+    use crate::assembly::io::CommandError;
+    use std::sync::Arc;
 
     #[derive(Clone)]
     pub struct CommandSweeper {
@@ -108,13 +103,17 @@ mod sweeper {
 
 #[cfg(feature = "diesel")]
 mod infra_diesel_pg {
+    use super::io::{CommandSweepPort, StaleCommandSpec};
+    use crate::assembly::io::{
+        CommandConsumerStorage,
+        CommandError,
+        CommandStatus,
+        Criterion,
+        //
+    };
     use chrono::{DateTime, Utc};
     use diesel::prelude::*;
     use diesel::sql_types::{BigInt, Int4, Timestamptz};
-
-    use crate::assembly::io::{CommandConsumerStorage, CommandError, CommandStatus, Criterion};
-
-    use super::io::{CommandSweepPort, StaleCommandSpec};
 
     impl CommandSweepPort for CommandConsumerStorage {
         fn sweep(&self, spec: &StaleCommandSpec) -> Result<u64, CommandError> {

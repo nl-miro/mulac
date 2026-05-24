@@ -133,14 +133,12 @@ mod conversions {
 
     #[cfg(test)]
     mod tests {
-        use std::mem::MaybeUninit;
-        use std::ptr;
-
+        use super::super::models::{AmqpMessage, AmqpMessageMetadata};
         use lapin::BasicProperties;
         use lapin::message::Delivery;
+        use std::mem::MaybeUninit;
+        use std::ptr;
         use uuid::Uuid;
-
-        use super::super::models::{AmqpMessage, AmqpMessageMetadata};
 
         impl TryFrom<&Delivery> for AmqpMessage {
             type Error = std::string::FromUtf8Error;
@@ -291,12 +289,15 @@ mod client {
 
 #[cfg(feature = "amqp")]
 mod transport {
-    use crate::assembly::io::{
-        AcknowledgeHandle, InboundMessageEnvelope, InboxError, InboxTransportFuture,
-        InboxTransportPort,
-    };
-
     use super::client::{AmqpClient, AmqpClientError};
+    use crate::assembly::io::{
+        AcknowledgeHandle,
+        InboundMessageEnvelope,
+        InboxError,
+        InboxTransportFuture,
+        InboxTransportPort,
+        //
+    };
     use lapin::Channel;
 
     pub struct AmqpTransport {

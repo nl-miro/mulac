@@ -1,13 +1,10 @@
 pub mod io {
-    #[cfg(feature = "diesel")]
-    use std::sync::Arc;
-
-    #[cfg(feature = "diesel")]
-    use crate::assembly::infra_diesel::io::{DbPool, OutboxStoreStorage};
-
     pub use super::recorder::OutboxRecorder;
     pub use super::repository::OutboxRecorderRepository;
-
+    #[cfg(feature = "diesel")]
+    use crate::assembly::infra_diesel::io::{DbPool, OutboxStoreStorage};
+    #[cfg(feature = "diesel")]
+    use std::sync::Arc;
     #[cfg(feature = "diesel")]
     pub fn repository(pool: DbPool) -> Arc<OutboxRecorderRepository> {
         let store = Arc::new(OutboxStoreStorage::new(pool));
@@ -16,9 +13,8 @@ pub mod io {
 }
 
 mod repository {
-    use std::sync::Arc;
-
     use crate::assembly::io::{NewOutboxEntry, OutboxError, OutboxStorePort};
+    use std::sync::Arc;
 
     pub struct OutboxRecorderRepository {
         pub(super) store: Arc<dyn OutboxStorePort>,
@@ -36,11 +32,9 @@ mod repository {
 }
 
 mod recorder {
-    use std::sync::Arc;
-
-    use crate::assembly::io::{NewOutboxEntry, NewOutboxEnvelope, OutboxError};
-
     use super::repository::OutboxRecorderRepository;
+    use crate::assembly::io::{NewOutboxEntry, NewOutboxEnvelope, OutboxError};
+    use std::sync::Arc;
 
     pub struct OutboxRecorder {
         repo: Arc<OutboxRecorderRepository>,
@@ -67,9 +61,13 @@ mod recorder {
 }
 
 mod conversions {
+    use crate::assembly::io::{
+        NewOutboxEntry,
+        NewOutboxEnvelope,
+        OutboxEntryMetadata,
+        //
+    };
     use chrono::Utc;
-
-    use crate::assembly::io::{NewOutboxEntry, NewOutboxEnvelope, OutboxEntryMetadata};
 
     impl From<&NewOutboxEnvelope> for NewOutboxEntry {
         fn from(envelope: &NewOutboxEnvelope) -> Self {
@@ -88,15 +86,17 @@ mod conversions {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::{Arc, Mutex};
-
-    use uuid::Uuid;
-
-    use crate::assembly::io::{
-        NewOutboxEntry, NewOutboxEnvelope, NewOutboxMetadata, OutboxError, OutboxStorePort,
-    };
-
     use super::io::{OutboxRecorder, OutboxRecorderRepository};
+    use crate::assembly::io::{
+        NewOutboxEntry,
+        NewOutboxEnvelope,
+        NewOutboxMetadata,
+        OutboxError,
+        OutboxStorePort,
+        //
+    };
+    use std::sync::{Arc, Mutex};
+    use uuid::Uuid;
 
     #[derive(Default)]
     struct FakeStore {

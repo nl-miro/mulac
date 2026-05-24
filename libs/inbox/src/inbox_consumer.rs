@@ -118,9 +118,8 @@ mod reservable {
 }
 
 mod ports {
-    use crate::assembly::io::{InboxError, InboxMessageEnvelope};
-
     use super::reservable::ReservableInboxSpec;
+    use crate::assembly::io::{InboxError, InboxMessageEnvelope};
 
     pub trait InboxReservePort: Send + Sync {
         fn reserve(
@@ -131,14 +130,11 @@ mod ports {
 }
 
 mod repository {
-    use std::sync::Arc;
-
-    use uuid::Uuid;
-
-    use crate::assembly::io::{InboxError, InboxMessageEnvelope, InboxProcessPort};
-
     use super::ports::InboxReservePort;
     use super::reservable::ReservableInboxSpec;
+    use crate::assembly::io::{InboxError, InboxMessageEnvelope, InboxProcessPort};
+    use std::sync::Arc;
+    use uuid::Uuid;
 
     /// Repository for the inbox consumer use case.
     ///
@@ -188,10 +184,9 @@ mod repository {
 }
 
 mod conversions {
-    use uuid::Uuid;
-
     use crate::assembly::io::{InboxError, InboxMessageEnvelope};
     use commanding::io::{NewCommand, NewCommandEnvelope, NewCommandMetadata};
+    use uuid::Uuid;
 
     impl TryFrom<InboxMessageEnvelope> for NewCommandEnvelope {
         type Error = InboxError;
@@ -220,13 +215,11 @@ mod conversions {
 }
 
 mod consumer {
-    use commanding::io::CommandGateway;
-    use uuid::Uuid;
-
-    use crate::assembly::io::InboxError;
-
     use super::repository::InboxConsumerRepository;
     use super::reservable::ReservableInboxSpec;
+    use crate::assembly::io::InboxError;
+    use commanding::io::CommandGateway;
+    use uuid::Uuid;
 
     pub struct InboxConsumer {
         repository: InboxConsumerRepository,
@@ -302,6 +295,7 @@ mod consumer {
 
 #[cfg(feature = "diesel")]
 mod infra_diesel_pg {
+    use super::io::{InboxReservePort, ReservableInboxSpec};
     use crate::assembly::io::InboxConsumerStorage;
     use crate::assembly::io::InboxEntry;
     use crate::assembly::io::inbox_entries;
@@ -311,8 +305,6 @@ mod infra_diesel_pg {
     use diesel::prelude::*;
     use diesel::sql_types::{Array, BigInt, Int4, Uuid as SqlUuid};
     use uuid::Uuid;
-
-    use super::io::{InboxReservePort, ReservableInboxSpec};
 
     impl InboxReservePort for InboxConsumerStorage {
         fn reserve(

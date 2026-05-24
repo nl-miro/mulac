@@ -191,7 +191,12 @@ mod store_impl {
     use super::entity::NewEventEntry;
     use super::schema::event_entries;
     use super::storage::EventStoreStorage;
-    use crate::assembly::application::io::{EventError, EventStorePort, NewEventEnvelope};
+    use crate::assembly::application::io::{
+        EventError,
+        EventStorePort,
+        NewEventEnvelope,
+        //
+    };
     use diesel::prelude::*;
 
     impl EventStorePort for EventStoreStorage {
@@ -216,18 +221,21 @@ mod store_impl {
 }
 
 mod consumer_impl {
+    use super::entity::EventEntry;
+    use super::storage::EventConsumerStorage;
+    use crate::assembly::application::io::{
+        EventEnvelope,
+        EventError,
+        EventProcessPort,
+        //
+    };
+    use crate::assembly::domain::{Criterion, EventStatus};
+    use crate::event_consumer::io::{EventReservePort, ReservableEventSpec};
+    use crate::stale_event_sweep::io::{EventSweepPort, StaleEventSpec};
     use chrono::{DateTime, Duration, Utc};
     use diesel::prelude::*;
     use diesel::sql_types::{Array, BigInt, Int4, Uuid as SqlUuid};
     use uuid::Uuid;
-
-    use crate::assembly::application::io::{EventEnvelope, EventError, EventProcessPort};
-    use crate::assembly::domain::{Criterion, EventStatus};
-    use crate::event_consumer::io::{EventReservePort, ReservableEventSpec};
-    use crate::stale_event_sweep::io::{EventSweepPort, StaleEventSpec};
-
-    use super::entity::EventEntry;
-    use super::storage::EventConsumerStorage;
 
     impl EventReservePort for EventConsumerStorage {
         fn reserve(&self, spec: &ReservableEventSpec) -> Result<Vec<EventEnvelope>, EventError> {

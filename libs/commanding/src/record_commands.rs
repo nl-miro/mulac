@@ -4,13 +4,13 @@ pub mod io {
 }
 
 mod repository {
-    use std::sync::Arc;
-
     use crate::assembly::io::{
         CommandError,
         CommandStorePort,
-        NewCommandEnvelope, //
+        NewCommandEnvelope,
+        //
     };
+    use std::sync::Arc;
 
     pub struct CommandRecorderRepository {
         pub(super) store: Arc<dyn CommandStorePort>,
@@ -28,11 +28,9 @@ mod repository {
 }
 
 mod recorder {
-    use std::sync::Arc;
-
-    use crate::assembly::io::{CommandError, NewCommandEnvelope};
-
     use super::repository::CommandRecorderRepository;
+    use crate::assembly::io::{CommandError, NewCommandEnvelope};
+    use std::sync::Arc;
 
     pub struct CommandRecorder {
         repo: Arc<CommandRecorderRepository>,
@@ -51,16 +49,16 @@ mod recorder {
 
 #[cfg(feature = "diesel")]
 mod infra_diesel_pg {
-    use diesel::prelude::*;
-
     use crate::assembly::io::{
         CommandError,
         CommandStorePort,
         CommandStoreStorage,
         NewCommandEntry,
-        NewCommandEnvelope, //
+        NewCommandEnvelope,
         command_entries,
+        //
     };
+    use diesel::prelude::*;
 
     impl CommandStorePort for CommandStoreStorage {
         fn record(&self, envelope: &NewCommandEnvelope) -> Result<(), CommandError> {

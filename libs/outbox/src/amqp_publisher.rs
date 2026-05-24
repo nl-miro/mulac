@@ -2,13 +2,15 @@ pub mod io {
     pub use super::{AmqpPublishConfig, AmqpPublisher};
 }
 
+use crate::assembly::io::{
+    OutboundMessageEnvelope,
+    OutboxEntryMetadata,
+    OutboxError,
+    OutboxPublisherPort, //
+};
 use lapin::options::{BasicPublishOptions, ConfirmSelectOptions};
 use lapin::types::{AMQPValue, FieldTable, LongString, ShortString};
 use lapin::{BasicProperties, Channel, Confirmation};
-
-use crate::assembly::io::{
-    OutboundMessageEnvelope, OutboxEntryMetadata, OutboxError, OutboxPublisherPort,
-};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AmqpPublishConfig {
@@ -151,11 +153,9 @@ fn transport_error(err: lapin::Error) -> OutboxError {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
-
-    use uuid::Uuid;
-
     use super::*;
+    use std::collections::BTreeMap;
+    use uuid::Uuid;
 
     fn envelope(content_type: Option<&str>) -> OutboundMessageEnvelope {
         let event_id = Uuid::now_v7();

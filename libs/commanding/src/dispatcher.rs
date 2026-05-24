@@ -1,17 +1,19 @@
 pub mod io {
     pub use super::handler::{
-        ApplicationEvent, CommandHandlerPort, ErasedCommandHandler, wrap_handler,
+        ApplicationEvent,
+        CommandHandlerPort,
+        ErasedCommandHandler,
+        wrap_handler,
+        //
     };
 }
 
 mod handler {
-    use std::sync::Arc;
-
-    use serde::de::DeserializeOwned;
-    use uuid::Uuid;
-
     use crate::assembly::io::{CommandError, NewCommandEnvelope};
     use eventing::io::{NewEventEnvelope, NewEventMetadata};
+    use serde::de::DeserializeOwned;
+    use std::sync::Arc;
+    use uuid::Uuid;
 
     pub trait ApplicationEvent: serde::Serialize + Send + Sync {
         fn event_type(&self) -> &'static str;
@@ -82,12 +84,10 @@ mod handler {
 }
 
 mod dispatcher {
-    use std::sync::Arc;
-
+    use super::handler::ErasedCommandHandler;
     use crate::assembly::io::{CommandError, NewCommandEnvelope};
     use eventing::io::EventDispatchPort;
-
-    use super::handler::ErasedCommandHandler;
+    use std::sync::Arc;
 
     pub struct CommandDispatcher {
         handler: Arc<dyn ErasedCommandHandler>,

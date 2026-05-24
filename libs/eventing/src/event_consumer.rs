@@ -98,9 +98,8 @@ mod reservable {
 }
 
 mod ports {
-    use crate::assembly::io::{EventEnvelope, EventError};
-
     use super::reservable::ReservableEventSpec;
+    use crate::assembly::io::{EventEnvelope, EventError};
 
     pub trait EventReservePort: Send + Sync {
         fn reserve(&self, spec: &ReservableEventSpec) -> Result<Vec<EventEnvelope>, EventError>;
@@ -108,18 +107,16 @@ mod ports {
 }
 
 mod repository {
-    use std::sync::Arc;
-
-    use uuid::Uuid;
-
+    use super::ports::EventReservePort;
+    use super::reservable::ReservableEventSpec;
     use crate::assembly::io::{
         EventEnvelope,
         EventError,
-        EventProcessPort, //
+        EventProcessPort,
+        //
     };
-
-    use super::ports::EventReservePort;
-    use super::reservable::ReservableEventSpec;
+    use std::sync::Arc;
+    use uuid::Uuid;
 
     #[derive(Clone)]
     pub struct EventConsumerRepository {
@@ -157,9 +154,10 @@ mod repository {
 mod conversions {
     use crate::assembly::io::{
         EventEnvelope,
-        EventMetadata, //
+        EventMetadata,
         NewEventEnvelope,
         NewEventMetadata,
+        //
     };
 
     impl From<&EventMetadata> for NewEventMetadata {

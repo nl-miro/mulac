@@ -6,9 +6,9 @@ pub mod io {
         CommandMetadata,
         NewCommand,
         NewCommandEnvelope,
-        NewCommandMetadata, //
+        NewCommandMetadata,
+        //
     };
-
     pub use super::ports::{CommandProcessPort, CommandStorePort};
 }
 

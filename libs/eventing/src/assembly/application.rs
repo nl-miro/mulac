@@ -2,9 +2,10 @@ pub mod io {
     pub use super::models::{
         EventEnvelope,
         EventError,
-        EventMetadata, //
+        EventMetadata,
         NewEventEnvelope,
         NewEventMetadata,
+        //
     };
     pub use super::ports::{EventDispatchPort, EventProcessPort, EventStorePort};
 }

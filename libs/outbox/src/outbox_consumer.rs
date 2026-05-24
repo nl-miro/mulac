@@ -4,16 +4,13 @@
 //! through a transport adapter, and lifecycle updates on the backing store.
 
 pub mod io {
-    #[cfg(feature = "diesel")]
-    use std::sync::Arc;
-
-    #[cfg(feature = "diesel")]
-    use crate::assembly::infra_diesel::io::{DbPool, OutboxConsumerStorage};
-
     pub use super::consumer::OutboxConsumer;
     pub use super::repository::OutboxConsumerRepository;
     pub use super::reservable::ReservableOutboxSpec;
-
+    #[cfg(feature = "diesel")]
+    use crate::assembly::infra_diesel::io::{DbPool, OutboxConsumerStorage};
+    #[cfg(feature = "diesel")]
+    use std::sync::Arc;
     #[cfg(feature = "diesel")]
     pub fn repository(pool: DbPool) -> OutboxConsumerRepository {
         let storage = Arc::new(OutboxConsumerStorage::new(pool));
@@ -76,7 +73,12 @@ mod reservable {
 }
 
 mod conversions {
-    use crate::assembly::io::{OutboundMessageEnvelope, OutboxEntryEnvelope, OutboxError};
+    use crate::assembly::io::{
+        OutboundMessageEnvelope,
+        OutboxEntryEnvelope,
+        OutboxError,
+        //
+    };
 
     impl TryFrom<&OutboxEntryEnvelope> for OutboundMessageEnvelope {
         type Error = OutboxError;
@@ -95,15 +97,16 @@ mod conversions {
 }
 
 mod repository {
-    use std::sync::Arc;
-
-    use uuid::Uuid;
-
-    use crate::assembly::io::{
-        OutboxEntryEnvelope, OutboxError, OutboxProcessPort, OutboxReservePort,
-    };
-
     use super::reservable::ReservableOutboxSpec;
+    use crate::assembly::io::{
+        OutboxEntryEnvelope,
+        OutboxError,
+        OutboxProcessPort,
+        OutboxReservePort,
+        //
+    };
+    use std::sync::Arc;
+    use uuid::Uuid;
 
     #[derive(Clone)]
     pub struct OutboxConsumerRepository {
@@ -153,12 +156,15 @@ mod repository {
 }
 
 mod consumer {
-    use std::sync::Arc;
-
-    use crate::assembly::io::{OutboundMessageEnvelope, OutboxError, OutboxPublisherPort};
-
     use super::repository::OutboxConsumerRepository;
     use super::reservable::ReservableOutboxSpec;
+    use crate::assembly::io::{
+        OutboundMessageEnvelope,
+        OutboxError,
+        OutboxPublisherPort,
+        //
+    };
+    use std::sync::Arc;
 
     pub struct OutboxConsumer {
         repository: OutboxConsumerRepository,
@@ -234,17 +240,27 @@ mod consumer {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::{Arc, Mutex};
-
-    use chrono::Utc;
-    use uuid::Uuid;
-
-    use crate::assembly::io::{
-        OutboundMessageEnvelope, OutboxEntry, OutboxEntryEnvelope, OutboxEntryMetadata,
-        OutboxError, OutboxProcessPort, OutboxPublisherPort, OutboxReservePort, OutboxStatus,
+    use super::io::{
+        OutboxConsumer,
+        OutboxConsumerRepository,
+        ReservableOutboxSpec,
+        //
     };
-
-    use super::io::{OutboxConsumer, OutboxConsumerRepository, ReservableOutboxSpec};
+    use crate::assembly::io::{
+        OutboundMessageEnvelope,
+        OutboxEntry,
+        OutboxEntryEnvelope,
+        OutboxEntryMetadata,
+        OutboxError,
+        OutboxProcessPort,
+        OutboxPublisherPort,
+        OutboxReservePort,
+        OutboxStatus,
+        //
+    };
+    use chrono::Utc;
+    use std::sync::{Arc, Mutex};
+    use uuid::Uuid;
 
     #[derive(Default)]
     struct FakeReserve {

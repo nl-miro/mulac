@@ -6,8 +6,9 @@ pub mod io {
 mod repository {
     use crate::assembly::io::{
         EventError,
-        EventStorePort, //
+        EventStorePort,
         NewEventEnvelope,
+        //
     };
     use std::sync::Arc;
 

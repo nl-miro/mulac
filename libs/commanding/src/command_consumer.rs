@@ -101,9 +101,8 @@ mod reservable {
 }
 
 mod ports {
-    use crate::assembly::io::{CommandEnvelope, CommandError};
-
     use super::reservable::ReservableCommandSpec;
+    use crate::assembly::io::{CommandEnvelope, CommandError};
 
     pub trait CommandReservePort: Send + Sync {
         fn reserve(
@@ -114,18 +113,16 @@ mod ports {
 }
 
 mod repository {
-    use std::sync::Arc;
-
-    use uuid::Uuid;
-
+    use super::ports::CommandReservePort;
+    use super::reservable::ReservableCommandSpec;
     use crate::assembly::io::{
         CommandEnvelope,
         CommandError,
-        CommandProcessPort, //
+        CommandProcessPort,
+        //
     };
-
-    use super::ports::CommandReservePort;
-    use super::reservable::ReservableCommandSpec;
+    use std::sync::Arc;
+    use uuid::Uuid;
 
     #[derive(Clone)]
     pub struct CommandConsumerRepository {
@@ -169,7 +166,8 @@ mod conversions {
         CommandMetadata,
         NewCommand,
         NewCommandEnvelope,
-        NewCommandMetadata, //
+        NewCommandMetadata,
+        //
     };
 
     impl From<&CommandMetadata> for NewCommandMetadata {
@@ -197,13 +195,11 @@ mod conversions {
 }
 
 mod consumer {
-    use std::sync::Arc;
-
-    use crate::assembly::io::{CommandEnvelope, CommandError};
-    use crate::dispatcher::CommandDispatcher;
-
     use super::repository::CommandConsumerRepository;
     use super::reservable::ReservableCommandSpec;
+    use crate::assembly::io::{CommandEnvelope, CommandError};
+    use crate::dispatcher::CommandDispatcher;
+    use std::sync::Arc;
 
     pub struct CommandConsumer {
         repository: CommandConsumerRepository,
@@ -269,11 +265,7 @@ mod consumer {
 
 #[cfg(feature = "diesel")]
 mod infra_diesel_pg {
-    use chrono::{DateTime, Duration, Utc};
-    use diesel::prelude::*;
-    use diesel::sql_types::{Array, BigInt, Int4, Uuid as SqlUuid};
-    use uuid::Uuid;
-
+    use super::io::{CommandReservePort, ReservableCommandSpec};
     use crate::assembly::io::{
         CommandConsumerStorage,
         CommandEntry,
@@ -282,10 +274,13 @@ mod infra_diesel_pg {
         CommandProcessPort,
         CommandStatus,
         Criterion,
-        command_entries, //
+        command_entries,
+        //
     };
-
-    use super::io::{CommandReservePort, ReservableCommandSpec};
+    use chrono::{DateTime, Duration, Utc};
+    use diesel::prelude::*;
+    use diesel::sql_types::{Array, BigInt, Int4, Uuid as SqlUuid};
+    use uuid::Uuid;
 
     impl CommandReservePort for CommandConsumerStorage {
         fn reserve(

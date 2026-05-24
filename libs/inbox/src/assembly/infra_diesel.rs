@@ -45,14 +45,12 @@ mod models {
 }
 
 mod conversions {
-    use chrono::Utc;
-
+    use super::entity::{InboxEntry, NewInboxEntry};
+    use super::models::MetadataJsonb;
     use crate::assembly::application::io::{InboxError, InboxMessageEnvelope};
     use crate::assembly::domain::{InboxMessage, InboxStatus};
     use crate::record_messages::io::NewInboxMessageEnvelope;
-
-    use super::entity::{InboxEntry, NewInboxEntry};
-    use super::models::MetadataJsonb;
+    use chrono::Utc;
 
     impl From<NewInboxMessageEnvelope> for NewInboxEntry {
         fn from(message: NewInboxMessageEnvelope) -> Self {

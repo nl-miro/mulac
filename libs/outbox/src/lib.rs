@@ -1,14 +1,29 @@
 pub mod io {
     pub use crate::assembly::io::*;
     pub use crate::outbox_consumer::io::{
-        OutboxConsumer, OutboxConsumerRepository, ReservableOutboxSpec,
+        OutboxConsumer,
+        OutboxConsumerRepository,
+        ReservableOutboxSpec,
+        //
     };
-    pub use crate::record_events::io::{OutboxRecorder, OutboxRecorderRepository};
-    pub use crate::stale_reservation_sweep::io::{ReservationSweeper, StaleReservationSpec};
+    pub use crate::record_events::io::{
+        OutboxRecorder,
+        OutboxRecorderRepository,
+        //
+    };
+    pub use crate::stale_reservation_sweep::io::{
+        ReservationSweeper,
+        StaleReservationSpec,
+        //
+    };
 
     #[cfg(feature = "diesel")]
     pub use crate::assembly::infra_diesel::io::{
-        DbPool, OutboxConsumerStorage, OutboxStoreStorage, build_pool,
+        DbPool,
+        OutboxConsumerStorage,
+        OutboxStoreStorage,
+        build_pool,
+        //
     };
     #[cfg(feature = "diesel")]
     pub use crate::outbox_consumer::io::repository as consumer_repository;

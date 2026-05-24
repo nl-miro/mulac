@@ -4,11 +4,20 @@
 
 pub mod io {
     pub use super::models::{
-        NewOutboxEnvelope, NewOutboxMetadata, OutboundMessageEnvelope, OutboxEntryEnvelope,
+        NewOutboxEnvelope,
+        NewOutboxMetadata,
+        OutboundMessageEnvelope,
+        OutboxEntryEnvelope,
         OutboxError,
+        //
     };
     pub use super::ports::{
-        OutboxProcessPort, OutboxPublisherPort, OutboxReservePort, OutboxStorePort, OutboxSweepPort,
+        OutboxProcessPort,
+        OutboxPublisherPort,
+        OutboxReservePort,
+        OutboxStorePort,
+        OutboxSweepPort,
+        //
     };
 }
 
@@ -65,9 +74,8 @@ mod models {
 }
 
 mod conversions {
-    use crate::assembly::domain::OutboxEntryMetadata;
-
     use super::models::NewOutboxMetadata;
+    use crate::assembly::domain::OutboxEntryMetadata;
 
     impl From<NewOutboxMetadata> for OutboxEntryMetadata {
         fn from(metadata: NewOutboxMetadata) -> Self {
@@ -87,9 +95,8 @@ mod conversions {
 }
 
 mod ports {
-    use crate::assembly::domain::NewOutboxEntry;
-
     use super::models::OutboxError;
+    use crate::assembly::domain::NewOutboxEntry;
 
     pub trait OutboxStorePort: Send + Sync {
         fn record(&self, entry: &NewOutboxEntry) -> Result<(), OutboxError>;
@@ -138,11 +145,9 @@ mod ports {
 
 #[cfg(test)]
 mod tests {
-    use uuid::Uuid;
-
-    use crate::assembly::domain::OutboxEntryMetadata;
-
     use super::models::NewOutboxMetadata;
+    use crate::assembly::domain::OutboxEntryMetadata;
+    use uuid::Uuid;
 
     fn metadata(event_id: Uuid, message_id: Option<Uuid>) -> NewOutboxMetadata {
         NewOutboxMetadata {

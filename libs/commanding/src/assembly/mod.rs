@@ -13,22 +13,20 @@ pub mod io {
         CommandStorePort,
         NewCommand,
         NewCommandEnvelope,
-        NewCommandMetadata, //
+        NewCommandMetadata,
+        //
     };
-
-    pub use super::domain::{CommandStatus, UnknownCommandStatus};
-
     #[cfg(feature = "diesel")]
     pub(crate) use super::domain::Criterion;
-
+    pub use super::domain::{CommandStatus, UnknownCommandStatus};
     #[cfg(feature = "diesel")]
     pub use super::infra_diesel::io::{
         CommandConsumerStorage,
         CommandEntry,
         CommandStoreStorage,
-        NewCommandEntry, //
+        NewCommandEntry,
+        //
     };
-
     #[cfg(feature = "diesel")]
     pub(crate) use super::infra_diesel::schema::command_entries;
 }

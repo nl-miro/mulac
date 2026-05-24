@@ -5,13 +5,11 @@ pub mod io {
 }
 
 mod spec {
-    use chrono::Duration;
-
-    #[cfg(feature = "diesel")]
-    use chrono::Utc;
-
     #[cfg(feature = "diesel")]
     use crate::assembly::io::Criterion;
+    use chrono::Duration;
+    #[cfg(feature = "diesel")]
+    use chrono::Utc;
 
     pub struct StaleEventSpec {
         pub timeout: Duration,
@@ -73,9 +71,8 @@ mod spec {
 }
 
 mod ports {
-    use crate::assembly::io::EventError;
-
     use super::spec::StaleEventSpec;
+    use crate::assembly::io::EventError;
 
     pub trait EventSweepPort: Send + Sync {
         fn sweep(&self, spec: &StaleEventSpec) -> Result<u64, EventError>;
@@ -83,12 +80,10 @@ mod ports {
 }
 
 mod sweeper {
-    use std::sync::Arc;
-
-    use crate::assembly::io::EventError;
-
     use super::ports::EventSweepPort;
     use super::spec::StaleEventSpec;
+    use crate::assembly::io::EventError;
+    use std::sync::Arc;
 
     #[derive(Clone)]
     pub struct EventSweeper {

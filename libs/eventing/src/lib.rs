@@ -18,16 +18,32 @@ pub mod io {
 
     // Consumer
     pub use crate::event_consumer::io::{
-        EventConsumer, EventConsumerRepository, EventReservePort, ReservableEventSpec,
+        EventConsumer,
+        EventConsumerRepository,
+        EventReservePort,
+        ReservableEventSpec,
+        //
     };
 
     // Sweep
-    pub use crate::stale_event_sweep::io::{EventSweepPort, EventSweeper, StaleEventSpec};
+    pub use crate::stale_event_sweep::io::{
+        EventSweepPort,
+        EventSweeper,
+        StaleEventSpec,
+        //
+    };
 
     // Application types and ports — eventing
     pub use crate::assembly::io::{
-        EventDispatchPort, EventEnvelope, EventError, EventMetadata, EventProcessPort, EventStatus,
-        EventStorePort, UnknownEventStatus,
+        EventDispatchPort,
+        EventEnvelope,
+        EventError,
+        EventMetadata,
+        EventProcessPort,
+        EventStatus,
+        EventStorePort,
+        UnknownEventStatus,
+        //
     };
 
     pub use super::assembly::io::{NewEventEnvelope, NewEventMetadata};
@@ -35,6 +51,10 @@ pub mod io {
     // Diesel infra — eventing (feature-gated)
     #[cfg(feature = "diesel")]
     pub use crate::assembly::io::{
-        EventConsumerStorage, EventEntry, EventStoreStorage, NewEventEntry,
+        EventConsumerStorage,
+        EventEntry,
+        EventStoreStorage,
+        NewEventEntry,
+        //
     };
 }
