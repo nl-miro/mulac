@@ -1,34 +1,46 @@
 mod utils;
 
 use serde_json::json;
-use utils::{fetch_outbox, start_test_app};
+use utils::{
+    assert_ok_response,
+    fetch_outbox,
+    start_test_app, //
+};
 use uuid::Uuid;
+
+async fn create_tweet(base_url: &str, author_id: Uuid, content: &str) {
+    let resp = utils::client()
+        .post(format!("{base_url}/api/tweets"))
+        .json(&json!({ "author_id": author_id, "content": content }))
+        .send()
+        .await
+        .unwrap();
+    assert_ok_response!(resp);
+}
+
+async fn send_command(base_url: &str, payload: serde_json::Value) -> reqwest::Response {
+    utils::client()
+        .post(format!("{base_url}/api/messages/commands"))
+        .json(&payload)
+        .send()
+        .await
+        .unwrap()
+}
 
 #[tokio::test(flavor = "multi_thread")]
 async fn outbox_lists_events_in_created_at_order() {
-    let (base_url, pool, _guard) = start_test_app().await;
-    let client = utils::client();
+    let (base_url, _pool, _guard) = start_test_app().await;
     let author = Uuid::now_v7();
 
-    client
-        .post(format!("{base_url}/api/tweets"))
-        .json(&json!({ "author_id": author, "content": "first" }))
-        .send()
-        .await
-        .unwrap();
-    client
-        .post(format!("{base_url}/api/tweets"))
-        .json(&json!({ "author_id": author, "content": "second" }))
-        .send()
-        .await
-        .unwrap();
+    create_tweet(&base_url, author, "first").await;
+    create_tweet(&base_url, author, "second").await;
 
-    let resp = client
+    let resp = utils::client()
         .get(format!("{base_url}/api/messages/outbox"))
         .send()
         .await
         .unwrap();
-    assert_eq!(resp.status(), 200);
+    assert_ok_response!(resp);
     let body: serde_json::Value = resp.json().await.unwrap();
     let items = body["items"].as_array().unwrap();
     assert_eq!(items.len(), 2);
@@ -52,14 +64,13 @@ async fn outbox_lists_events_in_created_at_order() {
 #[tokio::test(flavor = "multi_thread")]
 async fn outbox_no_duplicate_row_per_event_id() {
     let (base_url, pool, _guard) = start_test_app().await;
-    let client = utils::client();
     let msg_id = Uuid::now_v7();
     let tweet_id = Uuid::now_v7();
 
     // Use inbox to control the event_id (message_id becomes command_id → event correlation).
-    client
-        .post(format!("{base_url}/api/messages/commands"))
-        .json(&json!({
+    send_command(
+        &base_url,
+        json!({
             "id": msg_id,
             "command": {
                 "type": "PostTweet",
@@ -67,10 +78,9 @@ async fn outbox_no_duplicate_row_per_event_id() {
                 "author_id": Uuid::now_v7(),
                 "content": "idempotency test"
             }
-        }))
-        .send()
-        .await
-        .unwrap();
+        }),
+    )
+    .await;
 
     // Outbox should have exactly one row for this tweet's event.
     let rows = fetch_outbox(&pool);

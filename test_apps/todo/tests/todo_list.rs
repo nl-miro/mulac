@@ -1,49 +1,12 @@
 mod utils;
-
-use reqwest::Client;
 use serde_json::json;
-use utils::start_test_app;
+use utils::{assert_ok_response, start_test_app};
 use uuid::Uuid;
 
-#[tokio::test(flavor = "multi_thread")]
-async fn list_todos_returns_all_todos() {
-    let (base_url, _pool, _guard) = start_test_app().await;
-    let client = Client::new();
-
-    client
+async fn create_todo(base_url: &str, title: &str) -> Uuid {
+    utils::client()
         .post(format!("{base_url}/api/todos"))
-        .json(&json!({"title": "Todo 1"}))
-        .send()
-        .await
-        .unwrap();
-
-    client
-        .post(format!("{base_url}/api/todos"))
-        .json(&json!({"title": "Todo 2"}))
-        .send()
-        .await
-        .unwrap();
-
-    let response = client
-        .get(format!("{base_url}/api/todos"))
-        .send()
-        .await
-        .unwrap();
-
-    assert_eq!(response.status(), 200);
-    let body = response.json::<serde_json::Value>().await.unwrap();
-    let todos = body["items"].as_array().unwrap();
-    assert_eq!(todos.len(), 2);
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn list_todos_filters_by_status() {
-    let (base_url, _pool, _guard) = start_test_app().await;
-    let client = Client::new();
-
-    let todo_id: Uuid = client
-        .post(format!("{base_url}/api/todos"))
-        .json(&json!({"title": "Task"}))
+        .json(&json!({"title": title}))
         .send()
         .await
         .unwrap()
@@ -53,15 +16,45 @@ async fn list_todos_filters_by_status() {
         .as_str()
         .unwrap()
         .parse()
-        .unwrap();
+        .unwrap()
+}
 
-    client
+async fn complete_todo(base_url: &str, todo_id: Uuid) {
+    let response = utils::client()
         .post(format!("{base_url}/api/todos/{todo_id}/complete"))
         .send()
         .await
         .unwrap();
+    assert_ok_response!(response);
+}
 
-    let active_response = client
+#[tokio::test(flavor = "multi_thread")]
+async fn list_todos_returns_all_todos() {
+    let (base_url, _pool, _guard) = start_test_app().await;
+
+    create_todo(&base_url, "Todo 1").await;
+    create_todo(&base_url, "Todo 2").await;
+
+    let response = utils::client()
+        .get(format!("{base_url}/api/todos"))
+        .send()
+        .await
+        .unwrap();
+
+    assert_ok_response!(response);
+    let body = response.json::<serde_json::Value>().await.unwrap();
+    let todos = body["items"].as_array().unwrap();
+    assert_eq!(todos.len(), 2);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn list_todos_filters_by_status() {
+    let (base_url, _pool, _guard) = start_test_app().await;
+
+    let todo_id = create_todo(&base_url, "Task").await;
+    complete_todo(&base_url, todo_id).await;
+
+    let active_response = utils::client()
         .get(format!("{base_url}/api/todos?status=active"))
         .send()
         .await
@@ -70,7 +63,7 @@ async fn list_todos_filters_by_status() {
     let active = active_body["items"].as_array().unwrap();
     assert_eq!(active.len(), 0);
 
-    let completed_response = client
+    let completed_response = utils::client()
         .get(format!("{base_url}/api/todos?status=completed"))
         .send()
         .await

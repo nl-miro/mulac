@@ -1,7 +1,15 @@
 mod utils;
 
 use serde_json::json;
-use utils::{fetch_direct_messages, fetch_event_entries, fetch_outbox, start_test_app};
+use utils::{
+    assert_bad_request_response,
+    assert_conflict_response,
+    assert_event_completed,
+    assert_ok_response,
+    assert_outbox_pending,
+    fetch_direct_messages,
+    start_test_app, //
+};
 use uuid::Uuid;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -10,13 +18,10 @@ async fn send_direct_message_success() {
     let sender = Uuid::now_v7();
     let recipient = Uuid::now_v7();
 
-    let resp = utils::client()
-        .post(format!("{base_url}/api/messages/direct"))
-        .json(&json!({ "sender_id": sender, "recipient_id": recipient, "content": "Hi there!" }))
-        .send()
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), 200);
+    let resp = send_direct_message(&base_url, sender, recipient, "Hi there!").await;
+
+    assert_ok_response!(resp);
+
     let body: serde_json::Value = resp.json().await.unwrap();
     assert_eq!(body["sender_id"].as_str().unwrap(), sender.to_string());
     assert_eq!(body["content"], "Hi there!");
@@ -25,22 +30,29 @@ async fn send_direct_message_success() {
     assert_eq!(dms.len(), 1);
     assert_eq!(dms[0].sender_id, sender);
 
-    let outbox = fetch_outbox(&pool);
-    assert!(outbox.iter().any(|r| r.event_type == "DirectMessageSent"));
+    assert_outbox_pending(&pool, "DirectMessageSent");
+}
+
+async fn send_direct_message(
+    base_url: &str,
+    sender: Uuid,
+    recipient: Uuid,
+    content: &str,
+) -> reqwest::Response {
+    utils::client()
+        .post(format!("{base_url}/api/messages/direct"))
+        .json(&json!({ "sender_id": sender, "recipient_id": recipient, "content": content }))
+        .send()
+        .await
+        .unwrap()
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn send_direct_message_blank_content_returns_400() {
     let (base_url, _pool, _guard) = start_test_app().await;
-    let resp = utils::client()
-        .post(format!("{base_url}/api/messages/direct"))
-        .json(
-            &json!({ "sender_id": Uuid::now_v7(), "recipient_id": Uuid::now_v7(), "content": "" }),
-        )
-        .send()
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), 400);
+    let resp = send_direct_message(&base_url, Uuid::now_v7(), Uuid::now_v7(), "").await;
+
+    assert_bad_request_response!(resp);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -49,45 +61,54 @@ async fn send_direct_message_duplicate_message_id_returns_409() {
     let client = utils::client();
     let message_id = Uuid::now_v7();
 
-    let first = client
-        .post(format!("{base_url}/api/messages/commands"))
-        .json(&json!({
-            "id": Uuid::now_v7(),
-            "command": {
-                "type": "SendDirectMessage",
-                "message_id": message_id,
-                "sender_id": Uuid::now_v7(),
-                "recipient_id": Uuid::now_v7(),
-                "content": "hello"
-            }
-        }))
-        .send()
-        .await
-        .unwrap();
-    assert_eq!(first.status(), 200);
+    let first = send_direct_message_command(
+        &client,
+        &base_url,
+        message_id,
+        Uuid::now_v7(),
+        Uuid::now_v7(),
+        "hello",
+    )
+    .await;
+    assert_ok_response!(first);
 
-    let second = client
-        .post(format!("{base_url}/api/messages/commands"))
-        .json(&json!({
-            "id": Uuid::now_v7(),
-            "command": {
-                "type": "SendDirectMessage",
-                "message_id": message_id,
-                "sender_id": Uuid::now_v7(),
-                "recipient_id": Uuid::now_v7(),
-                "content": "duplicate"
-            }
-        }))
-        .send()
-        .await
-        .unwrap();
-    assert_eq!(second.status(), 409);
+    let second = send_direct_message_command(
+        &client,
+        &base_url,
+        message_id,
+        Uuid::now_v7(),
+        Uuid::now_v7(),
+        "duplicate",
+    )
+    .await;
+    assert_conflict_response!(second);
 
     assert_eq!(fetch_direct_messages(&pool).len(), 1);
-    let events: Vec<_> = fetch_event_entries(&pool)
-        .into_iter()
-        .filter(|e| e.event_type == "DirectMessageSent")
-        .collect();
-    assert_eq!(events.len(), 1);
-    assert_eq!(fetch_outbox(&pool).len(), 1);
+    assert_event_completed(&pool, "DirectMessageSent");
+    assert_outbox_pending(&pool, "DirectMessageSent");
+}
+
+async fn send_direct_message_command(
+    client: &reqwest::Client,
+    base_url: &str,
+    message_id: Uuid,
+    sender_id: Uuid,
+    recipient_id: Uuid,
+    content: &str,
+) -> reqwest::Response {
+    client
+        .post(format!("{base_url}/api/messages/commands"))
+        .json(&json!({
+            "id": Uuid::now_v7(),
+            "command": {
+                "type": "SendDirectMessage",
+                "message_id": message_id,
+                "sender_id": sender_id,
+                "recipient_id": recipient_id,
+                "content": content,
+            }
+        }))
+        .send()
+        .await
+        .unwrap()
 }

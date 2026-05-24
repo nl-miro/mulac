@@ -1,21 +1,16 @@
 mod utils;
-
-use reqwest::Client;
 use serde_json::json;
 use test_app_todo::io::TodoRow;
 use utils::{
-    STATUS_COMPLETED, fetch_command_entries, fetch_event_entries, fetch_outbox, start_test_app,
+    assert_bad_request_response, assert_command_completed, assert_event_completed,
+    assert_ok_response, assert_outbox_pending, start_test_app,
 };
 use uuid::Uuid;
 
-#[tokio::test(flavor = "multi_thread")]
-async fn update_todo_dispatches_command_and_emits_event() {
-    let (base_url, pool, _guard) = start_test_app().await;
-    let client = Client::new();
-
-    let todo_id: Uuid = client
+async fn create_todo(base_url: &str, title: &str) -> Uuid {
+    utils::client()
         .post(format!("{base_url}/api/todos"))
-        .json(&json!({"title": "Original", "description": "Original desc"}))
+        .json(&json!({"title": title}))
         .send()
         .await
         .unwrap()
@@ -25,34 +20,36 @@ async fn update_todo_dispatches_command_and_emits_event() {
         .as_str()
         .unwrap()
         .parse()
-        .unwrap();
+        .unwrap()
+}
 
-    let update_response = client
+async fn update_todo(
+    base_url: &str,
+    todo_id: Uuid,
+    title: &str,
+    description: &str,
+) -> reqwest::Response {
+    utils::client()
         .put(format!("{base_url}/api/todos/{todo_id}"))
-        .json(&json!({"title": "Updated", "description": "Updated desc"}))
+        .json(&json!({"title": title, "description": description}))
         .send()
         .await
-        .unwrap();
+        .unwrap()
+}
 
-    assert_eq!(update_response.status(), 200);
-    let body = update_response.json::<serde_json::Value>().await.unwrap();
-    assert_eq!(body["title"], "Updated");
-    assert_eq!(body["description"], "Updated desc");
+#[tokio::test(flavor = "multi_thread")]
+async fn update_todo_dispatches_command_and_emits_event() {
+    let (base_url, pool, _guard) = start_test_app().await;
 
-    let outbox = fetch_outbox(&pool).await;
-    let updated_event = outbox.iter().find(|e| e.event_type == "TodoUpdated");
-    assert!(updated_event.is_some());
-    assert_eq!(updated_event.unwrap().status, "pending");
+    let todo_id = create_todo(&base_url, "Original").await;
 
-    let commands = fetch_command_entries(&pool).await;
-    let update_cmd = commands.iter().find(|c| c.command_type == "UpdateTodo");
-    assert!(update_cmd.is_some(), "UpdateTodo command entry missing");
-    assert_eq!(update_cmd.unwrap().status, STATUS_COMPLETED);
+    let update_response = update_todo(&base_url, todo_id, "Updated", "Updated desc").await;
 
-    let events = fetch_event_entries(&pool).await;
-    let update_evt = events.iter().find(|e| e.event_type == "TodoUpdated");
-    assert!(update_evt.is_some(), "TodoUpdated event entry missing");
-    assert_eq!(update_evt.unwrap().status, STATUS_COMPLETED);
+    assert_ok_response!(update_response);
+
+    assert_outbox_pending(&pool, "TodoUpdated").await;
+    assert_command_completed(&pool, "UpdateTodo").await;
+    assert_event_completed(&pool, "TodoUpdated").await;
 
     let row = sqlx::query_as::<_, TodoRow>(
         "SELECT id, title, description, status, created_at, updated_at, due_at FROM todos WHERE id = $1",
@@ -68,28 +65,9 @@ async fn update_todo_dispatches_command_and_emits_event() {
 #[tokio::test(flavor = "multi_thread")]
 async fn update_todo_with_blank_title_returns_400() {
     let (base_url, _pool, _guard) = start_test_app().await;
-    let client = Client::new();
 
-    let todo_id: Uuid = client
-        .post(format!("{base_url}/api/todos"))
-        .json(&json!({"title": "Task"}))
-        .send()
-        .await
-        .unwrap()
-        .json::<serde_json::Value>()
-        .await
-        .unwrap()["id"]
-        .as_str()
-        .unwrap()
-        .parse()
-        .unwrap();
+    let todo_id = create_todo(&base_url, "Task").await;
+    let response = update_todo(&base_url, todo_id, "  ", "").await;
 
-    let response = client
-        .put(format!("{base_url}/api/todos/{todo_id}"))
-        .json(&json!({"title": "  ", "description": ""}))
-        .send()
-        .await
-        .unwrap();
-
-    assert_eq!(response.status(), 400);
+    assert_bad_request_response!(response);
 }

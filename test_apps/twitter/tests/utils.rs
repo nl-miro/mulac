@@ -1,21 +1,36 @@
-use std::sync::{Arc, Mutex, OnceLock};
-
-use commanding::io::{NewCommand, NewCommandEnvelope, NewCommandMetadata, ReservableCommandSpec};
 use diesel::prelude::*;
 use diesel::r2d2::{ConnectionManager, Pool};
+use kernel::io::{
+    NewCommand,
+    NewCommandEnvelope,
+    NewCommandMetadata,
+    ReservableCommandSpec, //
+};
 use poem::{EndpointExt, Route, get, handler, middleware::AddData};
 use poem_openapi::OpenApiService;
 use reqwest::Client;
+use std::sync::{Arc, Mutex, OnceLock};
+pub use test_app_twitter::io::{
+    AppState,
+    DEFAULT_DATABASE_URL,
+    DirectMessageSendApi,
+    FollowUserApi,
+    InboxApi,
+    OutboxApi,
+    TweetDeleteApi,
+    TweetLikeApi,
+    TweetPostApi,
+    TweetRetweetApi,
+    TweetUnlikeApi,
+    UnfollowUserApi,
+    run_command_worker,
+    run_event_worker,
+    start_mulac, //
+};
+pub use test_app_twitter::io::{build_pool, run_migrations};
 use tokio::sync::{Mutex as AsyncMutex, OwnedMutexGuard};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
-
-pub use test_app_twitter::db::{build_pool, run_migrations};
-pub use test_app_twitter::io::{
-    AppState, DEFAULT_DATABASE_URL, DirectMessageSendApi, FollowUserApi, InboxApi, OutboxApi,
-    TweetDeleteApi, TweetLikeApi, TweetPostApi, TweetRetweetApi, TweetUnlikeApi, UnfollowUserApi,
-    run_command_worker, run_event_worker, start_mulac,
-};
 
 pub type DbPool = Pool<ConnectionManager<diesel::PgConnection>>;
 
@@ -419,3 +434,68 @@ pub fn client() -> Client {
         .build()
         .unwrap()
 }
+
+pub fn assert_outbox_pending(pool: &DbPool, event_type: &str) {
+    let outbox = fetch_outbox(pool);
+    let matching: Vec<_> = outbox
+        .iter()
+        .filter(|r| r.event_type == event_type)
+        .collect();
+    assert_eq!(matching.len(), 1);
+    assert_eq!(matching[0].status, "pending");
+}
+
+pub fn assert_command_completed(pool: &DbPool, command_type: &str) {
+    let cmds = fetch_command_entries(pool);
+    let matching: Vec<_> = cmds
+        .iter()
+        .filter(|c| c.command_type == command_type)
+        .collect();
+    assert_eq!(matching.len(), 1);
+    assert_eq!(matching[0].status, STATUS_COMPLETED);
+}
+
+pub fn assert_event_completed(pool: &DbPool, event_type: &str) {
+    let events = fetch_event_entries(pool);
+    let matching: Vec<_> = events
+        .iter()
+        .filter(|e| e.event_type == event_type)
+        .collect();
+    assert_eq!(matching.len(), 1);
+    assert_eq!(matching[0].status, STATUS_COMPLETED);
+}
+
+macro_rules! assert_ok_response {
+    ($resp:expr) => {
+        assert_eq!($resp.status(), 200)
+    };
+}
+pub(crate) use assert_ok_response;
+
+macro_rules! assert_bad_request_response {
+    ($resp:expr) => {
+        assert_eq!($resp.status(), 400)
+    };
+}
+pub(crate) use assert_bad_request_response;
+
+macro_rules! assert_conflict_response {
+    ($resp:expr) => {
+        assert_eq!($resp.status(), 409)
+    };
+}
+pub(crate) use assert_conflict_response;
+
+macro_rules! assert_not_found_response {
+    ($resp:expr) => {
+        assert_eq!($resp.status(), 404)
+    };
+}
+pub(crate) use assert_not_found_response;
+
+macro_rules! assert_no_content_response {
+    ($resp:expr) => {
+        assert_eq!($resp.status(), 204)
+    };
+}
+pub(crate) use assert_no_content_response;
