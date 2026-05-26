@@ -1,5 +1,5 @@
 [package]
-name = "eventing"
+name = "mulac-eventing"
 version.workspace = true
 edition.workspace = true
 

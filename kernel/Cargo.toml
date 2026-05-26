@@ -9,7 +9,7 @@ default = []
 [dependencies]
 inbox = { path = "../libs/inbox", default-features = false, package = "mulac-inbox" }
 commanding = { path = "../libs/commanding", default-features = false, package = "mulac-commanding" }
-eventing = { path = "../libs/eventing", default-features = false }
+eventing = { path = "../libs/eventing", default-features = false, package = "mulac-eventing" }
 outbox = { path = "../libs/outbox", default-features = false, package = "mulac-outbox" }
 mulac_diesel = { path = "../libs/mulac_diesel", default-features = false }
 serde = { version = "1", features = ["derive"] }
