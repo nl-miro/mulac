@@ -12,7 +12,7 @@ name = "test_app_twitter"
 path = "src/assembly/bin/twitterapp.rs"
 
 [dependencies]
-kernel = { path = "../../kernel" }
+kernel = { path = "../../kernel", package = "mulac-kernel" }
 poem = "3"
 poem-openapi = { version = "5", features = ["swagger-ui", "uuid", "chrono"] }
 tokio = { version = "1", features = ["full"] }

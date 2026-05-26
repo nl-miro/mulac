@@ -17,7 +17,7 @@ tokio-util = "0.7"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uuid = { version = "1", features = ["v7", "serde"] }
-kernel = { path = "../../kernel" }
+kernel = { path = "../../kernel", package = "mulac-kernel" }
 
 [[bin]]
 name = "test_app_todo"
