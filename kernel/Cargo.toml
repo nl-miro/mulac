@@ -7,7 +7,7 @@ edition = "2024"
 default = []
 
 [dependencies]
-inbox = { path = "../libs/inbox", default-features = false }
+inbox = { path = "../libs/inbox", default-features = false, package = "mulac-inbox" }
 commanding = { path = "../libs/commanding", default-features = false }
 eventing = { path = "../libs/eventing", default-features = false }
 outbox = { path = "../libs/outbox", default-features = false }

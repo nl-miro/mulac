@@ -1,5 +1,5 @@
 [package]
-name = "inbox"
+name = "mulac-inbox"
 version.workspace = true
 edition.workspace = true
 
