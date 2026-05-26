@@ -1,5 +1,5 @@
 [package]
-name = "outbox"
+name = "mulac-outbox"
 version.workspace = true
 edition.workspace = true
 
