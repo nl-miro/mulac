@@ -1,17 +1,17 @@
 [package]
 name = "mulac-kernel"
-version = "0.1.0"
+version = "0.1.2"
 edition = "2024"
 
 [features]
 default = []
 
 [dependencies]
-inbox = { path = "../libs/inbox", default-features = false, package = "mulac-inbox" }
-commanding = { path = "../libs/commanding", default-features = false, package = "mulac-commanding" }
-eventing = { path = "../libs/eventing", default-features = false, package = "mulac-eventing" }
-outbox = { path = "../libs/outbox", default-features = false, package = "mulac-outbox" }
-mulac_diesel = { path = "../libs/mulac_diesel", default-features = false }
+inbox = { path = "../libs/inbox", version = "0.1.1", registry = "margo", default-features = false, features = ["diesel"], package = "mulac-inbox" }
+commanding = { path = "../libs/commanding", version = "0.1.1", registry = "margo", default-features = false, package = "mulac-commanding" }
+eventing = { path = "../libs/eventing", version = "0.1.1", registry = "margo", default-features = false, package = "mulac-eventing" }
+outbox = { path = "../libs/outbox", version = "0.1.1", registry = "margo", default-features = false, package = "mulac-outbox" }
+mulac_diesel = { path = "../libs/mulac_diesel", version = "0.1.1", registry = "margo", default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"

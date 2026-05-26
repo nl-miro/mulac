@@ -10,7 +10,7 @@ members = [
 
 [workspace.package]
 edition = "2024"
-version = "0.1.0"
+version = "0.1.1"
 
 [workspace.dependencies]
 thiserror = "2"
@@ -19,7 +19,7 @@ chrono = { version = "0.4", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 diesel = { version = "2", features = ["postgres", "r2d2", "uuid", "chrono", "serde_json"] }
-mulac_diesel = { path = "./mulac_diesel" }
+mulac_diesel = { path = "./mulac_diesel", version = "0.1.1", registry = "margo" }
 tokio = { version = "1" }
 tokio-util = { version = "0.7" }
 lapin = { version = "4.5.0" }

@@ -37,6 +37,12 @@ pub mod io {
         EventStoreStorage,
         ReservableEventSpec, //
     };
+    pub use inbox::io::{
+        InboxConsumer,
+        InboxConsumerRepository,
+        InboxConsumerStorage,
+        ReservableInboxSpec, //
+    };
 }
 
 use crate::command_handler_registry::CommandHandlerRegistry;
