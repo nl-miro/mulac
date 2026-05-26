@@ -3,6 +3,7 @@ pub const TODO_DELETED_EVENT: &str = "TodoDeleted";
 
 mod models {
     use crate::assembly::io::TodoDto;
+    use kernel::ApplicationEvent;
     use poem_openapi::Object;
     use serde::{Deserialize, Serialize};
     use uuid::Uuid;
@@ -23,7 +24,7 @@ mod models {
         pub todo: TodoDto,
     }
 
-    impl kernel::ApplicationEvent for TodoDeleted {
+    impl ApplicationEvent for TodoDeleted {
         fn event_type(&self) -> &'static str {
             super::TODO_DELETED_EVENT
         }

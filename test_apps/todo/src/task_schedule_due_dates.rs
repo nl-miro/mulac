@@ -4,6 +4,7 @@ pub const TODO_DUE_DATE_CHANGED_EVENT: &str = "TodoDueDateChanged";
 mod models {
     use crate::assembly::io::TodoDto;
     use chrono::{DateTime, Utc};
+    use kernel::ApplicationEvent;
     use poem_openapi::Object;
     use serde::{Deserialize, Serialize};
     use uuid::Uuid;
@@ -25,7 +26,7 @@ mod models {
         pub todo: TodoDto,
     }
 
-    impl kernel::ApplicationEvent for TodoDueDateChanged {
+    impl ApplicationEvent for TodoDueDateChanged {
         fn event_type(&self) -> &'static str {
             super::TODO_DUE_DATE_CHANGED_EVENT
         }

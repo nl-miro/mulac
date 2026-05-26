@@ -3,6 +3,7 @@ pub const TODO_REOPENED_EVENT: &str = "TodoReopened";
 
 mod models {
     use crate::assembly::io::TodoDto;
+    use kernel::ApplicationEvent;
     use poem_openapi::Object;
     use serde::{Deserialize, Serialize};
     use uuid::Uuid;
@@ -23,7 +24,7 @@ mod models {
         pub todo: TodoDto,
     }
 
-    impl kernel::ApplicationEvent for TodoReopened {
+    impl ApplicationEvent for TodoReopened {
         fn event_type(&self) -> &'static str {
             super::TODO_REOPENED_EVENT
         }

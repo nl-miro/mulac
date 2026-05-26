@@ -3,6 +3,7 @@ pub const TODO_UPDATED_EVENT: &str = "TodoUpdated";
 
 mod models {
     use crate::assembly::io::TodoDto;
+    use kernel::ApplicationEvent;
     use poem_openapi::Object;
     use serde::{Deserialize, Serialize};
     use uuid::Uuid;
@@ -25,7 +26,7 @@ mod models {
         pub todo: TodoDto,
     }
 
-    impl kernel::ApplicationEvent for TodoUpdated {
+    impl ApplicationEvent for TodoUpdated {
         fn event_type(&self) -> &'static str {
             super::TODO_UPDATED_EVENT
         }

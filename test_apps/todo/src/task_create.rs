@@ -4,6 +4,7 @@ pub const TODO_CREATED_EVENT: &str = "TodoCreated";
 mod models {
     use crate::assembly::io::TodoDto;
     use chrono::{DateTime, Utc};
+    use kernel::ApplicationEvent;
     use poem_openapi::Object;
     use serde::{Deserialize, Serialize};
     use uuid::Uuid;
@@ -27,7 +28,7 @@ mod models {
         pub todo: TodoDto,
     }
 
-    impl kernel::ApplicationEvent for TodoCreated {
+    impl ApplicationEvent for TodoCreated {
         fn event_type(&self) -> &'static str {
             super::TODO_CREATED_EVENT
         }

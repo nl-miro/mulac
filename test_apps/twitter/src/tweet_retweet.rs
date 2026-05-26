@@ -2,6 +2,7 @@ pub const COMMAND_NAME: &str = "Retweet";
 pub const EVENT_NAME: &str = "TweetRetweeted";
 
 mod models {
+    use kernel::ApplicationEvent;
     use poem_openapi::Object;
     use serde::{Deserialize, Serialize};
     use uuid::Uuid;
@@ -26,7 +27,7 @@ mod models {
         pub author_id: Uuid,
     }
 
-    impl kernel::ApplicationEvent for Event {
+    impl ApplicationEvent for Event {
         fn event_type(&self) -> &'static str {
             super::EVENT_NAME
         }

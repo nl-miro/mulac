@@ -8,6 +8,7 @@ mod task_reopen;
 mod task_schedule_due_dates;
 mod task_update;
 
+use kernel::ApplicationEvent;
 use poem_openapi::Union;
 use serde::{Deserialize, Serialize};
 
@@ -23,7 +24,7 @@ pub enum TodoEvent {
     TodoDeleted(task_delete::io::TodoDeleted),
 }
 
-impl kernel::ApplicationEvent for TodoEvent {
+impl ApplicationEvent for TodoEvent {
     fn event_type(&self) -> &'static str {
         match self {
             Self::TodoCreated(_) => task_create::io::TODO_CREATED_EVENT,

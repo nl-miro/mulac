@@ -13,6 +13,7 @@ pub(crate) mod user_follow;
 pub(crate) mod user_unfollow;
 
 use assembly::io::{DbPool, MulacState};
+use kernel::ApplicationEvent;
 use poem_openapi::Union;
 use serde::{Deserialize, Serialize};
 
@@ -30,7 +31,7 @@ pub enum TwitterEvent {
     DirectMessageSent(direct_message_send::io::Event),
 }
 
-impl kernel::ApplicationEvent for TwitterEvent {
+impl ApplicationEvent for TwitterEvent {
     fn event_type(&self) -> &'static str {
         match self {
             Self::TweetPosted(e) => e.event_type(),

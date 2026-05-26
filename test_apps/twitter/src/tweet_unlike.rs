@@ -2,6 +2,7 @@ pub const COMMAND_NAME: &str = "UnlikeTweet";
 pub const EVENT_NAME: &str = "TweetUnliked";
 
 mod models {
+    use kernel::ApplicationEvent;
     use poem_openapi::Object;
     use serde::{Deserialize, Serialize};
     use uuid::Uuid;
@@ -24,7 +25,7 @@ mod models {
         pub tweet_id: Uuid,
     }
 
-    impl kernel::ApplicationEvent for Event {
+    impl ApplicationEvent for Event {
         fn event_type(&self) -> &'static str {
             super::EVENT_NAME
         }
