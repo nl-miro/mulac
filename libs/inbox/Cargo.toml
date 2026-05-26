@@ -9,7 +9,7 @@ diesel = ["dep:diesel", "dep:mulac_diesel"]
 amqp = ["diesel", "dep:lapin", "dep:futures-lite", "dep:tokio", "dep:tokio-util"]
 
 [dependencies]
-commanding = { path = "../commanding" }
+commanding = { path = "../commanding", package = "mulac-commanding" }
 thiserror.workspace = true
 uuid.workspace = true
 chrono.workspace = true
