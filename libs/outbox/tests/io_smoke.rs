@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use chrono::Duration;
-use outbox::io::*;
+use mulac_outbox::io::*;
 use uuid::Uuid;
 
 struct NoopStore;
