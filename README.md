@@ -6,6 +6,7 @@ This repository contains both technical specifications and Rust crate implementa
 
 ## Docs
 
+- Fast repo TL;DR: [docs/repo-tldr.md](docs/repo-tldr.md)
 - High-level component view: [docs/components.md](docs/components.md)
 - Detailed spec (end-to-end flows): [docs/architecture-spec.md](docs/architecture-spec.md)
 - Lifecycle states and rules: [docs/components.md](docs/components.md)
