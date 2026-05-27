@@ -1,4 +1,4 @@
-.PHONY: fmt check test package publish test-apps-up test-apps-down test-apps-reset test-apps-test test-apps-serve
+.PHONY: all
 
 CARGO_DIRS := $(shell find . -name Cargo.toml -not -path '*/target/*' -exec dirname {} \; | sort)
 
@@ -53,6 +53,17 @@ publish:
 	$(call publish-lib,commanding,mulac-commanding)
 	$(call publish-lib,outbox,mulac-outbox)
 	$(call publish-lib,inbox,mulac-inbox)
+pack_and_publish:
+	cargo package --no-verify --manifest-path libs/mulac_diesel/Cargo.toml
+	$(MAKE) -C $(MARGO_PROJECT) add CRATE=$(CURDIR)/libs/target/package/mulac_diesel-$(LIBS_VERSION).crate
+	cargo package --no-verify --manifest-path libs/eventing/Cargo.toml
+	$(MAKE) -C $(MARGO_PROJECT) add CRATE=$(CURDIR)/libs/target/package/mulac-eventing-$(LIBS_VERSION).crate
+	cargo package --no-verify --manifest-path libs/commanding/Cargo.toml
+	$(MAKE) -C $(MARGO_PROJECT) add CRATE=$(CURDIR)/libs/target/package/mulac-commanding-$(LIBS_VERSION).crate
+	cargo package --no-verify --manifest-path libs/outbox/Cargo.toml
+	$(MAKE) -C $(MARGO_PROJECT) add CRATE=$(CURDIR)/libs/target/package/mulac-outbox-$(LIBS_VERSION).crate
+	cargo package --no-verify --manifest-path libs/inbox/Cargo.toml
+	$(MAKE) -C $(MARGO_PROJECT) add CRATE=$(CURDIR)/libs/target/package/mulac-inbox-$(LIBS_VERSION).crate
 	cargo package --no-verify --manifest-path kernel/Cargo.toml
 	$(MAKE) -C $(MARGO_PROJECT) add CRATE=$(CURDIR)/kernel/target/package/mulac-kernel-$(KERNEL_VERSION).crate
 
