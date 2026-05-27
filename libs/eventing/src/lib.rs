@@ -42,6 +42,7 @@ pub mod io {
         EventProcessPort,
         EventStatus,
         EventStorePort,
+        ExtraInfo,
         UnknownEventStatus,
         //
     };

@@ -1,6 +1,35 @@
 use chrono::{DateTime, Utc};
 use thiserror::Error;
 
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ExtraInfo {
+    errors: Vec<String>,
+}
+
+impl ExtraInfo {
+    pub fn with_errors(errors: Vec<String>) -> Self {
+        Self { errors }
+    }
+
+    pub fn with_error(error: impl Into<String>) -> Self {
+        Self::with_errors(vec![error.into()])
+    }
+
+    pub fn add_error(&mut self, error: impl Into<String>) {
+        self.errors.push(error.into());
+    }
+
+    pub fn errors(&self) -> &[String] {
+        &self.errors
+    }
+}
+
+pub fn append_error(extra_info: Option<ExtraInfo>, error: impl Into<String>) -> ExtraInfo {
+    let mut extra_info = extra_info.unwrap_or_default();
+    extra_info.add_error(error);
+    extra_info
+}
+
 /// Persistent command status codes.
 ///
 /// Values are stored as `Int4` in the database and must remain stable. The gaps
@@ -116,5 +145,25 @@ mod tests {
         assert_eq!(CommandStatus::Completed.as_str(), "completed");
         assert_eq!(CommandStatus::Dead.as_str(), "dead");
         assert_eq!(CommandStatus::Archive.as_str(), "archive");
+    }
+
+    #[test]
+    fn append_error_accumulates_errors() {
+        let extra_info = append_error(Some(ExtraInfo::with_error("first")), "second");
+
+        assert_eq!(
+            extra_info.errors(),
+            &["first".to_string(), "second".to_string()]
+        );
+    }
+
+    #[test]
+    fn with_errors_preserves_order() {
+        let extra_info = ExtraInfo::with_errors(vec!["first".into(), "second".into()]);
+
+        assert_eq!(
+            extra_info.errors(),
+            &["first".to_string(), "second".to_string()]
+        );
     }
 }

@@ -154,8 +154,10 @@ mod repository {
             id: Uuid,
             reservation_id: Uuid,
             max_attempts: i32,
+            reason: Option<String>,
         ) -> Result<(), CommandError> {
-            self.process.failed(id, reservation_id, max_attempts)
+            self.process
+                .failed(id, reservation_id, max_attempts, reason)
         }
     }
 }
@@ -254,7 +256,7 @@ mod consumer {
                 }
                 Err(e) => {
                     self.repository
-                        .failed(id, reservation_id, spec.max_attempts)
+                        .failed(id, reservation_id, spec.max_attempts, Some(e.to_string()))
                         .unwrap_or_else(|err| errors.push(err));
                     errors.push(e);
                 }
@@ -266,6 +268,7 @@ mod consumer {
 #[cfg(feature = "diesel")]
 mod infra_diesel_pg {
     use super::io::{CommandReservePort, ReservableCommandSpec};
+    use crate::assembly::domain::append_error;
     use crate::assembly::io::{
         CommandConsumerStorage,
         CommandEntry,
@@ -327,7 +330,8 @@ mod infra_diesel_pg {
                     entries.reserved_at,
                     entries.received_at,
                     entries.updated_at,
-                    entries.processed_at
+                    entries.processed_at,
+                    entries.extra_info
                 "#,
             )
             .bind::<Array<Int4>, _>(criteria.statuses)
@@ -377,6 +381,7 @@ mod infra_diesel_pg {
             id: Uuid,
             reservation_id: Uuid,
             max_attempts: i32,
+            reason: Option<String>,
         ) -> Result<(), CommandError> {
             let mut conn = self
                 .pool
@@ -384,7 +389,7 @@ mod infra_diesel_pg {
                 .map_err(|e| CommandError::Storage(e.to_string()))?;
 
             conn.transaction::<(), diesel::result::Error, _>(|conn| {
-                let attempts = diesel::update(
+                let (attempts, extra_info) = diesel::update(
                     command_entries::table
                         .filter(command_entries::id.eq(id))
                         .filter(command_entries::reservation_id.eq(reservation_id))
@@ -395,8 +400,20 @@ mod infra_diesel_pg {
                     command_entries::reservation_id.eq(None::<Uuid>),
                     command_entries::reserved_at.eq(None::<DateTime<Utc>>),
                 ))
-                .returning(command_entries::attempts)
-                .get_result::<i32>(conn)?;
+                .returning((command_entries::attempts, command_entries::extra_info))
+                .get_result::<(
+                    i32,
+                    Option<crate::assembly::infra_diesel::models::ExtraInfoJsonb>,
+                )>(conn)?;
+
+                let extra_info = match reason {
+                    Some(reason) => {
+                        Some(crate::assembly::infra_diesel::models::ExtraInfoJsonb::from(
+                            append_error(extra_info.map(Into::into), reason),
+                        ))
+                    }
+                    None => extra_info,
+                };
 
                 let status = if attempts >= max_attempts {
                     CommandStatus::Dead
@@ -415,6 +432,7 @@ mod infra_diesel_pg {
                         command_entries::status.eq(i32::from(status)),
                         command_entries::scheduled_at.eq(scheduled_at),
                         command_entries::updated_at.eq(diesel::dsl::now),
+                        command_entries::extra_info.eq(extra_info),
                     ))
                     .execute(conn)?;
 

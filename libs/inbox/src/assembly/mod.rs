@@ -1,7 +1,7 @@
 mod application;
-mod domain;
+pub(crate) mod domain;
 #[cfg(feature = "diesel")]
-mod infra_diesel;
+pub(crate) mod infra_diesel;
 
 pub mod io {
     pub use super::application::io::{
@@ -18,7 +18,7 @@ pub mod io {
     };
     #[cfg(feature = "diesel")]
     pub(crate) use super::domain::Criterion;
-    pub use super::domain::InboxStatus;
+    pub use super::domain::{ExtraInfo, InboxStatus};
     #[cfg(feature = "diesel")]
     pub(crate) use super::infra_diesel::entity::{InboxEntry, NewInboxEntry};
     #[cfg(feature = "diesel")]

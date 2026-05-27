@@ -375,6 +375,7 @@ mod tests {
                 updated_at: now,
                 processed_at: None,
                 last_error: None,
+                extra_info: None,
             },
             metadata: meta,
         }

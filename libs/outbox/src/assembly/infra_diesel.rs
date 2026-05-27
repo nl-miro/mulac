@@ -4,7 +4,7 @@ pub mod io {
 }
 
 mod models {
-    use crate::assembly::domain::OutboxEntryMetadata;
+    use crate::assembly::domain::{ExtraInfo, OutboxEntryMetadata};
     use diesel::deserialize::{FromSql, Result as DeserializeResult};
     use diesel::pg::{Pg, PgValue};
     use diesel::serialize::{IsNull, Output, Result as SerializeResult, ToSql};
@@ -19,6 +19,7 @@ mod models {
 
     impl ToSql<Jsonb, Pg> for MetadataJsonb {
         fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, Pg>) -> SerializeResult {
+            // Postgres jsonb stores a leading format-version byte before the payload.
             out.write_all(&[1])?;
             to_writer(out, &self.0)?;
             Ok(IsNull::No)
@@ -37,6 +38,56 @@ mod models {
             }
 
             Ok(MetadataJsonb(from_slice(&bytes[1..])?))
+        }
+    }
+
+    /// Canonical wire shape for `extra_info` is `{"errors": [...]}`.
+    /// The stale-reservation sweep SQL appends into the `{errors}` path directly.
+    #[derive(
+        Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, AsExpression, FromSqlRow,
+    )]
+    #[diesel(sql_type = Jsonb)]
+    pub struct ExtraInfoJsonb {
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        errors: Vec<String>,
+    }
+
+    impl From<ExtraInfo> for ExtraInfoJsonb {
+        fn from(value: ExtraInfo) -> Self {
+            Self {
+                errors: value.errors().to_vec(),
+            }
+        }
+    }
+
+    impl From<ExtraInfoJsonb> for ExtraInfo {
+        fn from(value: ExtraInfoJsonb) -> Self {
+            ExtraInfo::with_errors(value.errors)
+        }
+    }
+
+    impl ToSql<Jsonb, Pg> for ExtraInfoJsonb {
+        fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, Pg>) -> SerializeResult {
+            // Postgres jsonb stores a leading format-version byte before the payload.
+            out.write_all(&[1])?;
+            to_writer(out, self)?;
+            Ok(IsNull::No)
+        }
+    }
+
+    impl FromSql<Jsonb, Pg> for ExtraInfoJsonb {
+        fn from_sql(bytes: PgValue<'_>) -> DeserializeResult<Self> {
+            let bytes = bytes.as_bytes();
+            if bytes.is_empty() {
+                return Err("empty jsonb value".into());
+            }
+
+            // Postgres jsonb stores a leading format-version byte before the payload.
+            if bytes[0] != 1 {
+                return Err(format!("unsupported jsonb version: {}", bytes[0]).into());
+            }
+
+            Ok(from_slice(&bytes[1..])?)
         }
     }
 }
@@ -90,6 +141,7 @@ mod conversions {
                     updated_at: record.updated_at(),
                     processed_at: record.processed_at(),
                     last_error: record.last_error().map(str::to_owned),
+                    extra_info: record.extra_info(),
                 },
                 metadata,
             })
@@ -112,13 +164,14 @@ pub(crate) mod schema {
             updated_at -> Timestamptz,
             processed_at -> Nullable<Timestamptz>,
             last_error -> Nullable<Text>,
+            extra_info -> Nullable<Jsonb>,
         }
     }
 }
 
 pub(crate) mod entity {
-    use super::models::MetadataJsonb;
-    use crate::assembly::domain::OutboxEntryMetadata;
+    use super::models::{ExtraInfoJsonb, MetadataJsonb};
+    use crate::assembly::domain::{ExtraInfo, OutboxEntryMetadata};
     use chrono::{DateTime, Utc};
     use diesel::{Insertable, Queryable, QueryableByName, Selectable};
     use uuid::Uuid;
@@ -134,6 +187,7 @@ pub(crate) mod entity {
         attempts: i32,
         received_at: DateTime<Utc>,
         updated_at: DateTime<Utc>,
+        extra_info: Option<ExtraInfoJsonb>,
     }
 
     impl NewOutboxEntryRecord {
@@ -156,6 +210,7 @@ pub(crate) mod entity {
                 attempts,
                 received_at,
                 updated_at,
+                extra_info: None,
             }
         }
 
@@ -207,6 +262,7 @@ pub(crate) mod entity {
         updated_at: DateTime<Utc>,
         processed_at: Option<DateTime<Utc>>,
         last_error: Option<String>,
+        extra_info: Option<ExtraInfoJsonb>,
     }
 
     impl OutboxEntryRecord {
@@ -225,6 +281,7 @@ pub(crate) mod entity {
             updated_at: DateTime<Utc>,
             processed_at: Option<DateTime<Utc>>,
             last_error: Option<String>,
+            extra_info: Option<ExtraInfo>,
         ) -> Self {
             Self {
                 id,
@@ -239,6 +296,7 @@ pub(crate) mod entity {
                 updated_at,
                 processed_at,
                 last_error,
+                extra_info: extra_info.map(ExtraInfoJsonb::from),
             }
         }
 
@@ -289,6 +347,10 @@ pub(crate) mod entity {
         pub fn last_error(&self) -> Option<&str> {
             self.last_error.as_deref()
         }
+
+        pub fn extra_info(&self) -> Option<ExtraInfo> {
+            self.extra_info.clone().map(Into::into)
+        }
     }
 }
 
@@ -304,8 +366,7 @@ mod storage {
         OutboxSweepPort,
         //
     };
-    use crate::assembly::domain::NewOutboxEntry;
-    use crate::assembly::domain::OutboxStatus;
+    use crate::assembly::domain::{NewOutboxEntry, OutboxStatus, append_error};
     use crate::outbox_consumer::io::ReservableOutboxSpec;
     use crate::stale_reservation_sweep::io::StaleReservationSpec;
     use chrono::{DateTime, Duration, Utc};
@@ -399,7 +460,8 @@ mod storage {
                     entries.received_at,
                     entries.updated_at,
                     entries.processed_at,
-                    entries.last_error
+                    entries.last_error,
+                    entries.extra_info
                 "#,
             )
             .bind::<Array<Int4>, _>(vec![
@@ -464,7 +526,7 @@ mod storage {
                 .map_err(|err| OutboxError::Storage(err.to_string()))?;
 
             conn.transaction::<(), diesel::result::Error, _>(|conn| {
-                let attempts = diesel::update(
+                let (attempts, extra_info) = diesel::update(
                     outbox_entries::table
                         .filter(outbox_entries::id.eq(id))
                         .filter(outbox_entries::reservation_id.eq(reservation_id))
@@ -475,8 +537,16 @@ mod storage {
                     outbox_entries::reserved_at.eq(None::<DateTime<Utc>>),
                     outbox_entries::updated_at.eq(diesel::dsl::now),
                 ))
-                .returning(outbox_entries::attempts)
-                .get_result::<i32>(conn)?;
+                .returning((outbox_entries::attempts, outbox_entries::extra_info))
+                .get_result::<(i32, Option<super::models::ExtraInfoJsonb>)>(conn)?;
+
+                let extra_info = match reason.clone() {
+                    Some(reason) => Some(super::models::ExtraInfoJsonb::from(append_error(
+                        extra_info.map(Into::into),
+                        reason,
+                    ))),
+                    None => extra_info,
+                };
 
                 let exhausted = attempts >= max_attempts;
                 let status = if exhausted {
@@ -493,6 +563,7 @@ mod storage {
                             outbox_entries::status.eq(i32::from(status)),
                             outbox_entries::updated_at.eq(now),
                             outbox_entries::last_error.eq(reason.clone()),
+                            outbox_entries::extra_info.eq(extra_info.clone()),
                         ))
                         .execute(conn)?;
                 } else {
@@ -503,6 +574,7 @@ mod storage {
                                 .eq(now + Duration::seconds(retry_delay_seconds)),
                             outbox_entries::updated_at.eq(now),
                             outbox_entries::last_error.eq(reason.clone()),
+                            outbox_entries::extra_info.eq(extra_info.clone()),
                         ))
                         .execute(conn)?;
                 }
@@ -528,25 +600,49 @@ mod storage {
                 .get()
                 .map_err(|err| OutboxError::Storage(err.to_string()))?;
 
-            let updated = diesel::update(
-                outbox_entries::table
+            conn.transaction::<(), diesel::result::Error, _>(|conn| {
+                let extra_info = outbox_entries::table
                     .filter(outbox_entries::id.eq(id))
                     .filter(outbox_entries::reservation_id.eq(reservation_id))
-                    .filter(outbox_entries::status.eq(i32::from(OutboxStatus::Reserved))),
-            )
-            .set((
-                outbox_entries::status.eq(i32::from(OutboxStatus::Dead)),
-                outbox_entries::updated_at.eq(diesel::dsl::now),
-                outbox_entries::reservation_id.eq(None::<Uuid>),
-                outbox_entries::reserved_at.eq(None::<DateTime<Utc>>),
-                outbox_entries::last_error.eq(reason),
-            ))
-            .execute(&mut conn)
-            .map_err(|err| OutboxError::Storage(err.to_string()))?;
+                    .filter(outbox_entries::status.eq(i32::from(OutboxStatus::Reserved)))
+                    .select(outbox_entries::extra_info)
+                    .for_update()
+                    .get_result::<Option<super::models::ExtraInfoJsonb>>(conn)?;
 
-            if updated == 0 {
-                return Err(reservation_not_owned(id, reservation_id));
-            }
+                let extra_info = match reason.clone() {
+                    Some(reason) => Some(super::models::ExtraInfoJsonb::from(append_error(
+                        extra_info.map(Into::into),
+                        reason,
+                    ))),
+                    None => extra_info,
+                };
+
+                let updated = diesel::update(
+                    outbox_entries::table
+                        .filter(outbox_entries::id.eq(id))
+                        .filter(outbox_entries::reservation_id.eq(reservation_id))
+                        .filter(outbox_entries::status.eq(i32::from(OutboxStatus::Reserved))),
+                )
+                .set((
+                    outbox_entries::status.eq(i32::from(OutboxStatus::Dead)),
+                    outbox_entries::reservation_id.eq(None::<Uuid>),
+                    outbox_entries::reserved_at.eq(None::<DateTime<Utc>>),
+                    outbox_entries::updated_at.eq(diesel::dsl::now),
+                    outbox_entries::last_error.eq(reason.clone()),
+                    outbox_entries::extra_info.eq(extra_info),
+                ))
+                .execute(conn)?;
+
+                if updated == 0 {
+                    return Err(diesel::result::Error::NotFound);
+                }
+
+                Ok(())
+            })
+            .map_err(|err| match err {
+                diesel::result::Error::NotFound => reservation_not_owned(id, reservation_id),
+                other => OutboxError::Storage(other.to_string()),
+            })?;
 
             Ok(())
         }
@@ -575,10 +671,16 @@ mod storage {
                         WHEN attempts >= $1 THEN scheduled_at
                         ELSE $4 + LEAST(GREATEST(attempts, 1) * $5, $6) * interval '1 second'
                     END,
-                    updated_at = $4
-                WHERE status = $7
+                    updated_at = $4,
+                    extra_info = jsonb_set(
+                        COALESCE(extra_info, '{}'::jsonb),
+                        '{errors}',
+                        COALESCE(extra_info->'errors', '[]'::jsonb) || jsonb_build_array($7::text),
+                        true
+                    )
+                WHERE status = $8
                   AND reserved_at IS NOT NULL
-                  AND reserved_at < $8
+                  AND reserved_at < $9
                 "#,
             )
             .bind::<Int4, _>(spec.max_attempts)
@@ -587,6 +689,7 @@ mod storage {
             .bind::<diesel::sql_types::Timestamptz, _>(now)
             .bind::<BigInt, _>(Self::RETRY_BACKOFF_SECONDS)
             .bind::<BigInt, _>(Self::RETRY_BACKOFF_CAP_SECONDS)
+            .bind::<diesel::sql_types::Text, _>("publication reservation timed out")
             .bind::<Int4, _>(i32::from(OutboxStatus::Reserved))
             .bind::<diesel::sql_types::Timestamptz, _>(cutoff)
             .execute(&mut conn)
@@ -614,6 +717,7 @@ mod tests {
     use super::models::MetadataJsonb;
     use crate::assembly::application::io::OutboxEntryEnvelope;
     use crate::assembly::domain::{
+        ExtraInfo,
         NewOutboxEntry,
         OutboxEntryMetadata,
         OutboxStatus,
@@ -677,6 +781,7 @@ mod tests {
             now,
             None,
             Some("broker unavailable".into()),
+            Some(ExtraInfo::with_error("earlier failure")),
         );
 
         let envelope = OutboxEntryEnvelope::try_from(record).expect("record converts");
@@ -688,6 +793,10 @@ mod tests {
         assert_eq!(
             envelope.message.last_error.as_deref(),
             Some("broker unavailable")
+        );
+        assert_eq!(
+            envelope.message.extra_info,
+            Some(ExtraInfo::with_error("earlier failure"))
         );
         assert_eq!(envelope.metadata.event_id, event_id);
     }

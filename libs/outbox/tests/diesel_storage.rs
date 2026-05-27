@@ -6,9 +6,12 @@ use std::thread;
 
 use chrono::{Duration, Utc};
 use diesel::connection::SimpleConnection;
+use diesel::deserialize::{FromSql, Result as DeserializeResult};
+use diesel::pg::{Pg, PgValue};
 use diesel::prelude::*;
-use diesel::sql_types::{BigInt, Int4, Nullable, Text, Timestamptz, Uuid as SqlUuid};
+use diesel::sql_types::{BigInt, Int4, Jsonb, Nullable, Text, Timestamptz, Uuid as SqlUuid};
 use mulac_outbox::io::*;
+use serde_json::from_slice;
 use uuid::Uuid;
 
 static DB_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
@@ -37,6 +40,33 @@ struct EntryRow {
     processed_at: Option<chrono::DateTime<Utc>>,
     #[diesel(sql_type = Nullable<Text>)]
     last_error: Option<String>,
+    #[diesel(sql_type = Nullable<Jsonb>)]
+    extra_info: Option<ExtraInfoJsonb>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+struct ExtraInfoJsonb {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    errors: Vec<String>,
+}
+
+impl From<ExtraInfoJsonb> for ExtraInfo {
+    fn from(value: ExtraInfoJsonb) -> Self {
+        ExtraInfo::with_errors(value.errors)
+    }
+}
+
+impl FromSql<Jsonb, Pg> for ExtraInfoJsonb {
+    fn from_sql(bytes: PgValue<'_>) -> DeserializeResult<Self> {
+        let bytes = bytes.as_bytes();
+        if bytes.is_empty() {
+            return Err("empty jsonb value".into());
+        }
+        if bytes[0] != 1 {
+            return Err(format!("unsupported jsonb version: {}", bytes[0]).into());
+        }
+        Ok(from_slice(&bytes[1..])?)
+    }
 }
 
 fn database_url() -> String {
@@ -93,7 +123,7 @@ fn fetch_entry(pool: &DbPool, id: Uuid) -> EntryRow {
     let mut conn = pool.get().expect("pool connection");
     diesel::sql_query(
         r#"
-        SELECT id, status, attempts, reservation_id, scheduled_at, reserved_at, processed_at, last_error
+        SELECT id, status, attempts, reservation_id, scheduled_at, reserved_at, processed_at, last_error, extra_info
         FROM outbox_entries
         WHERE id = $1
         "#,
@@ -193,6 +223,7 @@ fn lifecycle_transitions_update_status_and_metadata() {
     assert_eq!(completed_row.status, i32::from(OutboxStatus::Completed));
     assert!(completed_row.processed_at.is_some());
     assert!(completed_row.reservation_id.is_none());
+    assert!(completed_row.extra_info.is_none());
 
     let failed_id = Uuid::now_v7();
     store
@@ -217,6 +248,10 @@ fn lifecycle_transitions_update_status_and_metadata() {
     assert_eq!(failed_row.status, i32::from(OutboxStatus::Failed));
     assert!(failed_row.scheduled_at > Utc::now() - Duration::seconds(1));
     assert_eq!(failed_row.last_error.as_deref(), Some("broker unavailable"));
+    assert_eq!(
+        failed_row.extra_info.map(Into::into),
+        Some(ExtraInfo::with_error("broker unavailable"))
+    );
 
     let dead_id = Uuid::now_v7();
     store.record(&new_entry(dead_id)).expect("store dead entry");
@@ -234,6 +269,10 @@ fn lifecycle_transitions_update_status_and_metadata() {
     assert_eq!(dead_row.status, i32::from(OutboxStatus::Dead));
     assert!(dead_row.reservation_id.is_none());
     assert_eq!(dead_row.last_error.as_deref(), Some("invalid payload"));
+    assert_eq!(
+        dead_row.extra_info.map(Into::into),
+        Some(ExtraInfo::with_error("invalid payload"))
+    );
 }
 
 #[ignore = "requires OUTBOX_TEST_DATABASE_URL"]
@@ -279,4 +318,18 @@ fn stale_sweep_releases_old_reservations_without_incrementing_attempts() {
     assert!(row.reservation_id.is_none());
     assert!(row.reserved_at.is_none());
     assert!(row.scheduled_at > now);
+    assert_eq!(
+        row.extra_info.map(Into::into),
+        Some(ExtraInfo::with_error("publication reservation timed out"))
+    );
+
+    let swept = storage
+        .reserve(&ReservableOutboxSpec::new(1))
+        .expect("re-reserve swept row")
+        .pop()
+        .expect("reserved swept row");
+    assert_eq!(
+        swept.message.extra_info,
+        Some(ExtraInfo::with_error("publication reservation timed out"))
+    );
 }

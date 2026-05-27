@@ -44,6 +44,7 @@ fn assert_fan_out_commands(pool: &utils::DbPool, expected_count: usize) {
         .collect();
     assert_eq!(cmds.len(), expected_count);
     assert!(cmds.iter().all(|c| c.status == STATUS_COMPLETED));
+    assert!(cmds.iter().all(|c| c.extra_info.is_none()));
 }
 
 #[tokio::test(flavor = "multi_thread")]

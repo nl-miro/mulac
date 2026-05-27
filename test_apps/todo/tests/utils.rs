@@ -42,6 +42,7 @@ pub struct CommandEntryRow {
     pub status: i32,
     pub payload: String,
     pub meta: Option<serde_json::Value>,
+    pub extra_info: Option<serde_json::Value>,
     pub attempts: i32,
     pub reservation_id: Option<Uuid>,
     pub processed_at: Option<chrono::DateTime<chrono::Utc>>,
@@ -54,6 +55,7 @@ pub struct EventEntryRow {
     pub status: i32,
     pub payload: String,
     pub meta: Option<serde_json::Value>,
+    pub extra_info: Option<serde_json::Value>,
     pub attempts: i32,
     pub reservation_id: Option<Uuid>,
     pub processed_at: Option<chrono::DateTime<chrono::Utc>>,
@@ -70,7 +72,7 @@ pub async fn fetch_outbox(pool: &PgPool) -> Vec<OutboxRow> {
 
 pub async fn fetch_command_entries(pool: &PgPool) -> Vec<CommandEntryRow> {
     sqlx::query_as::<_, CommandEntryRow>(
-        "SELECT id, command_type, status, payload, meta, attempts, reservation_id, processed_at FROM command_entries ORDER BY received_at ASC",
+        "SELECT id, command_type, status, payload, meta, extra_info, attempts, reservation_id, processed_at FROM command_entries ORDER BY received_at ASC",
     )
     .fetch_all(pool)
     .await
@@ -79,7 +81,7 @@ pub async fn fetch_command_entries(pool: &PgPool) -> Vec<CommandEntryRow> {
 
 pub async fn fetch_event_entries(pool: &PgPool) -> Vec<EventEntryRow> {
     sqlx::query_as::<_, EventEntryRow>(
-        "SELECT id, event_type, status, payload, meta, attempts, reservation_id, processed_at FROM event_entries ORDER BY received_at ASC",
+        "SELECT id, event_type, status, payload, meta, extra_info, attempts, reservation_id, processed_at FROM event_entries ORDER BY received_at ASC",
     )
     .fetch_all(pool)
     .await

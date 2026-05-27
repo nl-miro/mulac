@@ -95,6 +95,7 @@ mod ports {
             id: Uuid,
             reservation_id: Uuid,
             max_attempts: i32,
+            reason: Option<String>,
         ) -> Result<(), InboxError>;
     }
 

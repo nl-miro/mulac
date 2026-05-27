@@ -78,6 +78,7 @@ async fn create_todo_returns_todo() {
     assert_eq!(command.attempts, 1);
     assert!(command.reservation_id.is_none());
     assert!(command.processed_at.is_some());
+    assert!(command.extra_info.is_none());
     let command_payload: serde_json::Value = serde_json::from_str(&command.payload).unwrap();
     assert_eq!(command_payload["todo_id"], body["id"]);
     assert_eq!(command_payload["title"], "Buy milk");
@@ -95,6 +96,7 @@ async fn create_todo_returns_todo() {
     assert_eq!(event_entry.attempts, 1);
     assert!(event_entry.reservation_id.is_none());
     assert!(event_entry.processed_at.is_some());
+    assert!(event_entry.extra_info.is_none());
     let event_payload: serde_json::Value = serde_json::from_str(&event_entry.payload).unwrap();
     assert_eq!(event_payload["type"], "TodoCreated");
     assert_eq!(event_payload["payload"]["todo"]["id"], body["id"]);

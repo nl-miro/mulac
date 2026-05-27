@@ -148,6 +148,8 @@ pub struct CommandEntryRow {
     pub status: i32,
     #[diesel(sql_type = diesel::sql_types::Integer)]
     pub attempts: i32,
+    #[diesel(sql_type = diesel::sql_types::Nullable<diesel::sql_types::Jsonb>)]
+    pub extra_info: Option<serde_json::Value>,
     #[diesel(sql_type = diesel::sql_types::Nullable<diesel::sql_types::Timestamptz>)]
     pub processed_at: Option<chrono::DateTime<chrono::Utc>>,
 }
@@ -162,6 +164,8 @@ pub struct EventEntryRow {
     pub status: i32,
     #[diesel(sql_type = diesel::sql_types::Integer)]
     pub attempts: i32,
+    #[diesel(sql_type = diesel::sql_types::Nullable<diesel::sql_types::Jsonb>)]
+    pub extra_info: Option<serde_json::Value>,
     #[diesel(sql_type = diesel::sql_types::Nullable<diesel::sql_types::Timestamptz>)]
     pub processed_at: Option<chrono::DateTime<chrono::Utc>>,
 }
@@ -254,7 +258,7 @@ pub fn fetch_inbox(pool: &DbPool) -> Vec<InboxRow> {
 pub fn fetch_command_entries(pool: &DbPool) -> Vec<CommandEntryRow> {
     let mut conn = pool.get().unwrap();
     diesel::sql_query(
-        "SELECT id, command_type, status, attempts, processed_at \
+        "SELECT id, command_type, status, attempts, extra_info, processed_at \
          FROM command_entries ORDER BY received_at ASC",
     )
     .load(&mut conn)
@@ -264,7 +268,7 @@ pub fn fetch_command_entries(pool: &DbPool) -> Vec<CommandEntryRow> {
 pub fn fetch_event_entries(pool: &DbPool) -> Vec<EventEntryRow> {
     let mut conn = pool.get().unwrap();
     diesel::sql_query(
-        "SELECT id, event_type, status, attempts, processed_at \
+        "SELECT id, event_type, status, attempts, extra_info, processed_at \
          FROM event_entries ORDER BY received_at ASC",
     )
     .load(&mut conn)

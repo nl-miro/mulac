@@ -11,6 +11,7 @@ pub mod io {
 }
 
 mod models {
+    use crate::assembly::domain::ExtraInfo;
     use uuid::Uuid;
 
     /// Event envelope produced by a command handler and forwarded to the event
@@ -43,6 +44,7 @@ mod models {
         pub payload: String,
         pub attempts: i32,
         pub metadata: Option<EventMetadata>,
+        pub extra_info: Option<ExtraInfo>,
     }
 
     #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -96,6 +98,7 @@ mod ports {
             id: Uuid,
             reservation_id: Uuid,
             max_attempts: i32,
+            reason: Option<String>,
         ) -> Result<(), EventError>;
     }
 }

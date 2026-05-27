@@ -14,6 +14,7 @@ diesel::table! {
         received_at -> Timestamptz,
         updated_at -> Timestamptz,
         processed_at -> Nullable<Timestamptz>,
+        extra_info -> Nullable<Jsonb>,
     }
 }
 
@@ -41,6 +42,7 @@ diesel::table! {
         received_at -> Timestamptz,
         updated_at -> Timestamptz,
         processed_at -> Nullable<Timestamptz>,
+        extra_info -> Nullable<Jsonb>,
     }
 }
 
@@ -65,6 +67,7 @@ diesel::table! {
         received_at -> Timestamptz,
         updated_at -> Timestamptz,
         processed_at -> Nullable<Timestamptz>,
+        extra_info -> Nullable<Jsonb>,
     }
 }
 
@@ -102,6 +105,7 @@ diesel::table! {
         updated_at -> Timestamptz,
         processed_at -> Nullable<Timestamptz>,
         last_error -> Nullable<Text>,
+        extra_info -> Nullable<Jsonb>,
     }
 }
 

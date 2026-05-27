@@ -1,8 +1,8 @@
 mod application;
-mod domain;
+pub(crate) mod domain;
 
 #[cfg(feature = "diesel")]
-mod infra_diesel;
+pub(crate) mod infra_diesel;
 
 pub mod io {
     pub use super::application::io::{
@@ -18,7 +18,7 @@ pub mod io {
     };
     #[cfg(feature = "diesel")]
     pub(crate) use super::domain::Criterion;
-    pub use super::domain::{CommandStatus, UnknownCommandStatus};
+    pub use super::domain::{CommandStatus, ExtraInfo, UnknownCommandStatus};
     #[cfg(feature = "diesel")]
     pub use super::infra_diesel::io::{
         CommandConsumerStorage,

@@ -311,6 +311,7 @@ fn duplicate_publish_after_completion_failure_keeps_message_id_stable() {
             updated_at: now,
             processed_at: None,
             last_error: None,
+            extra_info: None,
         },
         metadata,
     };

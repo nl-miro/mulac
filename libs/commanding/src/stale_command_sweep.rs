@@ -133,17 +133,24 @@ mod infra_diesel_pg {
                     reservation_id = NULL,
                     reserved_at    = NULL,
                     scheduled_at   = $2 + (attempts * $3 * interval '1 second'),
-                    updated_at     = $2
-                WHERE status = $4
+                    updated_at     = $2,
+                    extra_info     = jsonb_set(
+                        COALESCE(extra_info, '{}'::jsonb),
+                        '{errors}',
+                        COALESCE(extra_info->'errors', '[]'::jsonb) || jsonb_build_array($4::text),
+                        true
+                    )
+                WHERE status = $5
                   AND reserved_at IS NOT NULL
-                  AND reserved_at < $5
+                  AND reserved_at < $6
                 "#,
             )
             .bind::<Int4, _>(i32::from(CommandStatus::Failed)) // $1
             .bind::<Timestamptz, _>(now) // $2
             .bind::<BigInt, _>(CommandConsumerStorage::RETRY_BACKOFF_SECONDS) // $3
-            .bind::<Int4, _>(i32::from(CommandStatus::Reserved)) // $4
-            .bind::<Timestamptz, _>(criteria.cutoff) // $5
+            .bind::<diesel::sql_types::Text, _>("command reservation timed out") // $4
+            .bind::<Int4, _>(i32::from(CommandStatus::Reserved)) // $5
+            .bind::<Timestamptz, _>(criteria.cutoff) // $6
             .execute(&mut conn)
             .map_err(|e| CommandError::Storage(e.to_string()))?;
 

@@ -13,6 +13,7 @@ pub mod io {
 }
 
 mod models {
+    use crate::assembly::domain::ExtraInfo;
     use uuid::Uuid;
 
     #[derive(Debug, Clone)]
@@ -44,6 +45,7 @@ mod models {
         pub command_type: String,
         pub payload: String,
         pub attempts: i32,
+        pub extra_info: Option<ExtraInfo>,
     }
 
     /// Read-side envelope returned to the consumer after reservation.
@@ -99,6 +101,7 @@ mod ports {
             id: Uuid,
             reservation_id: Uuid,
             max_attempts: i32,
+            reason: Option<String>,
         ) -> Result<(), CommandError>;
     }
 }

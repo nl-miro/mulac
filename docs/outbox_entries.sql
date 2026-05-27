@@ -10,7 +10,8 @@ CREATE TABLE outbox_entries (
     received_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     processed_at    TIMESTAMPTZ,
-    last_error      TEXT
+    last_error      TEXT,
+    extra_info      JSONB
 );
 
 CREATE INDEX idx_outbox_entries_status_scheduled_at

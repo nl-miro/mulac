@@ -177,8 +177,10 @@ mod repository {
             id: Uuid,
             reservation_id: Uuid,
             max_attempts: i32,
+            reason: Option<String>,
         ) -> Result<(), InboxError> {
-            self.process.failed(id, reservation_id, max_attempts)
+            self.process
+                .failed(id, reservation_id, max_attempts, reason)
         }
     }
 }
@@ -218,7 +220,7 @@ mod consumer {
     use super::repository::InboxConsumerRepository;
     use super::reservable::ReservableInboxSpec;
     use crate::assembly::io::InboxError;
-    use commanding::io::CommandGateway;
+    use commanding::io::{CommandGateway, NewCommandEnvelope};
     use uuid::Uuid;
 
     pub struct InboxConsumer {
@@ -247,10 +249,10 @@ mod consumer {
                     continue;
                 };
 
-                let envelope = match message.try_into() {
+                let envelope: NewCommandEnvelope = match message.try_into() {
                     Ok(env) => env,
                     Err(e) => {
-                        self.failed(id, reservation_id, spec.max_attempts)
+                        self.failed(id, reservation_id, spec.max_attempts, Some(e.to_string()))
                             .unwrap_or_else(|err| errors.push(err));
                         errors.push(e);
                         continue;
@@ -262,10 +264,11 @@ mod consumer {
                         .completed(id, reservation_id)
                         .unwrap_or_else(|e| errors.push(e)),
                     Err(e) => {
-                        self.failed(id, reservation_id, spec.max_attempts)
+                        let reason = e.to_string();
+                        self.failed(id, reservation_id, spec.max_attempts, Some(reason.clone()))
                             .unwrap_or_else(|e| errors.push(e));
 
-                        let err = InboxError::PublishFailed(e.to_string());
+                        let err = InboxError::PublishFailed(reason);
                         errors.push(err);
                     }
                 }
@@ -287,8 +290,10 @@ mod consumer {
             id: Uuid,
             reservation_id: Uuid,
             max_attempts: i32,
+            reason: Option<String>,
         ) -> Result<(), InboxError> {
-            self.repository.failed(id, reservation_id, max_attempts)
+            self.repository
+                .failed(id, reservation_id, max_attempts, reason)
         }
     }
 }
@@ -296,6 +301,7 @@ mod consumer {
 #[cfg(feature = "diesel")]
 mod infra_diesel_pg {
     use super::io::{InboxReservePort, ReservableInboxSpec};
+    use crate::assembly::domain::append_error;
     use crate::assembly::io::InboxConsumerStorage;
     use crate::assembly::io::InboxEntry;
     use crate::assembly::io::inbox_entries;
@@ -350,7 +356,8 @@ mod infra_diesel_pg {
                     entries.reserved_at,
                     entries.received_at,
                     entries.updated_at,
-                    entries.processed_at
+                    entries.processed_at,
+                    entries.extra_info
                 "#,
             )
             .bind::<Array<Int4>, _>(criteria.statuses)
@@ -403,6 +410,7 @@ mod infra_diesel_pg {
             id: Uuid,
             reservation_id: Uuid,
             max_attempts: i32,
+            reason: Option<String>,
         ) -> Result<(), InboxError> {
             let mut conn = self
                 .pool
@@ -410,7 +418,7 @@ mod infra_diesel_pg {
                 .map_err(|e| InboxError::Storage(e.to_string()))?;
 
             conn.transaction::<(), diesel::result::Error, _>(|conn| {
-                let attempts = diesel::update(
+                let (attempts, extra_info) = diesel::update(
                     inbox_entries::table
                         .filter(inbox_entries::id.eq(id))
                         .filter(inbox_entries::reservation_id.eq(reservation_id))
@@ -421,8 +429,20 @@ mod infra_diesel_pg {
                     inbox_entries::reservation_id.eq(None::<Uuid>),
                     inbox_entries::reserved_at.eq(None::<DateTime<Utc>>),
                 ))
-                .returning(inbox_entries::attempts)
-                .get_result::<i32>(conn)?;
+                .returning((inbox_entries::attempts, inbox_entries::extra_info))
+                .get_result::<(
+                    i32,
+                    Option<crate::assembly::infra_diesel::models::ExtraInfoJsonb>,
+                )>(conn)?;
+
+                let extra_info = match reason {
+                    Some(reason) => {
+                        Some(crate::assembly::infra_diesel::models::ExtraInfoJsonb::from(
+                            append_error(extra_info.map(Into::into), reason),
+                        ))
+                    }
+                    None => extra_info,
+                };
 
                 let status = if attempts >= max_attempts {
                     InboxStatus::Dead
@@ -439,6 +459,7 @@ mod infra_diesel_pg {
                         inbox_entries::status.eq(i32::from(status)),
                         inbox_entries::scheduled_at.eq(scheduled_at),
                         inbox_entries::updated_at.eq(diesel::dsl::now),
+                        inbox_entries::extra_info.eq(extra_info),
                     ))
                     .execute(conn)?;
 

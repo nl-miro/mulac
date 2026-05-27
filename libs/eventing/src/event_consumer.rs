@@ -145,8 +145,10 @@ mod repository {
             id: Uuid,
             reservation_id: Uuid,
             max_attempts: i32,
+            reason: Option<String>,
         ) -> Result<(), EventError> {
-            self.process.failed(id, reservation_id, max_attempts)
+            self.process
+                .failed(id, reservation_id, max_attempts, reason)
         }
     }
 }
@@ -239,7 +241,7 @@ mod consumer {
                 }
                 Err(e) => {
                     self.repository
-                        .failed(id, reservation_id, spec.max_attempts)
+                        .failed(id, reservation_id, spec.max_attempts, Some(e.to_string()))
                         .unwrap_or_else(|err| errors.push(err));
                     errors.push(e);
                 }

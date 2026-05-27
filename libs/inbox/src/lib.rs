@@ -13,6 +13,7 @@ pub mod io {
     };
     pub use crate::assembly::io::{
         AcknowledgeHandle,
+        ExtraInfo,
         InboundMessageEnvelope,
         InboxError,
         InboxMessageEnvelope,

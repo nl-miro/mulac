@@ -45,6 +45,7 @@ pub mod io {
         CommandProcessPort,
         CommandStatus,
         CommandStorePort,
+        ExtraInfo,
         NewCommandEnvelope,
         NewCommandMetadata,
         UnknownCommandStatus,

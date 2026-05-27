@@ -15,7 +15,7 @@ pub mod io {
         EventStorePort, //
     };
 
-    pub use super::domain::{EventStatus, UnknownEventStatus};
+    pub use super::domain::{EventStatus, ExtraInfo, UnknownEventStatus};
 
     #[cfg(feature = "diesel")]
     pub(crate) use super::domain::Criterion;
