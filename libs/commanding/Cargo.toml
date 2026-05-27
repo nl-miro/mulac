@@ -15,4 +15,4 @@ serde.workspace = true
 serde_json.workspace = true
 diesel = { workspace = true, optional = true }
 mulac_diesel = { workspace = true, optional = true }
-eventing = { path = "../eventing", version = "0.2.0", registry = "margo", package = "mulac-eventing" }
+eventing = { path = "../eventing", version = "0.3.0", registry = "margo", package = "mulac-eventing" }
