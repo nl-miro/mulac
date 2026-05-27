@@ -219,12 +219,13 @@ mod consumer {
             }
         }
 
-        pub fn consume(&self, spec: &ReservableCommandSpec) -> Result<(), Vec<CommandError>> {
+        pub fn consume(&self, spec: &ReservableCommandSpec) -> Result<usize, Vec<CommandError>> {
             let entries = match self.repository.reserve(spec) {
                 Ok(entries) => entries,
                 Err(e) => return Err(vec![e]),
             };
 
+            let count = entries.len();
             let mut errors: Vec<CommandError> = vec![];
 
             for entry in entries {
@@ -232,7 +233,7 @@ mod consumer {
             }
 
             if errors.is_empty() {
-                Ok(())
+                Ok(count)
             } else {
                 Err(errors)
             }

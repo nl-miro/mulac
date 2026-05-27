@@ -233,12 +233,13 @@ mod consumer {
             Self { repository, next }
         }
 
-        pub fn process(&self, spec: &ReservableInboxSpec) -> Result<(), Vec<InboxError>> {
+        pub fn process(&self, spec: &ReservableInboxSpec) -> Result<usize, Vec<InboxError>> {
             let messages = match self.repository.reserve(spec) {
                 Ok(messages) => messages,
                 Err(e) => return Err(vec![e]),
             };
 
+            let count = messages.len();
             let mut errors: Vec<InboxError> = vec![];
 
             for message in messages {
@@ -275,7 +276,7 @@ mod consumer {
             }
 
             if errors.is_empty() {
-                return Ok(());
+                return Ok(count);
             }
 
             Err(errors)

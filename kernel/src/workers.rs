@@ -18,7 +18,7 @@ pub async fn run_command_worker(consumer: Arc<CommandConsumer>, token: Cancellat
         })
         .await
         {
-            Ok(Ok(())) => {}
+            Ok(Ok(_)) => {}
             Ok(Err(errs)) => {
                 for e in &errs {
                     tracing::error!("command worker: {e}");
@@ -39,7 +39,7 @@ pub async fn run_event_worker(consumer: Arc<EventConsumer>, token: CancellationT
         match tokio::task::spawn_blocking(move || c.consume(&ReservableEventSpec::new(BATCH_SIZE)))
             .await
         {
-            Ok(Ok(())) => {}
+            Ok(Ok(_)) => {}
             Ok(Err(errs)) => {
                 for e in &errs {
                     tracing::error!("event worker: {e}");

@@ -183,12 +183,13 @@ mod consumer {
         }
 
         /// Publish all currently reservable entries, collecting per-entry errors.
-        pub fn publish_batch(&self, spec: &ReservableOutboxSpec) -> Result<(), Vec<OutboxError>> {
+        pub fn publish_batch(&self, spec: &ReservableOutboxSpec) -> Result<usize, Vec<OutboxError>> {
             let entries = match self.repository.reserve(spec) {
                 Ok(entries) => entries,
                 Err(e) => return Err(vec![e]),
             };
 
+            let count = entries.len();
             let mut errors: Vec<OutboxError> = vec![];
 
             for entry in entries {
@@ -225,13 +226,13 @@ mod consumer {
                 }
             }
 
-            finish_batch(errors)
+            finish_batch(count, errors)
         }
     }
 
-    fn finish_batch(errors: Vec<OutboxError>) -> Result<(), Vec<OutboxError>> {
+    fn finish_batch(count: usize, errors: Vec<OutboxError>) -> Result<usize, Vec<OutboxError>> {
         if errors.is_empty() {
-            Ok(())
+            Ok(count)
         } else {
             Err(errors)
         }

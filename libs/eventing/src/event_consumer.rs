@@ -204,12 +204,13 @@ mod consumer {
             }
         }
 
-        pub fn consume(&self, spec: &ReservableEventSpec) -> Result<(), Vec<EventError>> {
+        pub fn consume(&self, spec: &ReservableEventSpec) -> Result<usize, Vec<EventError>> {
             let entries = match self.repository.reserve(spec) {
                 Ok(entries) => entries,
                 Err(e) => return Err(vec![e]),
             };
 
+            let count = entries.len();
             let mut errors: Vec<EventError> = vec![];
 
             for entry in entries {
@@ -217,7 +218,7 @@ mod consumer {
             }
 
             if errors.is_empty() {
-                Ok(())
+                Ok(count)
             } else {
                 Err(errors)
             }
