@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use poem_openapi::{Enum, Object};
 use serde::{Deserialize, Serialize};
+use std::sync::{OnceLock, RwLock};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize, Enum, sqlx::Type)]
@@ -24,22 +25,20 @@ impl TodoStatus {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Object)]
-pub struct TodoDto {
+pub struct TodoEntry {
     pub id: Uuid,
     pub title: String,
     pub description: Option<String>,
     pub status: TodoStatus,
+    pub due_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
-    pub due_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Object)]
 pub struct TodoList {
-    pub items: Vec<TodoDto>,
+    pub items: Vec<TodoEntry>,
 }
-
-use std::sync::{OnceLock, RwLock};
 
 static FIXED_NOW: OnceLock<RwLock<Option<DateTime<Utc>>>> = OnceLock::new();
 

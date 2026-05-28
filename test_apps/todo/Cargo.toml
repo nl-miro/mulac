@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 anyhow = "1"
 chrono = { version = "0.4", features = ["serde", "clock"] }
+derive-new = "0.7"
 poem = "3"
 poem-openapi = { version = "5", features = ["swagger-ui", "uuid", "chrono"] }
 serde = { version = "1", features = ["derive"] }

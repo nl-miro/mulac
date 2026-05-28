@@ -54,21 +54,43 @@ migrations/
 
 ## Feature module convention
 
-Every feature file (e.g. `tweet_post.rs`) follows:
+Every feature file (e.g. `tweet_post.rs`) is organized per
+`feature-organization.md`, read top-to-bottom in this order:
 
 ```
-pub const COMMAND_NAME: &str = "...";
-pub const EVENT_NAME:   &str = "...";
+pub mod io       { pub use super::intention::{...}; }   // the only public surface
 
-mod models     { Command, Event + kernel trait impls }
-mod handler    { CommandHandlerPort impl }
-mod infra_diesel { raw Diesel queries }
-mod http       { poem-openapi Api + request types }
+mod intention    { // what the feature means and does
+                   //   Command/Event via derive macros
+                   //     (#[derive(ApplicationCommand)] #[command_type = "..."]),
+                   //   the Handler entry point and/or event Subscriber,
+                   //   the poem-openapi Api and its top-level flow
+                 }
 
-pub mod io { pub use super::{COMMAND_NAME, EVENT_NAME}; pub use ...; }
+mod implementation { // how it works: raw Diesel queries, event construction,
+                     // helper methods on Handler, framework-facing detail
+                   }
+
+mod temp_helpers { // transitional glue: HTTP Request types, command-dispatch
+                   // and read-after-write fetch helpers
+                 }
+
+#[cfg(test)]
+mod tests        { // feature-local unit tests: type-name contracts, request
+                   // mapping (no DB)
+                 }
 ```
 
-Callers import through `feature::io::*`. Internal submodules are private.
+Notes:
+
+- `io` re-exports only from `intention`; nothing reaches into a feature's
+  internal modules. Callers import through `feature::io::*`.
+- Command/Event identity comes from the kernel derive macros, exposed as the
+  `Command::COMMAND_TYPE` / `Event::EVENT_TYPE` associated consts (used by
+  `assembly/application.rs` to register handlers and subscribers).
+- Gateway/query features without a kernel command of their own (`inbox`,
+  `outbox`) keep the same module shape: `intention` holds the Api and feature
+  types, `implementation` holds the Diesel work.
 
 ---
 

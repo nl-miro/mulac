@@ -2,8 +2,8 @@ mod utils;
 use serde_json::json;
 use test_app_todo::io::TodoRow;
 use utils::{
-    assert_bad_request_response, assert_command_completed, assert_event_completed,
-    assert_ok_response, assert_outbox_pending, start_test_app,
+    assert_bad_request_response, assert_command_completed, assert_event_completed, assert_ok_response, assert_outbox_pending,
+    start_test_app,
 };
 use uuid::Uuid;
 
@@ -23,12 +23,7 @@ async fn create_todo(base_url: &str, title: &str) -> Uuid {
         .unwrap()
 }
 
-async fn update_todo(
-    base_url: &str,
-    todo_id: Uuid,
-    title: &str,
-    description: &str,
-) -> reqwest::Response {
+async fn update_todo(base_url: &str, todo_id: Uuid, title: &str, description: &str) -> reqwest::Response {
     utils::client()
         .put(format!("{base_url}/api/todos/{todo_id}"))
         .json(&json!({"title": title, "description": description}))
@@ -51,13 +46,12 @@ async fn update_todo_dispatches_command_and_emits_event() {
     assert_command_completed(&pool, "UpdateTodo").await;
     assert_event_completed(&pool, "TodoUpdated").await;
 
-    let row = sqlx::query_as::<_, TodoRow>(
-        "SELECT id, title, description, status, created_at, updated_at, due_at FROM todos WHERE id = $1",
-    )
-    .bind(todo_id)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let row =
+        sqlx::query_as::<_, TodoRow>("SELECT id, title, description, status, created_at, updated_at, due_at FROM todos WHERE id = $1")
+            .bind(todo_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!(row.title, "Updated");
     assert_eq!(row.description.as_deref(), Some("Updated desc"));
 }

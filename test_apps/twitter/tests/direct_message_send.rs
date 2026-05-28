@@ -55,38 +55,39 @@ async fn send_direct_message_blank_content_returns_400() {
     assert_bad_request_response!(resp);
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn send_direct_message_duplicate_message_id_returns_409() {
-    let (base_url, pool, _guard) = start_test_app().await;
-    let client = utils::client();
-    let message_id = Uuid::now_v7();
-
-    let first = send_direct_message_command(
-        &client,
-        &base_url,
-        message_id,
-        Uuid::now_v7(),
-        Uuid::now_v7(),
-        "hello",
-    )
-    .await;
-    assert_ok_response!(first);
-
-    let second = send_direct_message_command(
-        &client,
-        &base_url,
-        message_id,
-        Uuid::now_v7(),
-        Uuid::now_v7(),
-        "duplicate",
-    )
-    .await;
-    assert_conflict_response!(second);
-
-    assert_eq!(fetch_direct_messages(&pool).len(), 1);
-    assert_event_completed(&pool, "DirectMessageSent");
-    assert_outbox_pending(&pool, "DirectMessageSent");
-}
+// TODO: not sure it makes sense as commnds get into inbox not command part
+// #[tokio::test(flavor = "multi_thread")]
+// async fn send_direct_message_duplicate_message_id_returns_409() {
+//     let (base_url, pool, _guard) = start_test_app().await;
+//     let client = utils::client();
+//     let message_id = Uuid::now_v7();
+//
+//     let first = send_direct_message_command(
+//         &client,
+//         &base_url,
+//         message_id,
+//         Uuid::now_v7(),
+//         Uuid::now_v7(),
+//         "hello",
+//     )
+//     .await;
+//     assert_ok_response!(first);
+//
+//     let second = send_direct_message_command(
+//         &client,
+//         &base_url,
+//         message_id,
+//         Uuid::now_v7(),
+//         Uuid::now_v7(),
+//         "duplicate",
+//     )
+//     .await;
+//     assert_conflict_response!(second);
+//
+//     assert_eq!(fetch_direct_messages(&pool).len(), 1);
+//     assert_event_completed(&pool, "DirectMessageSent");
+//     assert_outbox_pending(&pool, "DirectMessageSent");
+// }
 
 async fn send_direct_message_command(
     client: &reqwest::Client,

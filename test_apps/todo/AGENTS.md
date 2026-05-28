@@ -61,6 +61,39 @@ tests/
 
 ---
 
+
+## Rust Import Hygiene
+
+Keep Rust imports consistent across this repository.
+
+Rules:
+- place imports at the top of their module
+- do not leave empty lines between import statements
+- group bindings from the same crate into a single multi-import when practical
+- prefer local module imports to be grouped the same way as external imports
+
+Examples:
+
+```rust
+use crate::assembly::io::{ApiError, AppError, TodoEntry};
+use poem_openapi::{Object, OpenApi, payload::Json};
+use serde::{Deserialize, Serialize};
+```
+
+Avoid:
+
+```rust
+use crate::assembly::io::ApiError;
+
+use crate::assembly::io::AppError;
+use crate::assembly::io::TodoEntry;
+```
+
+When refactoring a file:
+- normalize imports before finishing
+- if an import is no longer used, remove it
+- do not move imports below code inside the module
+
 ## Feature module convention
 
 Every feature file (task_*.rs) exposes **only** `pub mod io` — all internal sub-modules are private:

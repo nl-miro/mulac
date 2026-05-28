@@ -1,18 +1,13 @@
 mod utils;
 use serde_json::json;
 use utils::{
-    assert_command_completed, assert_conflict_response, assert_event_completed, assert_ok_response,
-    assert_outbox_pending, fetch_inbox, start_test_app,
+    assert_command_completed, assert_conflict_response, assert_event_completed, assert_ok_response, assert_outbox_pending, fetch_inbox,
+    start_test_app,
 };
 use uuid::Uuid;
 
 async fn send_command(base_url: &str, payload: &serde_json::Value) -> reqwest::Response {
-    utils::client()
-        .post(format!("{base_url}/api/messages/commands"))
-        .json(payload)
-        .send()
-        .await
-        .unwrap()
+    utils::client().post(format!("{base_url}/api/messages/commands")).json(payload).send().await.unwrap()
 }
 
 async fn create_todo(base_url: &str, title: &str) -> Uuid {
@@ -69,10 +64,7 @@ async fn inbound_command_records_inbox_lifecycle() {
     assert_eq!(row.payload["type"], "CreateTodo");
     assert_eq!(row.payload["payload"]["todo_id"], todo_id.to_string());
     assert_eq!(row.payload["payload"]["title"], "Inbox-created todo");
-    assert_eq!(
-        row.payload["payload"]["description"],
-        "Created through inbound messages"
-    );
+    assert_eq!(row.payload["payload"]["description"], "Created through inbound messages");
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -100,12 +92,7 @@ async fn inbound_update_due_date_dispatches_command() {
     let body = response.json::<serde_json::Value>().await.unwrap();
     assert_eq!(body["message_id"], message_id.to_string());
     assert_eq!(body["todo"]["id"], todo_id.to_string());
-    assert!(
-        body["todo"]["due_at"]
-            .as_str()
-            .unwrap()
-            .contains("2026-12-31T23:59:59")
-    );
+    assert!(body["todo"]["due_at"].as_str().unwrap().contains("2026-12-31T23:59:59"));
 
     let inbox = fetch_inbox(&pool).await;
     assert_eq!(inbox.len(), 1);
@@ -140,12 +127,7 @@ async fn duplicate_inbox_message_id_returns_409() {
     let second = send_command(&base_url, &payload).await;
     assert_conflict_response!(second);
     let body = second.json::<serde_json::Value>().await.unwrap();
-    assert!(
-        body["error"]
-            .as_str()
-            .unwrap()
-            .contains(&message_id.to_string())
-    );
+    assert!(body["error"].as_str().unwrap().contains(&message_id.to_string()));
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -153,11 +135,7 @@ async fn malformed_inbox_command_payload_returns_error() {
     let (base_url, _pool, _guard) = start_test_app().await;
 
     let response = send_command(&base_url, &json!({"id": Uuid::now_v7()})).await;
-    assert!(
-        response.status().is_client_error(),
-        "missing command field should return 4xx, got {}",
-        response.status()
-    );
+    assert!(response.status().is_client_error(), "missing command field should return 4xx, got {}", response.status());
 
     let response = send_command(
         &base_url,
@@ -170,9 +148,5 @@ async fn malformed_inbox_command_payload_returns_error() {
         }),
     )
     .await;
-    assert!(
-        response.status().is_client_error(),
-        "unknown command type should return 4xx, got {}",
-        response.status()
-    );
+    assert!(response.status().is_client_error(), "unknown command type should return 4xx, got {}", response.status());
 }

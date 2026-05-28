@@ -1,18 +1,15 @@
 use crate::assembly::infra_diesel::DbPool;
-use crate::direct_message_send::io::Command as SendDirectMessageCommand;
-use crate::timeline_fan_out::io::Command as FanOutTweetCommand;
-use crate::tweet_delete::io::Command as DeleteTweetCommand;
-use crate::tweet_like::io::Command as LikeTweetCommand;
-use crate::tweet_post::io::Command as PostTweetCommand;
-use crate::tweet_retweet::io::Command as RetweetCommand;
-use crate::tweet_unlike::io::Command as UnlikeTweetCommand;
-use crate::user_follow::io::Command as FollowUserCommand;
-use crate::user_unfollow::io::Command as UnfollowUserCommand;
+use crate::direct_message_send::io::SendDirectMessage as SendDirectMessageCommand;
+use crate::timeline_fan_out::io::FanOutTweet as FanOutTweetCommand;
+use crate::tweet_delete::io::DeleteTweet as DeleteTweetCommand;
+use crate::tweet_like::io::LikeTweet as LikeTweetCommand;
+use crate::tweet_post::io::PostTweet as PostTweetCommand;
+use crate::tweet_retweet::io::Retweet as RetweetCommand;
+use crate::tweet_unlike::io::UnlikeTweet as UnlikeTweetCommand;
+use crate::user_follow::io::FollowUser as FollowUserCommand;
+use crate::user_unfollow::io::UnfollowUser as UnfollowUserCommand;
 use kernel::io::CommandError as MulacCommandError;
-use kernel::{
-    ApplicationCommand,
-    KernelError, //
-};
+use kernel::{ApplicationCommand, InboxError, KernelError, NewCommandMetadata};
 use poem::{IntoResponse, http::StatusCode};
 use poem_openapi::Object;
 use serde::{Deserialize, Serialize};
@@ -36,6 +33,8 @@ pub enum AppError {
     Conflict(String),
     #[error("storage error: {0}")]
     Storage(#[from] anyhow::Error),
+    #[error("inbox error: {0}")]
+    InboxError(#[from] InboxError),
 }
 
 pub type ApiError = poem::Error;
@@ -47,6 +46,7 @@ impl From<AppError> for poem::Error {
             AppError::Validation(_) => StatusCode::BAD_REQUEST,
             AppError::Conflict(_) => StatusCode::CONFLICT,
             AppError::Storage(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            AppError::InboxError(_) => todo!(),
         };
         poem::Error::from_response(
             (
@@ -57,6 +57,15 @@ impl From<AppError> for poem::Error {
             )
                 .into_response(),
         )
+    }
+}
+
+impl From<AppError> for MulacCommandError {
+    fn from(error: AppError) -> Self {
+        match error {
+            AppError::Storage(error) => Self::Storage(error.to_string()),
+            other => Self::HandlerExecution(other.to_string()),
+        }
     }
 }
 
@@ -158,8 +167,11 @@ impl Command for AppCommand {
         }
     }
 }
-
-pub type NewCommandEnvelope = kernel::NewCommandEnvelope<AppCommand>;
+/// Typed application command envelope.
+///
+/// The command is app-defined, while metadata is the mulac/kernel routing and
+/// correlation metadata needed to cross the command gateway boundary.
+pub type NewCommandEnvelope<C> = kernel::NewCommandEnvelope<C>;
 
 pub async fn run_blocking<F, T>(f: F) -> Result<T, AppError>
 where
@@ -170,6 +182,25 @@ where
         AppError::Storage(anyhow::anyhow!("blocking task join failed: {join_err}"))
     })?
 }
+pub fn dispatch_command<C: ApplicationCommand>(
+    mulac: &kernel::PersistentKernelState,
+    command: C,
+) -> Result<(), AppError> {
+    let command_id = Uuid::now_v7();
+
+    let metadata = NewCommandMetadata {
+        command_id,
+        correlation_id: Some(command_id),
+        causation_id: None,
+        source: Some("test_app_todo.http".to_string()),
+    };
+
+    let envelope = NewCommandEnvelope { command, metadata };
+
+    mulac
+        .dispatch_command(envelope)
+        .map_err(interpret_dispatch_error)
+}
 
 // ── Mulac state ───────────────────────────────────────────────────────────────
 
@@ -178,84 +209,109 @@ pub type MulacHandle = kernel::PersistentKernelHandle;
 
 pub fn start_mulac(pool: DbPool) -> Result<MulacHandle, KernelError> {
     use crate::assembly::infra_diesel::OutboxSubscriber;
-    use crate::direct_message_send::io::Handler as SendDmHandler;
+    use crate::direct_message_send::io::{
+        DirectMessageSent as DirectMessageSentEvent, Handler as SendDmHandler,
+    };
     use crate::timeline_fan_out::io::{
         Handler as FanOutHandler,
         Subscriber as FanOutSubscriber,
         //
     };
-    use crate::tweet_delete::io::Handler as DeleteTweetHandler;
-    use crate::tweet_like::io::Handler as LikeTweetHandler;
-    use crate::tweet_post::io::Handler as PostTweetHandler;
-    use crate::tweet_retweet::io::Handler as RetweetHandler;
-    use crate::tweet_unlike::io::Handler as UnlikeTweetHandler;
-    use crate::user_follow::io::Handler as FollowUserHandler;
-    use crate::user_unfollow::io::Handler as UnfollowUserHandler;
+    use crate::tweet_delete::io::{
+        Handler as DeleteTweetHandler, TweetDeleted as TweetDeletedEvent,
+    };
+    use crate::tweet_like::io::{Handler as LikeTweetHandler, TweetLiked as TweetLikedEvent};
+    use crate::tweet_post::io::{Handler as PostTweetHandler, TweetPosted as TweetPostedEvent};
+    use crate::tweet_retweet::io::{
+        Handler as RetweetHandler, TweetRetweeted as TweetRetweetedEvent,
+    };
+    use crate::tweet_unlike::io::{
+        Handler as UnlikeTweetHandler, TweetUnliked as TweetUnlikedEvent,
+    };
+    use crate::user_follow::io::{Handler as FollowUserHandler, UserFollowed as UserFollowedEvent};
+    use crate::user_unfollow::io::{
+        Handler as UnfollowUserHandler, UserUnfollowed as UserUnfollowedEvent,
+    };
 
     kernel::boot(kernel::KernelConfig::default())
-        .command_handler("PostTweet", Arc::new(PostTweetHandler::new(pool.clone())))
         .command_handler(
-            "DeleteTweet",
+            PostTweetCommand::COMMAND_TYPE,
+            Arc::new(PostTweetHandler::new(pool.clone())),
+        )
+        .command_handler(
+            DeleteTweetCommand::COMMAND_TYPE,
             Arc::new(DeleteTweetHandler::new(pool.clone())),
         )
-        .command_handler("Retweet", Arc::new(RetweetHandler::new(pool.clone())))
-        .command_handler("FollowUser", Arc::new(FollowUserHandler::new(pool.clone())))
         .command_handler(
-            "UnfollowUser",
+            RetweetCommand::COMMAND_TYPE,
+            Arc::new(RetweetHandler::new(pool.clone())),
+        )
+        .command_handler(
+            FollowUserCommand::COMMAND_TYPE,
+            Arc::new(FollowUserHandler::new(pool.clone())),
+        )
+        .command_handler(
+            UnfollowUserCommand::COMMAND_TYPE,
             Arc::new(UnfollowUserHandler::new(pool.clone())),
         )
-        .command_handler("LikeTweet", Arc::new(LikeTweetHandler::new(pool.clone())))
         .command_handler(
-            "UnlikeTweet",
+            LikeTweetCommand::COMMAND_TYPE,
+            Arc::new(LikeTweetHandler::new(pool.clone())),
+        )
+        .command_handler(
+            UnlikeTweetCommand::COMMAND_TYPE,
             Arc::new(UnlikeTweetHandler::new(pool.clone())),
         )
         .command_handler(
-            "SendDirectMessage",
+            SendDirectMessageCommand::COMMAND_TYPE,
             Arc::new(SendDmHandler::new(pool.clone())),
         )
-        .command_handler("FanOutTweet", Arc::new(FanOutHandler::new(pool.clone())))
+        .command_handler(
+            FanOutTweetCommand::COMMAND_TYPE,
+            Arc::new(FanOutHandler::new(pool.clone())),
+        )
         .event_subscriber(
-            "TweetPosted",
+            TweetPostedEvent::EVENT_TYPE,
             "tweet-posted-outbox",
             Arc::new(OutboxSubscriber::new(pool.clone())) as Arc<dyn kernel::EventSubscriberPort>,
         )
         .event_subscriber(
-            "TweetDeleted",
+            TweetDeletedEvent::EVENT_TYPE,
             "tweet-deleted-outbox",
             Arc::new(OutboxSubscriber::new(pool.clone())) as Arc<dyn kernel::EventSubscriberPort>,
         )
         .event_subscriber(
-            "TweetRetweeted",
+            TweetRetweetedEvent::EVENT_TYPE,
             "tweet-retweeted-outbox",
             Arc::new(OutboxSubscriber::new(pool.clone())) as Arc<dyn kernel::EventSubscriberPort>,
         )
         .event_subscriber(
-            "TweetLiked",
+            TweetLikedEvent::EVENT_TYPE,
             "tweet-liked-outbox",
             Arc::new(OutboxSubscriber::new(pool.clone())) as Arc<dyn kernel::EventSubscriberPort>,
         )
         .event_subscriber(
-            "TweetUnliked",
+            TweetUnlikedEvent::EVENT_TYPE,
             "tweet-unliked-outbox",
             Arc::new(OutboxSubscriber::new(pool.clone())) as Arc<dyn kernel::EventSubscriberPort>,
         )
         .event_subscriber(
-            "UserFollowed",
+            UserFollowedEvent::EVENT_TYPE,
             "user-followed-outbox",
             Arc::new(OutboxSubscriber::new(pool.clone())) as Arc<dyn kernel::EventSubscriberPort>,
         )
         .event_subscriber(
-            "UserUnfollowed",
+            UserUnfollowedEvent::EVENT_TYPE,
             "user-unfollowed-outbox",
             Arc::new(OutboxSubscriber::new(pool.clone())) as Arc<dyn kernel::EventSubscriberPort>,
         )
         .event_subscriber(
-            "DirectMessageSent",
+            DirectMessageSentEvent::EVENT_TYPE,
             "direct-message-sent-outbox",
             Arc::new(OutboxSubscriber::new(pool.clone())) as Arc<dyn kernel::EventSubscriberPort>,
         )
         .event_subscriber_with_command_gateway(
-            "TweetPosted",
+            TweetPostedEvent::EVENT_TYPE,
             "timeline-fan-out",
             move |command_gateway| {
                 Arc::new(FanOutSubscriber::new(command_gateway))

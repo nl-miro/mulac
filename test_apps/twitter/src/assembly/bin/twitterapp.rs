@@ -1,4 +1,11 @@
 use anyhow::Result;
+use kernel::io::{
+    CommandDispatcher, CommandGateway, CommandHandlerRegistry, EventSubscriberRegistry,
+};
+use kernel::{
+    CommandHandlers, EventDispatcher, EventGateway, InboxRecorder, InboxRecorderRepository,
+    NoopInboxStore,
+};
 use poem::{
     EndpointExt,
     Route,
@@ -9,6 +16,7 @@ use poem::{
 };
 use poem_openapi::OpenApiService;
 use std::env;
+use std::sync::Arc;
 use test_app_twitter::io::{
     AppState,
     DEFAULT_DATABASE_URL,
@@ -62,6 +70,33 @@ async fn main() -> Result<()> {
             let token = kernel.child_token();
             tokio::spawn(run_command_worker(kernel.command_consumer(), token.clone()));
             tokio::spawn(run_event_worker(kernel.event_consumer(), token));
+
+            let subscribers = vec![];
+
+            let event_registry = Arc::new(EventSubscriberRegistry::from_subscribers(subscribers));
+            let event_dispatcher = Arc::new(EventDispatcher::new(event_registry));
+            let event_gateway = Arc::new(EventGateway::direct(event_dispatcher.clone()));
+
+            let command_handlers = CommandHandlers::new();
+
+            let command_registry =
+                Arc::new(CommandHandlerRegistry::from_handlers(command_handlers));
+            let command_dispatcher = Arc::new(CommandDispatcher::new(
+                command_registry,
+                event_gateway.clone(),
+            ));
+            let command_gateway = Arc::new(CommandGateway::direct(command_dispatcher.clone()));
+
+            let inbox_recorder = Arc::new(InboxRecorder::new(Arc::new(
+                InboxRecorderRepository::new(Arc::new(NoopInboxStore)),
+            )));
+
+            let _state = kernel::AppState {
+                inbox_recorder,
+                command_gateway,
+                event_gateway,
+            };
+
             let state = AppState::new(pool, kernel.state());
 
             let api = OpenApiService::new(

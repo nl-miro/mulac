@@ -6,12 +6,22 @@ BIND_ADDR ?= 127.0.0.1:33002
 migrate:
 	DATABASE_URL=$(DATABASE_URL) cargo run -- migrate
 
-test:
-	DATABASE_URL=$(DATABASE_URL) cargo test
+fmt:
+	cargo fmt
+
+fix:	
+	cargo fix --allow-dirty
 
 check:
 	cargo fmt --check
 	cargo check
+	
+test:
+	DATABASE_URL=$(DATABASE_URL) cargo test
+	#DATABASE_URL=$(DATABASE_URL) RUSTFLAGS="-A warnings" cargo test -q -- --quiet
 
 serve:
 	DATABASE_URL=$(DATABASE_URL) BIND_ADDR=$(BIND_ADDR) cargo run -- serve
+
+wip:
+	git add . && git commit -am 'wip'

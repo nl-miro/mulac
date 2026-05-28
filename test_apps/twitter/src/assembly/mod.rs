@@ -11,13 +11,13 @@ pub mod io {
         MulacHandle,
         MulacState,
         NewCommandEnvelope,
+        dispatch_command,
         interpret_dispatch_error,
         run_blocking,
         run_command_worker,
         run_event_worker,
         start_mulac,
-        validate_content,
-        //
+        validate_content, //
     };
     pub use super::domain::{
         Clock,
@@ -26,8 +26,7 @@ pub mod io {
         InboundEntity,
         InboundResponse,
         LikeDto,
-        TweetDto,
-        //
+        TweetDto, //
     };
     pub use super::infra_diesel::{
         DEFAULT_DATABASE_URL,
@@ -38,7 +37,6 @@ pub mod io {
         fetch_follow,
         fetch_like,
         fetch_tweet,
-        run_migrations,
-        //
+        run_migrations, //
     };
 }

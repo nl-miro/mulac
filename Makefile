@@ -83,3 +83,6 @@ test-apps-test:
 test-apps-serve:
 	@$(MAKE) -C test_apps/todo serve
 	@$(MAKE) -C test_apps/twitter serve
+
+wip:
+	git add . && git commit -am 'wip'

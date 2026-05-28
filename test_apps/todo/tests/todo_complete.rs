@@ -2,32 +2,19 @@ mod utils;
 use serde_json::json;
 use test_app_todo::io::TodoRow;
 use utils::{
-    assert_command_completed, assert_event_completed, assert_not_found_response,
-    assert_ok_response, assert_outbox_pending, client, start_test_app,
+    assert_command_completed, assert_event_completed, assert_not_found_response, assert_ok_response, assert_outbox_pending, client,
+    start_test_app,
 };
 use uuid::Uuid;
 
 async fn create_todo(base_url: &str, title: &str) -> Uuid {
-    let resp = client()
-        .post(format!("{base_url}/api/todos"))
-        .json(&json!({"title": title}))
-        .send()
-        .await
-        .unwrap();
+    let resp = client().post(format!("{base_url}/api/todos")).json(&json!({"title": title})).send().await.unwrap();
     assert_ok_response!(resp);
-    resp.json::<serde_json::Value>().await.unwrap()["id"]
-        .as_str()
-        .unwrap()
-        .parse()
-        .unwrap()
+    resp.json::<serde_json::Value>().await.unwrap()["id"].as_str().unwrap().parse().unwrap()
 }
 
 async fn complete_todo(base_url: &str, todo_id: Uuid) -> reqwest::Response {
-    client()
-        .post(format!("{base_url}/api/todos/{todo_id}/complete"))
-        .send()
-        .await
-        .unwrap()
+    client().post(format!("{base_url}/api/todos/{todo_id}/complete")).send().await.unwrap()
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -45,13 +32,12 @@ async fn complete_todo_emits_event() {
     assert_command_completed(&pool, "CompleteTodo").await;
     assert_event_completed(&pool, "TodoCompleted").await;
 
-    let row = sqlx::query_as::<_, TodoRow>(
-        "SELECT id, title, description, status, created_at, updated_at, due_at FROM todos WHERE id = $1",
-    )
-    .bind(todo_id)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let row =
+        sqlx::query_as::<_, TodoRow>("SELECT id, title, description, status, created_at, updated_at, due_at FROM todos WHERE id = $1")
+            .bind(todo_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!(row.status, "completed");
 }
 

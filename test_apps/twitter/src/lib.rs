@@ -1,18 +1,19 @@
-pub(crate) mod assembly;
-pub(crate) mod direct_message_send;
+mod assembly;
+mod direct_message_send;
 mod inbox;
 mod outbox;
 pub mod schema;
-pub(crate) mod timeline_fan_out;
-pub(crate) mod tweet_delete;
-pub(crate) mod tweet_like;
-pub(crate) mod tweet_post;
-pub(crate) mod tweet_retweet;
-pub(crate) mod tweet_unlike;
-pub(crate) mod user_follow;
-pub(crate) mod user_unfollow;
+mod timeline_fan_out;
+mod tweet_delete;
+mod tweet_like;
+mod tweet_post;
+mod tweet_retweet;
+mod tweet_unlike;
+mod user_follow;
+mod user_unfollow;
 
 use assembly::io::{DbPool, MulacState};
+use derive_new::new;
 use kernel::ApplicationEvent;
 use poem_openapi::Union;
 use serde::{Deserialize, Serialize};
@@ -21,14 +22,14 @@ use serde::{Deserialize, Serialize};
 #[oai(discriminator_name = "type")]
 #[serde(tag = "type", content = "payload")]
 pub enum TwitterEvent {
-    TweetPosted(tweet_post::io::Event),
-    TweetDeleted(tweet_delete::io::Event),
-    TweetRetweeted(tweet_retweet::io::Event),
-    UserFollowed(user_follow::io::Event),
-    UserUnfollowed(user_unfollow::io::Event),
-    TweetLiked(tweet_like::io::Event),
-    TweetUnliked(tweet_unlike::io::Event),
-    DirectMessageSent(direct_message_send::io::Event),
+    TweetPosted(tweet_post::io::TweetPosted),
+    TweetDeleted(tweet_delete::io::TweetDeleted),
+    TweetRetweeted(tweet_retweet::io::TweetRetweeted),
+    UserFollowed(user_follow::io::UserFollowed),
+    UserUnfollowed(user_unfollow::io::UserUnfollowed),
+    TweetLiked(tweet_like::io::TweetLiked),
+    TweetUnliked(tweet_unlike::io::TweetUnliked),
+    DirectMessageSent(direct_message_send::io::DirectMessageSent),
 }
 
 impl ApplicationEvent for TwitterEvent {
@@ -46,16 +47,10 @@ impl ApplicationEvent for TwitterEvent {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, new)]
 pub struct AppState {
     pub pool: DbPool,
     pub mulac: MulacState,
-}
-
-impl AppState {
-    pub fn new(pool: DbPool, mulac: MulacState) -> Self {
-        Self { pool, mulac }
-    }
 }
 
 pub mod io {

@@ -82,6 +82,8 @@ mod models {
         Conversion(String),
         #[error("eventing error: {0}")]
         Eventing(#[from] eventing::io::EventError),
+        #[error("Domain error: {0}")]
+        Domain(String),
     }
 }
 

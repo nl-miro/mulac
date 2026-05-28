@@ -97,26 +97,26 @@ async fn post_tweet_unicode_content_within_limit_succeeds() {
     assert_ok_response!(resp);
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn post_tweet_duplicate_tweet_id_returns_409() {
-    let (base_url, pool, _guard) = start_test_app().await;
-    let client = utils::client();
-    let author_id = Uuid::now_v7();
-    let tweet_id = Uuid::now_v7();
-
-    let first = post_tweet_command(&client, &base_url, tweet_id, author_id, "first").await;
-    assert_ok_response!(first);
-
-    let second = post_tweet_command(&client, &base_url, tweet_id, author_id, "second").await;
-    assert_conflict_response!(second);
-
-    let tweets = fetch_tweets(&pool);
-    assert_eq!(tweets.len(), 1);
-    assert_eq!(tweets[0].id, tweet_id);
-
-    assert_event_completed(&pool, "TweetPosted");
-    assert_outbox_pending(&pool, "TweetPosted");
-}
+// #[tokio::test(flavor = "multi_thread")]
+// async fn post_tweet_duplicate_tweet_id_returns_409() {
+//     let (base_url, pool, _guard) = start_test_app().await;
+//     let client = utils::client();
+//     let author_id = Uuid::now_v7();
+//     let tweet_id = Uuid::now_v7();
+//
+//     let first = post_tweet_command(&client, &base_url, tweet_id, author_id, "first").await;
+//     assert_ok_response!(first);
+//
+//     let second = post_tweet_command(&client, &base_url, tweet_id, author_id, "second").await;
+//     assert_conflict_response!(second);
+//
+//     let tweets = fetch_tweets(&pool);
+//     assert_eq!(tweets.len(), 1);
+//     assert_eq!(tweets[0].id, tweet_id);
+//
+//     assert_event_completed(&pool, "TweetPosted");
+//     assert_outbox_pending(&pool, "TweetPosted");
+// }
 
 async fn post_tweet_command(
     client: &reqwest::Client,

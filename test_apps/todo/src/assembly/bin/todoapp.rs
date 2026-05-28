@@ -35,9 +35,7 @@ fn health() -> &'static str {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // Structured logging to stdout, level controlled via RUST_LOG env var.
-    tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-        .init();
+    tracing_subscriber::fmt().with_env_filter(tracing_subscriber::EnvFilter::from_default_env()).init();
 
     let command = env::args().nth(1).unwrap_or_else(|| "serve".to_string());
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
@@ -66,29 +64,14 @@ async fn main() -> anyhow::Result<()> {
 
             // Assemble the OpenAPI service from individual feature API structs.
             let api = OpenApiService::new(
-                (
-                    CreateApi,
-                    ListApi,
-                    GetApi,
-                    UpdateApi,
-                    CompleteApi,
-                    ReopenApi,
-                    DeleteApi,
-                    DueDatesApi,
-                    InboxApi,
-                    OutboxApi,
-                ),
+                (CreateApi, ListApi, GetApi, UpdateApi, CompleteApi, ReopenApi, DeleteApi, DueDatesApi, InboxApi, OutboxApi),
                 "test_app_todo",
                 "0.1.0",
             )
             .server(format!("http://{bind_addr}/api"));
 
             let swagger = api.swagger_ui();
-            let app = Route::new()
-                .at("/health", get(health))
-                .nest("/api", api)
-                .nest("/swagger", swagger)
-                .with(AddData::new(state));
+            let app = Route::new().at("/health", get(health)).nest("/api", api).nest("/swagger", swagger).with(AddData::new(state));
 
             tracing::info!(%bind_addr, "starting test_app_todo");
 

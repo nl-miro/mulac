@@ -25,11 +25,7 @@ async fn get_todo_returns_single_todo() {
 
     let todo_id = create_todo(&base_url, "Single Task").await;
 
-    let response = utils::client()
-        .get(format!("{base_url}/api/todos/{todo_id}"))
-        .send()
-        .await
-        .unwrap();
+    let response = utils::client().get(format!("{base_url}/api/todos/{todo_id}")).send().await.unwrap();
 
     assert_ok_response!(response);
     let body = response.json::<serde_json::Value>().await.unwrap();
@@ -42,11 +38,7 @@ async fn get_nonexistent_todo_returns_404() {
     let (base_url, _pool, _guard) = start_test_app().await;
     let nonexistent_id = Uuid::now_v7();
 
-    let response = utils::client()
-        .get(format!("{base_url}/api/todos/{nonexistent_id}"))
-        .send()
-        .await
-        .unwrap();
+    let response = utils::client().get(format!("{base_url}/api/todos/{nonexistent_id}")).send().await.unwrap();
 
     assert_not_found_response!(response);
 }

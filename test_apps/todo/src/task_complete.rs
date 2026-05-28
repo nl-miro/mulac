@@ -1,75 +1,124 @@
-pub const COMPLETE_TODO_COMMAND: &str = "CompleteTodo";
-pub const TODO_COMPLETED_EVENT: &str = "TodoCompleted";
+pub mod io {
+    pub use super::implementation::CompleteTodoHandler;
+    pub use super::intention::{CompleteTodo, TodoCompleted};
+    pub use super::ui::Api;
+}
 
-mod models {
-    use crate::assembly::io::TodoDto;
-    use kernel::ApplicationEvent;
+mod intention {
+    use crate::assembly::io::TodoStatus;
+    use chrono::{DateTime, Utc};
+    use kernel::{ApplicationCommand, ApplicationEvent};
     use poem_openapi::Object;
     use serde::{Deserialize, Serialize};
     use uuid::Uuid;
 
-    #[derive(Debug, Clone, Serialize, Deserialize, Object)]
-    pub struct CompleteTodoCommand {
+    /// Asks the system to mark a todo as done.
+    #[derive(Debug, Clone, Serialize, Deserialize, Object, ApplicationCommand)]
+    #[command_type = "CompleteTodo"]
+    pub struct CompleteTodo {
         pub todo_id: Uuid,
     }
 
-    impl kernel::ApplicationCommand for CompleteTodoCommand {
-        fn command_type(&self) -> &'static str {
-            super::COMPLETE_TODO_COMMAND
+    impl CompleteTodo {
+        pub fn complete(todo_id: Uuid) -> Self {
+            Self { todo_id }
+        }
+
+        /// Completing a todo transitions it to `Completed`. The transition rule
+        /// lives here, in plain language, rather than in the SQL mechanics.
+        pub fn resulting_status(&self) -> TodoStatus {
+            TodoStatus::Completed
         }
     }
 
-    #[derive(Debug, Clone, Serialize, Deserialize, Object)]
+    /// States that a todo was completed, carrying its resulting snapshot.
+    #[derive(Debug, Clone, Serialize, Deserialize, Object, ApplicationEvent)]
+    #[event_type = "TodoCompleted"]
     pub struct TodoCompleted {
-        pub todo: TodoDto,
+        pub id: Uuid,
+        pub title: String,
+        pub description: Option<String>,
+        pub status: TodoStatus,
+        pub created_at: DateTime<Utc>,
+        pub updated_at: DateTime<Utc>,
+        pub due_at: Option<DateTime<Utc>>,
     }
+}
 
-    impl ApplicationEvent for TodoCompleted {
-        fn event_type(&self) -> &'static str {
-            super::TODO_COMPLETED_EVENT
+mod ui {
+    use super::intention::CompleteTodo;
+    use crate::AppState;
+    use crate::assembly::io::{ApiError, TodoEntry, dispatch_command, fetch_todo};
+    use poem::web::Data;
+    use poem_openapi::{OpenApi, param::Path, payload::Json};
+    use uuid::Uuid;
+
+    pub struct Api;
+
+    #[OpenApi]
+    impl Api {
+        #[oai(path = "/todos/:id/complete", method = "post")]
+        async fn complete_todo(&self, state: Data<&AppState>, id: Path<Uuid>) -> Result<Json<TodoEntry>, ApiError> {
+            let cmd = CompleteTodo::complete(id.0);
+
+            dispatch_command(&state.mulac, cmd)?;
+
+            Ok(Json(fetch_todo(&state.pool, id.0).await?))
         }
     }
 }
 
-mod handler {
-    use super::models::{CompleteTodoCommand, TodoCompleted};
-    use crate::assembly::io::{TodoEvent, block_on_blocking};
+mod implementation {
+    use super::intention::{CompleteTodo, TodoCompleted};
+    use crate::assembly::io::{AppError, Clock, TodoEntry, TodoEvent, TodoRow, TodoStatus, block_on_blocking};
+    use derive_new::new;
     use kernel::{CommandError, CommandHandlerPort};
     use sqlx::PgPool;
+    use std::sync::Arc;
+    use uuid::Uuid;
 
+    #[derive(new)]
     pub struct CompleteTodoHandler {
-        pool: PgPool,
+        pub(super) pool: Arc<kernel::io::DbPool>,
+    }
+
+    impl From<TodoEntry> for TodoCompleted {
+        fn from(todo: TodoEntry) -> Self {
+            Self {
+                id: todo.id,
+                title: todo.title,
+                description: todo.description,
+                status: todo.status,
+                created_at: todo.created_at,
+                updated_at: todo.updated_at,
+                due_at: todo.due_at,
+            }
+        }
+    }
+
+    // The handler asks the intention for the resulting status, then persists it.
+    impl CommandHandlerPort<CompleteTodo, TodoEvent> for CompleteTodoHandler {
+        fn execute(&self, command: CompleteTodo) -> Result<Vec<TodoEvent>, CommandError> {
+            let status = command.resulting_status();
+            let persisted = self.apply_status(command.todo_id, status)?;
+
+            Ok(vec![TodoEvent::TodoCompleted(persisted.into())])
+        }
     }
 
     impl CompleteTodoHandler {
-        pub fn new(pool: PgPool) -> Self {
-            Self { pool }
-        }
-    }
-
-    impl CommandHandlerPort<CompleteTodoCommand, TodoEvent> for CompleteTodoHandler {
-        fn execute(&self, command: CompleteTodoCommand) -> Result<Vec<TodoEvent>, CommandError> {
+        fn apply_status(&self, id: Uuid, status: TodoStatus) -> Result<TodoEntry, CommandError> {
             let pool = self.pool.clone();
-            let todo = block_on_blocking(async move {
-                super::infra_sqlx_pg::complete(&pool, command.todo_id).await
-            })
-            .map_err(|e| CommandError::HandlerExecution(e.to_string()))?;
-
-            Ok(vec![TodoEvent::TodoCompleted(TodoCompleted { todo })])
+            block_on_blocking(async move { set_status(&pool, id, status).await }).map_err(CommandError::from)
         }
     }
-}
 
-mod infra_sqlx_pg {
-    use crate::assembly::io::{AppError, Clock, TodoDto, TodoRow, TodoStatus};
-    use sqlx::PgPool;
-    use uuid::Uuid;
-    pub async fn complete(pool: &PgPool, id: Uuid) -> Result<TodoDto, AppError> {
+    async fn set_status(pool: &kernel::io::DbPool, id: Uuid, status: TodoStatus) -> Result<TodoEntry, AppError> {
         let sql = "UPDATE todos SET status = $2, updated_at = $3 WHERE id = $1 RETURNING id, title, description, status, created_at, updated_at, due_at";
 
         let row = sqlx::query_as::<_, TodoRow>(sql)
             .bind(id)
-            .bind(TodoStatus::Completed.as_str())
+            .bind(status.as_str())
             .bind(Clock::now())
             .fetch_optional(pool)
             .await
@@ -80,56 +129,21 @@ mod infra_sqlx_pg {
     }
 }
 
-mod http {
-    use super::models::CompleteTodoCommand;
-    use crate::{
-        AppState,
-        assembly::io::{
-            ApiError, AppCommand, MulacState, NewCommandEnvelope, TodoDto, fetch_todo,
-            interpret_dispatch_error,
-        },
-        //
-    };
-    use poem::web::Data;
-    use poem_openapi::{OpenApi, param::Path, payload::Json};
+#[cfg(test)]
+mod tests {
+    use super::intention::{CompleteTodo, TodoCompleted};
+    use crate::assembly::io::TodoStatus;
     use uuid::Uuid;
 
-    fn dispatch_complete_todo(mulac: &MulacState, id: Uuid) -> Result<(), ApiError> {
-        let command_id = Uuid::now_v7();
-        let envelope = NewCommandEnvelope {
-            command: AppCommand::CompleteTodo(CompleteTodoCommand { todo_id: id }),
-            metadata: kernel::NewCommandMetadata {
-                command_id,
-                correlation_id: Some(command_id),
-                causation_id: None,
-                source: Some("test_app_todo.http".to_string()),
-            },
-        };
-        mulac
-            .dispatch_command(envelope)
-            .map_err(|e| ApiError::from(interpret_dispatch_error(e)))
+    #[test]
+    fn complete_todo_contract_uses_expected_type_names() {
+        assert_eq!(CompleteTodo::COMMAND_TYPE, "CompleteTodo");
+        assert_eq!(TodoCompleted::EVENT_TYPE, "TodoCompleted");
     }
 
-    pub struct Api;
-
-    #[OpenApi]
-    impl Api {
-        #[oai(path = "/todos/:id/complete", method = "post")]
-        async fn complete_todo(
-            &self,
-            state: Data<&AppState>,
-            id: Path<Uuid>,
-        ) -> Result<Json<TodoDto>, ApiError> {
-            dispatch_complete_todo(&state.mulac, id.0)?;
-            Ok(Json(fetch_todo(&state.pool, id.0).await?))
-        }
+    #[test]
+    fn completing_transitions_to_completed() {
+        let command = CompleteTodo::complete(Uuid::now_v7());
+        assert_eq!(command.resulting_status(), TodoStatus::Completed);
     }
-}
-
-pub mod io {
-    pub use super::COMPLETE_TODO_COMMAND;
-    pub use super::TODO_COMPLETED_EVENT;
-    pub use super::handler::CompleteTodoHandler;
-    pub use super::http::Api;
-    pub use super::models::{CompleteTodoCommand, TodoCompleted};
 }

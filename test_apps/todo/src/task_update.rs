@@ -1,144 +1,77 @@
-pub const UPDATE_TODO_COMMAND: &str = "UpdateTodo";
-pub const TODO_UPDATED_EVENT: &str = "TodoUpdated";
+pub mod io {
+    pub use super::implementation::UpdateTodoHandler;
+    pub use super::intention::{TodoUpdated, UpdateTodo};
+    pub use super::ui::Api;
+}
 
-mod models {
-    use crate::assembly::io::TodoDto;
-    use kernel::ApplicationEvent;
+mod intention {
+    use crate::assembly::io::{AppError, TodoStatus, validate_title};
+    use chrono::{DateTime, Utc};
+    use kernel::{ApplicationCommand, ApplicationEvent};
     use poem_openapi::Object;
     use serde::{Deserialize, Serialize};
     use uuid::Uuid;
 
-    #[derive(Debug, Clone, Serialize, Deserialize, Object)]
-    pub struct UpdateTodoCommand {
+    /// Asks the system to change a todo's title and description.
+    #[derive(Debug, Clone, Serialize, Deserialize, Object, ApplicationCommand)]
+    #[command_type = "UpdateTodo"]
+    pub struct UpdateTodo {
         pub todo_id: Uuid,
         pub title: String,
         pub description: Option<String>,
     }
 
-    impl kernel::ApplicationCommand for UpdateTodoCommand {
-        fn command_type(&self) -> &'static str {
-            super::UPDATE_TODO_COMMAND
+    #[derive(Debug, Clone)]
+    pub struct TodoRevision {
+        todo_id: Uuid,
+        title: String,
+        description: Option<String>,
+    }
+
+    impl UpdateTodo {
+        pub fn revise(todo_id: Uuid, title: String, description: Option<String>) -> Self {
+            Self { todo_id, title, description }
         }
-    }
 
-    #[derive(Debug, Clone, Serialize, Deserialize, Object)]
-    pub struct TodoUpdated {
-        pub todo: TodoDto,
-    }
-
-    impl ApplicationEvent for TodoUpdated {
-        fn event_type(&self) -> &'static str {
-            super::TODO_UPDATED_EVENT
-        }
-    }
-}
-
-mod handler {
-    use super::models::{TodoUpdated, UpdateTodoCommand};
-    use crate::assembly::io::{TodoEvent, block_on_blocking};
-    use kernel::{CommandError, CommandHandlerPort};
-    use sqlx::PgPool;
-
-    pub struct UpdateTodoHandler {
-        pool: PgPool,
-    }
-
-    impl UpdateTodoHandler {
-        pub fn new(pool: PgPool) -> Self {
-            Self { pool }
-        }
-    }
-
-    impl CommandHandlerPort<UpdateTodoCommand, TodoEvent> for UpdateTodoHandler {
-        fn execute(&self, command: UpdateTodoCommand) -> Result<Vec<TodoEvent>, CommandError> {
-            let pool = self.pool.clone();
-            let todo = block_on_blocking(async move {
-                super::infra_sqlx_pg::update_from_command(&pool, command).await
+        /// An updated todo must still be named. The rule lives here, in plain
+        /// language, rather than in the SQL mechanics.
+        pub fn revision(self) -> Result<TodoRevision, AppError> {
+            validate_title(&self.title).map(|()| TodoRevision {
+                todo_id: self.todo_id,
+                title: self.title.trim().to_string(),
+                description: self.description,
             })
-            .map_err(|e| CommandError::HandlerExecution(e.to_string()))?;
-
-            Ok(vec![TodoEvent::TodoUpdated(TodoUpdated { todo })])
         }
     }
-}
 
-mod infra_sqlx_pg {
-    use super::models::UpdateTodoCommand;
-    use crate::assembly::io::{
-        AppError,
-        Clock,
-        TodoDto,
-        TodoRow,
-        validate_title,
-        //
-    };
-    use sqlx::PgPool;
+    impl TodoRevision {
+        pub fn into_parts(self) -> (Uuid, String, Option<String>) {
+            (self.todo_id, self.title, self.description)
+        }
+    }
 
-    pub async fn update_from_command(
-        pool: &PgPool,
-        command: UpdateTodoCommand,
-    ) -> Result<TodoDto, AppError> {
-        validate_title(&command.title)?;
-        let sql = "UPDATE todos SET title = $2, description = $3, updated_at = $4 WHERE id = $1 RETURNING id, title, description, status, created_at, updated_at, due_at";
-
-        let row = sqlx::query_as::<_, TodoRow>(sql)
-            .bind(command.todo_id)
-            .bind(command.title.trim())
-            .bind(command.description)
-            .bind(Clock::now())
-            .fetch_optional(pool)
-            .await
-            .map_err(|e| AppError::Storage(e.into()))?
-            .ok_or(AppError::NotFound)?;
-        row.try_into()
+    /// States that a todo was updated, carrying its resulting snapshot.
+    #[derive(Debug, Clone, Serialize, Deserialize, Object, ApplicationEvent)]
+    #[event_type = "TodoUpdated"]
+    pub struct TodoUpdated {
+        pub id: Uuid,
+        pub title: String,
+        pub description: Option<String>,
+        pub status: TodoStatus,
+        pub created_at: DateTime<Utc>,
+        pub updated_at: DateTime<Utc>,
+        pub due_at: Option<DateTime<Utc>>,
     }
 }
 
-mod http {
-    use super::models::UpdateTodoCommand;
-    use crate::{
-        AppState,
-        assembly::io::{
-            ApiError, AppCommand, AppError, MulacState, NewCommandEnvelope, TodoDto, fetch_todo,
-            interpret_dispatch_error,
-        },
-        //
-    };
+mod ui {
+    use super::intention::UpdateTodo;
+    use crate::AppState;
+    use crate::assembly::io::{ApiError, TodoEntry, dispatch_command, fetch_todo};
     use poem::web::Data;
     use poem_openapi::{Object, OpenApi, param::Path, payload::Json};
     use serde::{Deserialize, Serialize};
     use uuid::Uuid;
-
-    #[derive(Debug, Clone, Serialize, Deserialize, Object)]
-    pub struct UpdateTodoRequest {
-        pub title: String,
-        pub description: Option<String>,
-    }
-
-    fn dispatch_update_todo(
-        mulac: &MulacState,
-        id: Uuid,
-        request: UpdateTodoRequest,
-    ) -> Result<Uuid, AppError> {
-        let command_id = Uuid::now_v7();
-        let envelope = NewCommandEnvelope {
-            command: AppCommand::UpdateTodo(UpdateTodoCommand {
-                todo_id: id,
-                title: request.title,
-                description: request.description,
-            }),
-            metadata: kernel::NewCommandMetadata {
-                command_id,
-                correlation_id: Some(command_id),
-                causation_id: None,
-                source: Some("test_app_todo.http".to_string()),
-            },
-        };
-        mulac
-            .dispatch_command(envelope)
-            .map_err(interpret_dispatch_error)?;
-        Ok(id)
-    }
 
     pub struct Api;
 
@@ -150,17 +83,116 @@ mod http {
             state: Data<&AppState>,
             id: Path<Uuid>,
             Json(request): Json<UpdateTodoRequest>,
-        ) -> Result<Json<TodoDto>, ApiError> {
-            let todo_id = dispatch_update_todo(&state.mulac, id.0, request)?;
-            Ok(Json(fetch_todo(&state.pool, todo_id).await?))
+        ) -> Result<Json<TodoEntry>, ApiError> {
+            let cmd = request.into_command(id.0);
+
+            dispatch_command(&state.mulac, cmd)?;
+
+            Ok(Json(fetch_todo(&state.pool, id.0).await?))
+        }
+    }
+
+    #[derive(Debug, Clone, Serialize, Deserialize, Object)]
+    pub struct UpdateTodoRequest {
+        pub title: String,
+        pub description: Option<String>,
+    }
+
+    impl UpdateTodoRequest {
+        // Boundary adapter: turn an inbound request into the feature's command.
+        fn into_command(self, todo_id: Uuid) -> UpdateTodo {
+            UpdateTodo::revise(todo_id, self.title, self.description)
         }
     }
 }
 
-pub mod io {
-    pub use super::TODO_UPDATED_EVENT;
-    pub use super::UPDATE_TODO_COMMAND;
-    pub use super::handler::UpdateTodoHandler;
-    pub use super::http::Api;
-    pub use super::models::{TodoUpdated, UpdateTodoCommand};
+mod implementation {
+    use super::intention::{TodoRevision, TodoUpdated, UpdateTodo};
+    use crate::assembly::io::{AppError, Clock, TodoEntry, TodoEvent, TodoRow, block_on_blocking};
+    use derive_new::new;
+    use kernel::{CommandError, CommandHandlerPort};
+    use sqlx::PgPool;
+    use std::sync::Arc;
+
+    #[derive(new)]
+    pub struct UpdateTodoHandler {
+        pub(super) pool: Arc<kernel::io::DbPool>,
+    }
+
+    impl From<TodoEntry> for TodoUpdated {
+        fn from(todo: TodoEntry) -> Self {
+            Self {
+                id: todo.id,
+                title: todo.title,
+                description: todo.description,
+                status: todo.status,
+                created_at: todo.created_at,
+                updated_at: todo.updated_at,
+                due_at: todo.due_at,
+            }
+        }
+    }
+
+    // The handler validates the intent, then persists the new field values.
+    impl CommandHandlerPort<UpdateTodo, TodoEvent> for UpdateTodoHandler {
+        fn execute(&self, command: UpdateTodo) -> Result<Vec<TodoEvent>, CommandError> {
+            let revision = command.revision()?;
+            let persisted = self.update(revision)?;
+
+            Ok(vec![TodoEvent::TodoUpdated(persisted.into())])
+        }
+    }
+
+    impl UpdateTodoHandler {
+        fn update(&self, revision: TodoRevision) -> Result<TodoEntry, CommandError> {
+            let pool = self.pool.clone();
+            block_on_blocking(async move { write_fields(&pool, revision).await }).map_err(CommandError::from)
+        }
+    }
+
+    async fn write_fields(pool: &kernel::io::DbPool, revision: TodoRevision) -> Result<TodoEntry, AppError> {
+        let sql = "UPDATE todos SET title = $2, description = $3, updated_at = $4 WHERE id = $1 RETURNING id, title, description, status, created_at, updated_at, due_at";
+        let (todo_id, title, description) = revision.into_parts();
+
+        let row = sqlx::query_as::<_, TodoRow>(sql)
+            .bind(todo_id)
+            .bind(title)
+            .bind(description)
+            .bind(Clock::now())
+            .fetch_optional(pool)
+            .await
+            .map_err(|e| AppError::Storage(e.into()))?
+            .ok_or(AppError::NotFound)?;
+
+        row.try_into()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::intention::{TodoUpdated, UpdateTodo};
+    use uuid::Uuid;
+
+    #[test]
+    fn update_todo_contract_uses_expected_type_names() {
+        assert_eq!(UpdateTodo::COMMAND_TYPE, "UpdateTodo");
+        assert_eq!(TodoUpdated::EVENT_TYPE, "TodoUpdated");
+    }
+
+    #[test]
+    fn revision_trims_title_and_keeps_description() {
+        let revision = UpdateTodo::revise(Uuid::now_v7(), "  Updated  ".to_string(), Some("Details".to_string()))
+            .revision()
+            .expect("a named todo should revise");
+        let (_, title, description) = revision.into_parts();
+
+        assert_eq!(title, "Updated");
+        assert_eq!(description.as_deref(), Some("Details"));
+    }
+
+    #[test]
+    fn revision_rejects_blank_title() {
+        let result = UpdateTodo::revise(Uuid::now_v7(), "   ".to_string(), None).revision();
+        assert!(result.is_err(), "a blank title is not a meaningful update");
+    }
 }

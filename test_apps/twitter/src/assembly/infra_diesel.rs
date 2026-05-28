@@ -1,5 +1,6 @@
 use super::domain::{Clock, DirectMessageDto, FollowDto, LikeDto, TweetDto};
 use chrono::{DateTime, Utc};
+use derive_new::new;
 use diesel::PgConnection;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel_migrations::{
@@ -31,7 +32,7 @@ pub fn run_migrations(pool: &DbPool) -> anyhow::Result<()> {
 
 // ── Shared read-after-write fetch helpers ─────────────────────────────────────
 
-pub fn fetch_tweet(pool: &DbPool, tweet_id: Uuid) -> anyhow::Result<TweetDto> {
+pub async fn fetch_tweet(pool: &DbPool, tweet_id: Uuid) -> anyhow::Result<TweetDto> {
     use crate::schema::tweets;
     use diesel::prelude::*;
 
@@ -137,14 +138,9 @@ pub fn fetch_direct_message(pool: &DbPool, message_id: Uuid) -> anyhow::Result<D
 
 // ── App-level outbox subscriber ───────────────────────────────────────────────
 
+#[derive(new)]
 pub struct OutboxSubscriber {
     pool: DbPool,
-}
-
-impl OutboxSubscriber {
-    pub fn new(pool: DbPool) -> Self {
-        Self { pool }
-    }
 }
 
 impl EventSubscriberPort for OutboxSubscriber {

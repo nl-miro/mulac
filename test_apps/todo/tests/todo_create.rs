@@ -42,13 +42,12 @@ async fn create_todo_returns_todo() {
     assert!(body["created_at"].is_string());
 
     let todo_id: Uuid = body["id"].as_str().unwrap().parse().unwrap();
-    let row = sqlx::query_as::<_, TodoRow>(
-        "SELECT id, title, description, status, created_at, updated_at, due_at FROM todos WHERE id = $1",
-    )
-    .bind(todo_id)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let row =
+        sqlx::query_as::<_, TodoRow>("SELECT id, title, description, status, created_at, updated_at, due_at FROM todos WHERE id = $1")
+            .bind(todo_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
 
     assert_eq!(row.id, todo_id);
     assert_eq!(row.title, "Buy milk");
@@ -62,14 +61,14 @@ async fn create_todo_returns_todo() {
     assert_eq!(event.attempts, 0);
     assert!(event.published_at.is_none());
     assert_eq!(event.payload["type"], "TodoCreated");
-    let todo_payload = &event.payload["payload"]["todo"];
-    assert_eq!(todo_payload["id"], body["id"]);
-    assert_eq!(todo_payload["title"], "Buy milk");
-    assert_eq!(todo_payload["description"], "From the corner store");
-    assert_eq!(todo_payload["status"], "active");
-    assert!(todo_payload["created_at"].is_string());
-    assert!(todo_payload["updated_at"].is_string());
-    assert!(todo_payload["due_at"].is_null());
+    let event_payload = &event.payload["payload"];
+    assert_eq!(event_payload["id"], body["id"]);
+    assert_eq!(event_payload["title"], "Buy milk");
+    assert_eq!(event_payload["description"], "From the corner store");
+    assert_eq!(event_payload["status"], "active");
+    assert!(event_payload["created_at"].is_string());
+    assert!(event_payload["updated_at"].is_string());
+    assert!(event_payload["due_at"].is_null());
 
     assert_command_completed(&pool, "CreateTodo").await;
     let commands = fetch_command_entries(&pool).await;
@@ -99,7 +98,7 @@ async fn create_todo_returns_todo() {
     assert!(event_entry.extra_info.is_none());
     let event_payload: serde_json::Value = serde_json::from_str(&event_entry.payload).unwrap();
     assert_eq!(event_payload["type"], "TodoCreated");
-    assert_eq!(event_payload["payload"]["todo"]["id"], body["id"]);
+    assert_eq!(event_payload["payload"]["id"], body["id"]);
     let event_meta = event_entry.meta.as_ref().unwrap();
     assert!(event_meta["event_id"].is_string());
     assert!(event_meta["correlation_id"].is_string());
@@ -113,12 +112,7 @@ async fn create_todo_returns_todo() {
 async fn create_todo_with_blank_title_returns_400() {
     let (base_url, _pool, _guard) = start_test_app().await;
 
-    let resp = utils::client()
-        .post(format!("{base_url}/api/todos"))
-        .json(&json!({"title": "   "}))
-        .send()
-        .await
-        .unwrap();
+    let resp = utils::client().post(format!("{base_url}/api/todos")).json(&json!({"title": "   "})).send().await.unwrap();
 
     assert_bad_request_response!(resp);
     let body = resp.json::<serde_json::Value>().await.unwrap();

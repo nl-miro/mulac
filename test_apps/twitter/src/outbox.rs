@@ -1,6 +1,15 @@
-mod models {
+pub mod io {
+    pub use super::ui::{Api, OutboxMessageDto};
+}
+
+mod ui {
+    use crate::{
+        AppState,
+        assembly::io::{ApiError, run_blocking},
+    };
     use chrono::{DateTime, Utc};
-    use poem_openapi::Object;
+    use poem::web::Data;
+    use poem_openapi::{Object, OpenApi, payload::Json};
     use serde::{Deserialize, Serialize};
     use uuid::Uuid;
 
@@ -19,17 +28,29 @@ mod models {
     pub struct OutboxList {
         pub items: Vec<OutboxMessageDto>,
     }
+
+    pub struct Api;
+
+    #[OpenApi]
+    impl Api {
+        #[oai(path = "/messages/outbox", method = "get")]
+        async fn list_outbox(&self, state: Data<&AppState>) -> Result<Json<OutboxList>, ApiError> {
+            let pool = state.pool.clone();
+            let result = run_blocking(move || super::implementation::list_outbox(&pool)).await?;
+            Ok(Json(result))
+        }
+    }
 }
 
-mod infra_diesel {
-    use super::models::{OutboxList, OutboxMessageDto};
+mod implementation {
+    use super::ui::{OutboxList, OutboxMessageDto};
     use crate::assembly::io::{AppError, DbPool};
     use chrono::{DateTime, Utc};
     use diesel::prelude::*;
     use serde_json::Value;
     use uuid::Uuid;
 
-    pub fn list_outbox(pool: &DbPool) -> Result<OutboxList, AppError> {
+    pub(super) fn list_outbox(pool: &DbPool) -> Result<OutboxList, AppError> {
         #[derive(diesel::QueryableByName)]
         struct Row {
             #[diesel(sql_type = diesel::sql_types::Uuid)]
@@ -48,27 +69,29 @@ mod infra_diesel {
             attempts: i32,
         }
 
-        let mut conn = pool.get().map_err(|e| AppError::Storage(e.into()))?;
+        let mut conn = pool
+            .get()
+            .map_err(|error| AppError::Storage(error.into()))?;
         let rows: Vec<Row> = diesel::sql_query(
             "SELECT id, event_type, payload::text, status, created_at, published_at, attempts \
              FROM outbox_messages ORDER BY created_at ASC",
         )
         .load(&mut conn)
-        .map_err(|e| AppError::Storage(e.into()))?;
+        .map_err(|error| AppError::Storage(error.into()))?;
 
         let items = rows
             .into_iter()
-            .map(|r| {
-                let payload: Value =
-                    serde_json::from_str(&r.payload).map_err(|e| AppError::Storage(e.into()))?;
+            .map(|row| {
+                let payload: Value = serde_json::from_str(&row.payload)
+                    .map_err(|error| AppError::Storage(error.into()))?;
                 Ok(OutboxMessageDto {
-                    id: r.id,
-                    event_type: r.event_type,
+                    id: row.id,
+                    event_type: row.event_type,
                     payload,
-                    status: r.status,
-                    created_at: r.created_at,
-                    published_at: r.published_at,
-                    attempts: r.attempts,
+                    status: row.status,
+                    created_at: row.created_at,
+                    published_at: row.published_at,
+                    attempts: row.attempts,
                 })
             })
             .collect::<Result<Vec<_>, AppError>>()?;
@@ -77,31 +100,28 @@ mod infra_diesel {
     }
 }
 
-mod http {
-    use super::infra_diesel::list_outbox;
-    use super::models::OutboxList;
-    use crate::{
-        AppState,
-        assembly::io::{ApiError, run_blocking},
-        //
-    };
-    use poem::web::Data;
-    use poem_openapi::{OpenApi, payload::Json};
+#[cfg(test)]
+mod tests {
+    use super::ui::{OutboxList, OutboxMessageDto};
 
-    pub struct Api;
-
-    #[OpenApi]
-    impl Api {
-        #[oai(path = "/messages/outbox", method = "get")]
-        async fn list_outbox(&self, state: Data<&AppState>) -> Result<Json<OutboxList>, ApiError> {
-            let pool = state.pool.clone();
-            let result = run_blocking(move || list_outbox(&pool)).await?;
-            Ok(Json(result))
-        }
+    #[test]
+    fn outbox_dto_round_trips_through_json() {
+        let dto = OutboxMessageDto {
+            id: uuid::Uuid::now_v7(),
+            event_type: "TweetPosted".to_string(),
+            payload: serde_json::json!({"tweet_id": "abc"}),
+            status: "pending".to_string(),
+            created_at: chrono::Utc::now(),
+            published_at: None,
+            attempts: 0,
+        };
+        let list = OutboxList {
+            items: vec![dto.clone()],
+        };
+        let json = serde_json::to_string(&list).expect("serialize");
+        let back: OutboxList = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(back.items.len(), 1);
+        assert_eq!(back.items[0].event_type, dto.event_type);
+        assert_eq!(back.items[0].status, dto.status);
     }
-}
-
-pub mod io {
-    pub use super::http::Api;
-    pub use super::models::OutboxMessageDto;
 }

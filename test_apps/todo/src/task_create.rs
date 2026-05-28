@@ -1,124 +1,102 @@
-pub const CREATE_TODO_COMMAND: &str = "CreateTodo";
-pub const TODO_CREATED_EVENT: &str = "TodoCreated";
+pub mod io {
+    pub use super::implementation::CreateTodoHandler;
+    pub use super::intention::{CreateTodo, TodoCreated};
+    pub use super::ui::Api;
+}
 
-mod models {
-    use crate::assembly::io::TodoDto;
+mod intention {
+    use crate::assembly::io::validate_title;
+    use crate::assembly::io::{AppError, TodoStatus};
     use chrono::{DateTime, Utc};
-    use kernel::ApplicationEvent;
+    use kernel::{ApplicationCommand, ApplicationEvent};
     use poem_openapi::Object;
     use serde::{Deserialize, Serialize};
     use uuid::Uuid;
 
-    #[derive(Debug, Clone, Serialize, Deserialize, Object)]
-    pub struct CreateTodoCommand {
+    /// Asks the system to create a new todo.
+    #[derive(Debug, Clone, Serialize, Deserialize, Object, ApplicationCommand)]
+    #[command_type = "CreateTodo"]
+    pub struct CreateTodo {
         pub todo_id: Uuid,
         pub title: String,
         pub description: Option<String>,
         pub due_at: Option<DateTime<Utc>>,
     }
 
-    impl kernel::ApplicationCommand for CreateTodoCommand {
-        fn command_type(&self) -> &'static str {
-            super::CREATE_TODO_COMMAND
+    impl CreateTodo {
+        pub fn create(todo_id: Uuid, title: String, description: Option<String>, due_at: Option<DateTime<Utc>>) -> Self {
+            Self { todo_id, title, description, due_at }
         }
-    }
 
-    #[derive(Debug, Clone, Serialize, Deserialize, Object)]
-    pub struct TodoCreated {
-        pub todo: TodoDto,
-    }
+        /// Begin a todo: a created todo must be named, and it always starts
+        /// `Active` at the given moment. The business rules of creation live
+        /// here, in plain language, rather than in the mechanics.
+        pub fn begin(self, now: DateTime<Utc>) -> Result<NewTodo, AppError> {
+            validate_title(&self.title)?;
 
-    impl ApplicationEvent for TodoCreated {
-        fn event_type(&self) -> &'static str {
-            super::TODO_CREATED_EVENT
-        }
-    }
-}
-
-mod handler {
-    use super::models::{CreateTodoCommand, TodoCreated};
-    use crate::assembly::io::{TodoEvent, block_on_blocking};
-    use kernel::{CommandError, CommandHandlerPort};
-    use sqlx::PgPool;
-
-    pub struct CreateTodoHandler {
-        pool: PgPool,
-    }
-
-    impl CreateTodoHandler {
-        pub fn new(pool: PgPool) -> Self {
-            Self { pool }
-        }
-    }
-
-    impl CommandHandlerPort<CreateTodoCommand, TodoEvent> for CreateTodoHandler {
-        fn execute(&self, command: CreateTodoCommand) -> Result<Vec<TodoEvent>, CommandError> {
-            let pool = self.pool.clone();
-            let todo = block_on_blocking(async move {
-                super::infra_sqlx_pg::create_from_command(&pool, command).await
+            Ok(NewTodo {
+                id: self.todo_id,
+                title: self.title,
+                description: self.description,
+                due_at: self.due_at,
+                status: TodoStatus::Active,
+                created_at: now,
             })
-            .map_err(|e| CommandError::HandlerExecution(e.to_string()))?;
-
-            Ok(vec![TodoEvent::TodoCreated(TodoCreated { todo })])
         }
     }
-}
+    /// A todo at the instant of creation: it has been named, it begins `Active`,
+    /// and it is stamped with the moment it came into being. This is the
+    /// feature's core business act — turning a request to remember something
+    /// into a committed, active task.
+    #[derive(Debug, Clone)]
+    pub struct NewTodo {
+        pub id: Uuid,
+        pub title: String,
+        pub description: Option<String>,
+        pub due_at: Option<DateTime<Utc>>,
+        pub status: TodoStatus,
+        pub created_at: DateTime<Utc>,
+    }
 
-mod infra_sqlx_pg {
-    use super::models::CreateTodoCommand;
-    use crate::assembly::io::{
-        AppError,
-        Clock,
-        TodoDto,
-        TodoRow,
-        TodoStatus,
-        validate_title,
-        //
-    };
-    use sqlx::PgPool;
-    pub async fn create_from_command(
-        pool: &PgPool,
-        command: CreateTodoCommand,
-    ) -> Result<TodoDto, AppError> {
-        validate_title(&command.title)?;
-        let id = command.todo_id;
-        let now = Clock::now();
-        let mut tx = pool
-            .begin()
-            .await
-            .map_err(|e| AppError::Storage(e.into()))?;
-        let sql = "INSERT INTO todos (id, title, description, status, created_at, updated_at, due_at) VALUES ($1, $2, $3, $4, $5, $5, $6) RETURNING id, title, description, status, created_at, updated_at, due_at";
-
-        let row = sqlx::query_as::<_, TodoRow>(sql)
-            .bind(id)
-            .bind(command.title.trim())
-            .bind(command.description)
-            .bind(TodoStatus::Active.as_str())
-            .bind(now)
-            .bind(command.due_at)
-            .fetch_one(&mut *tx)
-            .await
-            .map_err(|e| AppError::Storage(e.into()))?;
-        let todo: TodoDto = row.try_into()?;
-        tx.commit().await.map_err(|e| AppError::Storage(e.into()))?;
-        Ok(todo)
+    /// States that a todo was created.
+    #[derive(Debug, Clone, Serialize, Deserialize, Object, ApplicationEvent)]
+    #[event_type = "TodoCreated"]
+    pub struct TodoCreated {
+        pub id: Uuid,
+        pub title: String,
+        pub description: Option<String>,
+        pub status: TodoStatus,
+        pub created_at: DateTime<Utc>,
+        pub updated_at: DateTime<Utc>,
+        pub due_at: Option<DateTime<Utc>>,
     }
 }
 
-mod http {
-    use super::models::CreateTodoCommand;
-    use crate::assembly::io::{AppCommand, AppError, NewCommandEnvelope};
-    use crate::{
-        AppState,
-        assembly::io::{ApiError, Command, TodoDto, fetch_todo, interpret_dispatch_error},
-        //
-    };
+mod ui {
+    use super::intention::CreateTodo;
+    use crate::AppState;
+    use crate::assembly::io::{ApiError, TodoEntry, dispatch_command, fetch_todo};
     use chrono::{DateTime, Utc};
-    use kernel::NewCommandMetadata;
     use poem::web::Data;
-    use poem_openapi::{Object, OpenApi, payload::Json};
+    use poem_openapi::payload::Json;
+    use poem_openapi::{Object, OpenApi};
     use serde::{Deserialize, Serialize};
     use uuid::Uuid;
+
+    pub struct Api;
+
+    #[OpenApi]
+    impl Api {
+        #[oai(path = "/todos", method = "post")]
+        async fn create_todo(&self, state: Data<&AppState>, Json(request): Json<CreateTodoRequest>) -> Result<Json<TodoEntry>, ApiError> {
+            let todo_id = Uuid::now_v7();
+            let cmd = request.into_command(todo_id);
+
+            dispatch_command(&state.mulac, cmd)?;
+
+            Ok(Json(fetch_todo(&state.pool, todo_id).await?))
+        }
+    }
 
     #[derive(Debug, Clone, Serialize, Deserialize, Object)]
     pub struct CreateTodoRequest {
@@ -127,55 +105,128 @@ mod http {
         pub due_at: Option<DateTime<Utc>>,
     }
 
-    impl TryFrom<CreateTodoRequest> for NewCommandEnvelope {
-        type Error = AppError;
-
-        fn try_from(request: CreateTodoRequest) -> Result<Self, Self::Error> {
-            let todo_id = Uuid::now_v7();
-            let command_id = Uuid::now_v7();
-            Ok(NewCommandEnvelope {
-                command: AppCommand::CreateTodo(CreateTodoCommand {
-                    todo_id,
-                    title: request.title,
-                    description: request.description,
-                    due_at: request.due_at,
-                }),
-                metadata: NewCommandMetadata {
-                    command_id,
-                    correlation_id: Some(command_id),
-                    causation_id: None,
-                    source: Some("test_app_todo.http".to_string()),
-                },
-            })
-        }
-    }
-
-    pub struct Api;
-
-    #[OpenApi]
-    impl Api {
-        #[oai(path = "/todos", method = "post")]
-        async fn create_todo(
-            &self,
-            state: Data<&AppState>,
-            Json(request): Json<CreateTodoRequest>,
-        ) -> Result<Json<TodoDto>, ApiError> {
-            let envelope: NewCommandEnvelope = request.try_into()?;
-            let todo_id = envelope.command.todo_id();
-            state
-                .mulac
-                .dispatch_command(envelope)
-                .map_err(interpret_dispatch_error)?;
-            let todo = fetch_todo(&state.pool, todo_id).await?;
-            Ok(Json(todo))
+    impl CreateTodoRequest {
+        // Boundary adapter: turn an inbound request into the feature's command.
+        fn into_command(self, todo_id: Uuid) -> CreateTodo {
+            CreateTodo::create(todo_id, self.title, self.description, self.due_at)
         }
     }
 }
 
-pub mod io {
-    pub use super::CREATE_TODO_COMMAND;
-    pub use super::TODO_CREATED_EVENT;
-    pub use super::handler::CreateTodoHandler;
-    pub use super::http::Api;
-    pub use super::models::{CreateTodoCommand, TodoCreated};
+mod implementation {
+    use super::intention::{CreateTodo, NewTodo, TodoCreated};
+    use crate::assembly::io::{
+        Clock,
+        TodoEntry,
+        TodoEvent,
+        block_on_blocking,
+        insert_todo, //
+    };
+    use derive_new::new;
+    use kernel::io::DbPool;
+    use kernel::{CommandError, CommandHandlerPort};
+    use std::sync::Arc;
+
+    #[derive(new)]
+    pub struct CreateTodoHandler {
+        pub(super) pool: Arc<DbPool>,
+    }
+
+    // The mechanics only do structural mapping; the creation rules live in
+    // `CreateTodo::begin` over in `intention`.
+
+    impl From<NewTodo> for TodoEntry {
+        fn from(todo: NewTodo) -> Self {
+            TodoEntry {
+                id: todo.id,
+                title: todo.title,
+                description: todo.description,
+                status: todo.status,
+                created_at: todo.created_at,
+                updated_at: todo.created_at,
+                due_at: todo.due_at,
+            }
+        }
+    }
+
+    impl From<TodoEntry> for TodoCreated {
+        fn from(todo: TodoEntry) -> Self {
+            Self {
+                id: todo.id,
+                title: todo.title,
+                description: todo.description,
+                status: todo.status,
+                due_at: todo.due_at,
+                created_at: todo.created_at,
+                updated_at: todo.updated_at,
+            }
+        }
+    }
+
+    // The handler reads as the feature's story: state the business act
+    // (`begin`), persist it, announce what happened.
+    impl CommandHandlerPort<CreateTodo, TodoEvent> for CreateTodoHandler {
+        fn execute(&self, command: CreateTodo) -> Result<Vec<TodoEvent>, CommandError> {
+            let new_todo = command.begin(Clock::now())?;
+
+            let persisted_entity = self.persist(new_todo.into())?;
+
+            Ok(vec![TodoEvent::TodoCreated(persisted_entity.into())])
+        }
+    }
+
+    impl CreateTodoHandler {
+        pub fn persist(&self, row: TodoEntry) -> Result<TodoEntry, CommandError> {
+            let pool = self.pool.clone();
+            let future = async move { insert_todo(&pool, row).await };
+
+            block_on_blocking(future).map_err(CommandError::from)
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::intention::{CreateTodo, TodoCreated};
+    use crate::assembly::io::TodoStatus;
+    use crate::task_create::ui::CreateTodoRequest;
+    use uuid::Uuid;
+
+    fn sample_command(title: &str) -> CreateTodo {
+        CreateTodo::create(Uuid::now_v7(), title.to_string(), None, None)
+    }
+
+    #[test]
+    fn begin_starts_the_todo_active_and_stamped() {
+        let now = chrono::Utc::now();
+
+        let new_todo = sample_command("Buy milk").begin(now).expect("a named todo should begin");
+
+        assert_eq!(new_todo.status, TodoStatus::Active);
+        assert_eq!(new_todo.created_at, now);
+    }
+
+    #[test]
+    fn begin_refuses_an_unnamed_todo() {
+        let result = sample_command("   ").begin(chrono::Utc::now());
+
+        assert!(result.is_err(), "a blank title is not a meaningful task");
+    }
+
+    #[test]
+    fn command_and_event_types_match_contract() {
+        assert_eq!(CreateTodo::COMMAND_TYPE, "CreateTodo");
+        assert_eq!(TodoCreated::EVENT_TYPE, "TodoCreated");
+    }
+
+    #[test]
+    fn request_preserves_due_date_and_description() {
+        let due_at = chrono::Utc::now();
+        let request =
+            CreateTodoRequest { title: "Buy milk".to_string(), description: Some("At the corner store".to_string()), due_at: Some(due_at) };
+
+        assert_eq!(request.title, "Buy milk");
+        assert_eq!(request.description.as_deref(), Some("At the corner store"));
+        assert_eq!(request.due_at, Some(due_at));
+    }
 }
