@@ -147,8 +147,8 @@ mod inbox {
             use crate::schema::inbox_messages;
             use diesel::prelude::*;
 
-            let payload = serde_json::to_value(&envelope.command)
-                .map_err(|e| AppError::Storage(e.into()))?;
+            let payload =
+                serde_json::to_value(&envelope.command).map_err(|e| AppError::Storage(e.into()))?;
             let mut conn = pool.get().map_err(|e| AppError::Storage(e.into()))?;
             let inserted = diesel::insert_into(inbox_messages::table)
                 .values((
@@ -187,11 +187,7 @@ mod inbox {
             Ok(())
         }
 
-        fn mark_failed(
-            pool: &DbPool,
-            message_id: Uuid,
-            error: &AppError,
-        ) -> Result<(), AppError> {
+        fn mark_failed(pool: &DbPool, message_id: Uuid, error: &AppError) -> Result<(), AppError> {
             use crate::schema::inbox_messages;
             use diesel::prelude::*;
 

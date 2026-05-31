@@ -75,10 +75,7 @@ mod infra_diesel {
     ) -> Result<TodoDto, AppError> {
         let mut conn = pool.get().map_err(|e| AppError::Storage(e.into()))?;
         let row = diesel::update(todos::table.find(id))
-            .set((
-                todos::due_at.eq(due_at),
-                todos::updated_at.eq(Clock::now()),
-            ))
+            .set((todos::due_at.eq(due_at), todos::updated_at.eq(Clock::now())))
             .get_result::<TodoRow>(&mut conn)
             .optional()
             .map_err(|e| AppError::Storage(e.into()))?
