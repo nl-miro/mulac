@@ -20,7 +20,7 @@ use test_app_todo::io::{
     OutboxApi,
     ReopenApi,
     UpdateApi,
-    connect,
+    build_pool,
     run_command_worker,
     run_event_worker,
     run_migrations,
@@ -52,12 +52,12 @@ async fn main() -> anyhow::Result<()> {
         "serve" => {
             let bind_addr = env::var("BIND_ADDR").unwrap_or_else(|_| "127.0.0.1:33001".to_string());
 
-            // Connect and migrate on startup so the binary is self-contained.
+            // Build the connection pool and migrate on startup so the binary is self-contained.
             run_migrations(&database_url)?;
-            let pool = connect(&database_url).await?;
+            let pool = build_pool(&database_url)?;
 
             // Boot the in-process kernel and register all command handlers and event subscribers.
-            let kernel = start_mulac(pool.clone(), &database_url).await?;
+            let kernel = start_mulac(pool.clone()).await?;
             let token = kernel.child_token();
             tokio::spawn(run_command_worker(kernel.command_consumer(), token.clone()));
             tokio::spawn(run_event_worker(kernel.event_consumer(), token));

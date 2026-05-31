@@ -98,7 +98,7 @@ mod http {
         AppState,
         assembly::io::{
             ApiError, AppCommand, AppError, MulacState, NewCommandEnvelope, TodoDto, fetch_todo,
-            interpret_dispatch_error,
+            interpret_dispatch_error, run_blocking,
         },
         //
     };
@@ -150,7 +150,9 @@ mod http {
             Json(request): Json<UpdateTodoRequest>,
         ) -> Result<Json<TodoDto>, ApiError> {
             let todo_id = dispatch_update_todo(&state.mulac, id.0, request)?;
-            Ok(Json(fetch_todo(&state.pool, todo_id).await?))
+            let pool = state.pool.clone();
+            let todo = run_blocking(move || fetch_todo(&pool, todo_id)).await?;
+            Ok(Json(todo))
         }
     }
 }

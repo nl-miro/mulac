@@ -1,4 +1,5 @@
 use super::domain::{TodoDto, TodoStatus};
+use super::infra_diesel::DbPool;
 use super::infra_diesel::entity::TodoRow;
 use crate::task_complete::io::{COMPLETE_TODO_COMMAND, CompleteTodoCommand};
 use crate::task_create::io::{CREATE_TODO_COMMAND, CreateTodoCommand};
@@ -155,10 +156,7 @@ pub type NewCommandEnvelope = kernel::NewCommandEnvelope<AppCommand>;
 pub type MulacState = kernel::PersistentKernelState;
 pub type MulacHandle = kernel::PersistentKernelHandle;
 
-pub async fn start_mulac(
-    _pool: sqlx::PgPool,
-    database_url: &str,
-) -> Result<MulacHandle, kernel::KernelError> {
+pub async fn start_mulac(db_pool: DbPool) -> Result<MulacHandle, kernel::KernelError> {
     use crate::assembly::io::OutboxSubscriber;
     use crate::task_complete::io::{CompleteTodoHandler, TODO_COMPLETED_EVENT};
     use crate::task_create::io::{CreateTodoHandler, TODO_CREATED_EVENT};
@@ -166,9 +164,6 @@ pub async fn start_mulac(
     use crate::task_reopen::io::{ReopenTodoHandler, TODO_REOPENED_EVENT};
     use crate::task_schedule_due_dates::io::{TODO_DUE_DATE_CHANGED_EVENT, UpdateDueDateHandler};
     use crate::task_update::io::{TODO_UPDATED_EVENT, UpdateTodoHandler};
-
-    let db_pool = kernel::io::build_pool(database_url)
-        .map_err(|e| kernel::KernelError::Database(e.to_string()))?;
 
     kernel::boot(kernel::KernelConfig::default())
         .command_handler(
@@ -230,3 +225,15 @@ pub async fn start_mulac(
 }
 
 pub use kernel::io::{block_on_blocking, run_command_worker, run_event_worker};
+
+/// Run a blocking (diesel) closure on Tokio's blocking thread pool so it does
+/// not stall the async runtime. Used by the async HTTP handlers.
+pub async fn run_blocking<F, T>(f: F) -> Result<T, AppError>
+where
+    F: FnOnce() -> Result<T, AppError> + Send + 'static,
+    T: Send + 'static,
+{
+    tokio::task::spawn_blocking(f)
+        .await
+        .map_err(|e| AppError::Storage(anyhow::anyhow!("blocking task join failed: {e}")))?
+}
