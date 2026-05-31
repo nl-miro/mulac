@@ -1,4 +1,6 @@
 mod assembly;
+#[allow(unused)]
+mod schema;
 mod task_complete;
 mod task_create;
 mod task_delete;
