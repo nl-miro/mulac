@@ -8,7 +8,10 @@ pub mod io {
     pub use super::command_handler_registry::CommandHandlerRegistry;
     pub use super::event_subscriber_registry::EventSubscriberRegistry;
     pub use super::workers::{run_command_worker, run_event_worker};
-    pub use super::{block_on_blocking, first_command_error, first_event_error};
+    pub use super::{
+        CommandHandlers, EventSubscribers, block_on_blocking, first_command_error,
+        first_event_error,
+    };
     pub use commanding::io::{
         CommandConsumer,
         CommandConsumerRepository,
@@ -179,9 +182,77 @@ impl AppState {
 
 pub struct KernelBuilder {
     _config: KernelConfig,
-    command_handlers: Vec<(String, Arc<dyn ErasedCommandHandler>)>,
-    event_subscribers: Vec<EventSubscriberRegistration>,
+    command_handlers: CommandHandlers,
+    event_subscribers: EventSubscribers,
     outbox_subscribers: Vec<String>,
+}
+
+pub struct CommandHandlers {
+    items: Vec<(String, Arc<dyn ErasedCommandHandler>)>,
+}
+
+impl CommandHandlers {
+    pub fn new() -> Self {
+        Self { items: Vec::new() }
+    }
+
+    pub fn register<C, E>(
+        mut self,
+        command_type: impl Into<String>,
+        handler: Arc<dyn CommandHandlerPort<C, E>>,
+    ) -> Self
+    where
+        C: serde::de::DeserializeOwned + Send + Sync + 'static,
+        E: ApplicationEvent + 'static,
+    {
+        self.items
+            .push((command_type.into(), wrap_handler(handler)));
+        self
+    }
+
+    pub(crate) fn into_items(self) -> Vec<(String, Arc<dyn ErasedCommandHandler>)> {
+        self.items
+    }
+}
+
+impl Default for CommandHandlers {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+pub struct EventSubscribers {
+    items: Vec<EventSubscriberRegistration>,
+}
+
+impl EventSubscribers {
+    pub fn new() -> Self {
+        Self { items: Vec::new() }
+    }
+
+    pub fn register(
+        mut self,
+        event_type: impl Into<String>,
+        subscriber_name: impl Into<String>,
+        subscriber: Arc<dyn EventSubscriberPort>,
+    ) -> Self {
+        self.items.push(EventSubscriberRegistration::Direct {
+            event_type: event_type.into(),
+            subscriber_name: subscriber_name.into(),
+            subscriber,
+        });
+        self
+    }
+
+    pub(crate) fn into_items(self) -> Vec<EventSubscriberRegistration> {
+        self.items
+    }
+}
+
+impl Default for EventSubscribers {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 enum EventSubscriberRegistration {
@@ -222,10 +293,22 @@ impl KernelBuilder {
     fn new(config: KernelConfig) -> Self {
         Self {
             _config: config,
-            command_handlers: Vec::new(),
-            event_subscribers: Vec::new(),
+            command_handlers: CommandHandlers::new(),
+            event_subscribers: EventSubscribers::new(),
             outbox_subscribers: Vec::new(),
         }
+    }
+
+    pub fn command_handlers(mut self, handlers: CommandHandlers) -> Self {
+        self.command_handlers.items.extend(handlers.into_items());
+        self
+    }
+
+    pub fn event_subscribers(mut self, subscribers: EventSubscribers) -> Self {
+        self.event_subscribers
+            .items
+            .extend(subscribers.into_items());
+        self
     }
 
     pub fn command_handler<C, E>(
@@ -238,6 +321,7 @@ impl KernelBuilder {
         E: ApplicationEvent + 'static,
     {
         self.command_handlers
+            .items
             .push((command_type.into(), wrap_handler(handler)));
         self
     }
@@ -249,6 +333,7 @@ impl KernelBuilder {
         subscriber: Arc<dyn EventSubscriberPort>,
     ) -> Self {
         self.event_subscribers
+            .items
             .push(EventSubscriberRegistration::Direct {
                 event_type: event_type.into(),
                 subscriber_name: subscriber_name.into(),
@@ -267,6 +352,7 @@ impl KernelBuilder {
         F: Fn(Arc<CommandGateway>) -> Arc<dyn EventSubscriberPort> + Send + Sync + 'static,
     {
         self.event_subscribers
+            .items
             .push(EventSubscriberRegistration::WithCommandGateway {
                 event_type: event_type.into(),
                 subscriber_name: subscriber_name.into(),
@@ -294,24 +380,27 @@ impl KernelBuilder {
                 )
             })
             .collect();
-        subscribers.extend(self.event_subscribers.into_iter().map(
-            |registration| match registration {
-                EventSubscriberRegistration::Direct {
-                    event_type,
-                    subscriber_name,
-                    subscriber,
-                } => (event_type, subscriber_name, subscriber),
-                EventSubscriberRegistration::WithCommandGateway {
-                    event_type,
-                    subscriber_name,
-                    ..
-                } => (
-                    event_type,
-                    subscriber_name,
-                    Arc::new(NoopEventSubscriber) as Arc<dyn EventSubscriberPort>,
-                ),
-            },
-        ));
+        subscribers.extend(
+            self.event_subscribers
+                .items
+                .into_iter()
+                .map(|registration| match registration {
+                    EventSubscriberRegistration::Direct {
+                        event_type,
+                        subscriber_name,
+                        subscriber,
+                    } => (event_type, subscriber_name, subscriber),
+                    EventSubscriberRegistration::WithCommandGateway {
+                        event_type,
+                        subscriber_name,
+                        ..
+                    } => (
+                        event_type,
+                        subscriber_name,
+                        Arc::new(NoopEventSubscriber) as Arc<dyn EventSubscriberPort>,
+                    ),
+                }),
+        );
 
         let event_registry = Arc::new(EventSubscriberRegistry::from_subscribers(subscribers));
         let event_dispatcher = Arc::new(EventDispatcher::new(event_registry));
@@ -370,24 +459,27 @@ impl KernelBuilder {
                 )
             })
             .collect();
-        subscribers.extend(self.event_subscribers.into_iter().map(
-            |registration| match registration {
-                EventSubscriberRegistration::Direct {
-                    event_type,
-                    subscriber_name,
-                    subscriber,
-                } => (event_type, subscriber_name, subscriber),
-                EventSubscriberRegistration::WithCommandGateway {
-                    event_type,
-                    subscriber_name,
-                    factory,
-                } => (
-                    event_type,
-                    subscriber_name,
-                    factory(command_gateway.clone()),
-                ),
-            },
-        ));
+        subscribers.extend(
+            self.event_subscribers
+                .items
+                .into_iter()
+                .map(|registration| match registration {
+                    EventSubscriberRegistration::Direct {
+                        event_type,
+                        subscriber_name,
+                        subscriber,
+                    } => (event_type, subscriber_name, subscriber),
+                    EventSubscriberRegistration::WithCommandGateway {
+                        event_type,
+                        subscriber_name,
+                        factory,
+                    } => (
+                        event_type,
+                        subscriber_name,
+                        factory(command_gateway.clone()),
+                    ),
+                }),
+        );
 
         let event_registry = Arc::new(EventSubscriberRegistry::from_subscribers(subscribers));
         let event_dispatcher = Arc::new(EventDispatcher::new(event_registry));
@@ -429,14 +521,14 @@ impl KernelBuilder {
 
     fn validate(&self) -> Result<(), KernelError> {
         let mut command_types = std::collections::HashSet::new();
-        for (command_type, _) in &self.command_handlers {
+        for (command_type, _) in &self.command_handlers.items {
             if !command_types.insert(command_type.clone()) {
                 return Err(KernelError::DuplicateCommandHandler(command_type.clone()));
             }
         }
 
         let mut event_subscribers = std::collections::HashSet::new();
-        for registration in &self.event_subscribers {
+        for registration in &self.event_subscribers.items {
             let event_type = registration.event_type();
             let subscriber = registration.subscriber_name();
             if subscriber == OUTBOX_SUBSCRIBER {
