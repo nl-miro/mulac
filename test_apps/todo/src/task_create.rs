@@ -37,71 +37,64 @@ mod models {
 
 mod handler {
     use super::models::{CreateTodoCommand, TodoCreated};
-    use crate::assembly::io::{TodoEvent, block_on_blocking};
+    use crate::assembly::io::{DbPool, TodoEvent};
     use kernel::{CommandError, CommandHandlerPort};
-    use sqlx::PgPool;
 
     pub struct CreateTodoHandler {
-        pool: PgPool,
+        pool: DbPool,
     }
 
     impl CreateTodoHandler {
-        pub fn new(pool: PgPool) -> Self {
+        pub fn new(pool: DbPool) -> Self {
             Self { pool }
         }
     }
 
     impl CommandHandlerPort<CreateTodoCommand, TodoEvent> for CreateTodoHandler {
         fn execute(&self, command: CreateTodoCommand) -> Result<Vec<TodoEvent>, CommandError> {
-            let pool = self.pool.clone();
-            let todo = block_on_blocking(async move {
-                super::infra_sqlx_pg::create_from_command(&pool, command).await
-            })
-            .map_err(|e| CommandError::HandlerExecution(e.to_string()))?;
+            let todo = super::infra_diesel::create_from_command(&self.pool, command)
+                .map_err(|e| CommandError::HandlerExecution(e.to_string()))?;
 
             Ok(vec![TodoEvent::TodoCreated(TodoCreated { todo })])
         }
     }
 }
 
-mod infra_sqlx_pg {
+mod infra_diesel {
     use super::models::CreateTodoCommand;
     use crate::assembly::io::{
         AppError,
         Clock,
+        DbPool,
         TodoDto,
         TodoRow,
         TodoStatus,
         validate_title,
         //
     };
-    use sqlx::PgPool;
-    pub async fn create_from_command(
-        pool: &PgPool,
+    use crate::schema::todos;
+    use diesel::prelude::*;
+
+    pub fn create_from_command(
+        pool: &DbPool,
         command: CreateTodoCommand,
     ) -> Result<TodoDto, AppError> {
         validate_title(&command.title)?;
-        let id = command.todo_id;
         let now = Clock::now();
-        let mut tx = pool
-            .begin()
-            .await
+        let mut conn = pool.get().map_err(|e| AppError::Storage(e.into()))?;
+        let row = diesel::insert_into(todos::table)
+            .values((
+                todos::id.eq(command.todo_id),
+                todos::title.eq(command.title.trim()),
+                todos::description.eq(command.description.as_deref()),
+                todos::status.eq(TodoStatus::Active.as_str()),
+                todos::created_at.eq(now),
+                todos::updated_at.eq(now),
+                todos::due_at.eq(command.due_at),
+            ))
+            .get_result::<TodoRow>(&mut conn)
             .map_err(|e| AppError::Storage(e.into()))?;
-        let sql = "INSERT INTO todos (id, title, description, status, created_at, updated_at, due_at) VALUES ($1, $2, $3, $4, $5, $5, $6) RETURNING id, title, description, status, created_at, updated_at, due_at";
-
-        let row = sqlx::query_as::<_, TodoRow>(sql)
-            .bind(id)
-            .bind(command.title.trim())
-            .bind(command.description)
-            .bind(TodoStatus::Active.as_str())
-            .bind(now)
-            .bind(command.due_at)
-            .fetch_one(&mut *tx)
-            .await
-            .map_err(|e| AppError::Storage(e.into()))?;
-        let todo: TodoDto = row.try_into()?;
-        tx.commit().await.map_err(|e| AppError::Storage(e.into()))?;
-        Ok(todo)
+        row.try_into()
     }
 }
 

@@ -1,6 +1,6 @@
 mod application;
 mod domain;
-mod infra_sqlx_pg;
+mod infra_diesel;
 
 pub mod io {
     pub use super::application::{
@@ -21,9 +21,11 @@ pub mod io {
         //
     };
     pub use super::domain::{Clock, TodoDto, TodoList, TodoStatus};
-    pub use super::infra_sqlx_pg::entity::TodoRow;
-    pub use super::infra_sqlx_pg::{
+    pub use super::infra_diesel::entity::TodoRow;
+    pub use super::infra_diesel::{
+        DbPool,
         OutboxSubscriber,
+        build_pool,
         connect,
         fetch_todo,
         record_event_payload,

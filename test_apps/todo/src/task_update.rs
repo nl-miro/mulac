@@ -35,59 +35,57 @@ mod models {
 
 mod handler {
     use super::models::{TodoUpdated, UpdateTodoCommand};
-    use crate::assembly::io::{TodoEvent, block_on_blocking};
+    use crate::assembly::io::{DbPool, TodoEvent};
     use kernel::{CommandError, CommandHandlerPort};
-    use sqlx::PgPool;
 
     pub struct UpdateTodoHandler {
-        pool: PgPool,
+        pool: DbPool,
     }
 
     impl UpdateTodoHandler {
-        pub fn new(pool: PgPool) -> Self {
+        pub fn new(pool: DbPool) -> Self {
             Self { pool }
         }
     }
 
     impl CommandHandlerPort<UpdateTodoCommand, TodoEvent> for UpdateTodoHandler {
         fn execute(&self, command: UpdateTodoCommand) -> Result<Vec<TodoEvent>, CommandError> {
-            let pool = self.pool.clone();
-            let todo = block_on_blocking(async move {
-                super::infra_sqlx_pg::update_from_command(&pool, command).await
-            })
-            .map_err(|e| CommandError::HandlerExecution(e.to_string()))?;
+            let todo = super::infra_diesel::update_from_command(&self.pool, command)
+                .map_err(|e| CommandError::HandlerExecution(e.to_string()))?;
 
             Ok(vec![TodoEvent::TodoUpdated(TodoUpdated { todo })])
         }
     }
 }
 
-mod infra_sqlx_pg {
+mod infra_diesel {
     use super::models::UpdateTodoCommand;
     use crate::assembly::io::{
         AppError,
         Clock,
+        DbPool,
         TodoDto,
         TodoRow,
         validate_title,
         //
     };
-    use sqlx::PgPool;
+    use crate::schema::todos;
+    use diesel::prelude::*;
 
-    pub async fn update_from_command(
-        pool: &PgPool,
+    pub fn update_from_command(
+        pool: &DbPool,
         command: UpdateTodoCommand,
     ) -> Result<TodoDto, AppError> {
         validate_title(&command.title)?;
-        let sql = "UPDATE todos SET title = $2, description = $3, updated_at = $4 WHERE id = $1 RETURNING id, title, description, status, created_at, updated_at, due_at";
-
-        let row = sqlx::query_as::<_, TodoRow>(sql)
-            .bind(command.todo_id)
-            .bind(command.title.trim())
-            .bind(command.description)
-            .bind(Clock::now())
-            .fetch_optional(pool)
-            .await
+        let mut conn = pool.get().map_err(|e| AppError::Storage(e.into()))?;
+        let row = diesel::update(todos::table.find(command.todo_id))
+            .set((
+                todos::title.eq(command.title.trim()),
+                todos::description.eq(command.description.as_deref()),
+                todos::updated_at.eq(Clock::now()),
+            ))
+            .get_result::<TodoRow>(&mut conn)
+            .optional()
             .map_err(|e| AppError::Storage(e.into()))?
             .ok_or(AppError::NotFound)?;
         row.try_into()

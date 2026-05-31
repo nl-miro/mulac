@@ -1,16 +1,18 @@
-use super::application::{AppError, block_on_blocking};
+use super::application::AppError;
 use super::domain::{Clock, TodoDto};
 use diesel_migrations::{EmbeddedMigrations, MigrationHarness, embed_migrations};
 use kernel::{EventError, EventSubscriberPort, NewEventEnvelope};
 use sqlx::{PgPool, postgres::PgPoolOptions};
 use uuid::Uuid;
 
+pub use kernel::io::{DbPool, build_pool};
+
 pub mod entity {
     use chrono::{DateTime, Utc};
     use sqlx::FromRow;
     use uuid::Uuid;
 
-    #[derive(Debug, Clone, FromRow)]
+    #[derive(Debug, Clone, FromRow, diesel::Queryable)]
     pub struct TodoRow {
         pub id: Uuid,
         pub title: String,
@@ -32,8 +34,7 @@ pub async fn connect(database_url: &str) -> anyhow::Result<PgPool> {
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations");
 
 pub fn run_migrations(database_url: &str) -> anyhow::Result<()> {
-    let pool = kernel::io::build_pool(database_url)
-        .map_err(|e| anyhow::anyhow!("pool error: {e}"))?;
+    let pool = build_pool(database_url).map_err(|e| anyhow::anyhow!("pool error: {e}"))?;
     let mut conn = pool.get()?;
     conn.run_pending_migrations(MIGRATIONS)
         .map_err(|e| anyhow::anyhow!("migration error: {e}"))?;
@@ -53,31 +54,34 @@ pub async fn fetch_todo(pool: &PgPool, id: Uuid) -> Result<TodoDto, AppError> {
     row.try_into()
 }
 
-pub async fn record_event_payload(
-    pool: &PgPool,
+pub fn record_event_payload(
+    pool: &DbPool,
     event_type: &str,
     payload: serde_json::Value,
 ) -> anyhow::Result<Uuid> {
+    use crate::schema::outbox_messages;
+    use diesel::prelude::*;
+
     let id = Uuid::now_v7();
-
-    let sql = "INSERT INTO outbox_messages (id, event_type, payload, status, created_at) VALUES ($1, $2, $3, 'pending', $4)";
-
-    sqlx::query(sql)
-        .bind(id)
-        .bind(event_type)
-        .bind(payload)
-        .bind(Clock::now())
-        .execute(pool)
-        .await?;
+    let mut conn = pool.get()?;
+    diesel::insert_into(outbox_messages::table)
+        .values((
+            outbox_messages::id.eq(id),
+            outbox_messages::event_type.eq(event_type),
+            outbox_messages::payload.eq(payload),
+            outbox_messages::status.eq("pending"),
+            outbox_messages::created_at.eq(Clock::now()),
+        ))
+        .execute(&mut conn)?;
     Ok(id)
 }
 
 pub struct OutboxSubscriber {
-    pool: PgPool,
+    pool: DbPool,
 }
 
 impl OutboxSubscriber {
-    pub fn new(pool: PgPool) -> Self {
+    pub fn new(pool: DbPool) -> Self {
         Self { pool }
     }
 }
@@ -86,9 +90,7 @@ impl EventSubscriberPort for OutboxSubscriber {
     fn handle(&self, envelope: &NewEventEnvelope) -> Result<(), EventError> {
         let payload = serde_json::from_str(&envelope.payload)
             .map_err(|e| EventError::SubscriberExecution(e.to_string()))?;
-        let pool = self.pool.clone();
-        let event_type = envelope.event_type.clone();
-        block_on_blocking(async move { record_event_payload(&pool, &event_type, payload).await })
+        record_event_payload(&self.pool, &envelope.event_type, payload)
             .map(|_| ())
             .map_err(|e| EventError::SubscriberExecution(e.to_string()))
     }
