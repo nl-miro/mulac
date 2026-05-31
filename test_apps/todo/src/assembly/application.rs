@@ -193,27 +193,32 @@ pub async fn start_mulac(db_pool: DbPool) -> Result<MulacHandle, kernel::KernelE
         .event_subscriber(
             TODO_CREATED_EVENT,
             "todo-created-outbox",
-            Arc::new(OutboxSubscriber::new(db_pool.clone())) as Arc<dyn kernel::EventSubscriberPort>,
+            Arc::new(OutboxSubscriber::new(db_pool.clone()))
+                as Arc<dyn kernel::EventSubscriberPort>,
         )
         .event_subscriber(
             TODO_COMPLETED_EVENT,
             "todo-completed-outbox",
-            Arc::new(OutboxSubscriber::new(db_pool.clone())) as Arc<dyn kernel::EventSubscriberPort>,
+            Arc::new(OutboxSubscriber::new(db_pool.clone()))
+                as Arc<dyn kernel::EventSubscriberPort>,
         )
         .event_subscriber(
             TODO_REOPENED_EVENT,
             "todo-reopened-outbox",
-            Arc::new(OutboxSubscriber::new(db_pool.clone())) as Arc<dyn kernel::EventSubscriberPort>,
+            Arc::new(OutboxSubscriber::new(db_pool.clone()))
+                as Arc<dyn kernel::EventSubscriberPort>,
         )
         .event_subscriber(
             TODO_UPDATED_EVENT,
             "todo-updated-outbox",
-            Arc::new(OutboxSubscriber::new(db_pool.clone())) as Arc<dyn kernel::EventSubscriberPort>,
+            Arc::new(OutboxSubscriber::new(db_pool.clone()))
+                as Arc<dyn kernel::EventSubscriberPort>,
         )
         .event_subscriber(
             TODO_DUE_DATE_CHANGED_EVENT,
             "todo-due-date-changed-outbox",
-            Arc::new(OutboxSubscriber::new(db_pool.clone())) as Arc<dyn kernel::EventSubscriberPort>,
+            Arc::new(OutboxSubscriber::new(db_pool.clone()))
+                as Arc<dyn kernel::EventSubscriberPort>,
         )
         .event_subscriber(
             TODO_DELETED_EVENT,
