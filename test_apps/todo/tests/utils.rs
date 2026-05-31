@@ -6,7 +6,7 @@ use reqwest::Client;
 use sqlx::PgPool;
 use test_app_todo::io::{
     AppState, CompleteApi, CreateApi, DeleteApi, DueDatesApi, GetApi, InboxApi, ListApi, OutboxApi,
-    ReopenApi, UpdateApi, connect, migrate, start_mulac,
+    ReopenApi, UpdateApi, connect, run_migrations, start_mulac,
 };
 use tokio::sync::{Mutex, OwnedMutexGuard};
 use uuid::Uuid;
@@ -113,8 +113,8 @@ pub async fn start_test_app() -> (String, PgPool, OwnedMutexGuard<()>) {
 
     let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
 
+    run_migrations(&database_url).unwrap();
     let pool = connect(&database_url).await.unwrap();
-    migrate(&pool).await.unwrap();
 
     for table in &[
         "event_entries",
