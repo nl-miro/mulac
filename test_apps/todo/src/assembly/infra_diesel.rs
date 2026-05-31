@@ -2,17 +2,15 @@ use super::application::AppError;
 use super::domain::{Clock, TodoDto};
 use diesel_migrations::{EmbeddedMigrations, MigrationHarness, embed_migrations};
 use kernel::{EventError, EventSubscriberPort, NewEventEnvelope};
-use sqlx::{PgPool, postgres::PgPoolOptions};
 use uuid::Uuid;
 
 pub use kernel::io::{DbPool, build_pool};
 
 pub mod entity {
     use chrono::{DateTime, Utc};
-    use sqlx::FromRow;
     use uuid::Uuid;
 
-    #[derive(Debug, Clone, FromRow, diesel::Queryable)]
+    #[derive(Debug, Clone, diesel::Queryable)]
     pub struct TodoRow {
         pub id: Uuid,
         pub title: String,
@@ -22,13 +20,6 @@ pub mod entity {
         pub updated_at: DateTime<Utc>,
         pub due_at: Option<DateTime<Utc>>,
     }
-}
-
-pub async fn connect(database_url: &str) -> anyhow::Result<PgPool> {
-    Ok(PgPoolOptions::new()
-        .max_connections(10)
-        .connect(database_url)
-        .await?)
 }
 
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations");
@@ -41,16 +32,17 @@ pub fn run_migrations(database_url: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub async fn fetch_todo(pool: &PgPool, id: Uuid) -> Result<TodoDto, AppError> {
-    let sql = "SELECT id, title, description, status, created_at, updated_at, due_at FROM todos WHERE id = $1";
+pub fn fetch_todo(pool: &DbPool, id: Uuid) -> Result<TodoDto, AppError> {
+    use crate::schema::todos;
+    use diesel::prelude::*;
 
-    let row = sqlx::query_as::<_, entity::TodoRow>(sql)
-        .bind(id)
-        .fetch_optional(pool)
-        .await
+    let mut conn = pool.get().map_err(|e| AppError::Storage(e.into()))?;
+    let row = todos::table
+        .find(id)
+        .first::<entity::TodoRow>(&mut conn)
+        .optional()
         .map_err(|e| AppError::Storage(e.into()))?
         .ok_or(AppError::NotFound)?;
-
     row.try_into()
 }
 

@@ -103,7 +103,9 @@ mod http {
     use crate::assembly::io::{AppCommand, AppError, NewCommandEnvelope};
     use crate::{
         AppState,
-        assembly::io::{ApiError, Command, TodoDto, fetch_todo, interpret_dispatch_error},
+        assembly::io::{
+            ApiError, Command, TodoDto, fetch_todo, interpret_dispatch_error, run_blocking,
+        },
         //
     };
     use chrono::{DateTime, Utc};
@@ -159,7 +161,8 @@ mod http {
                 .mulac
                 .dispatch_command(envelope)
                 .map_err(interpret_dispatch_error)?;
-            let todo = fetch_todo(&state.pool, todo_id).await?;
+            let pool = state.pool.clone();
+            let todo = run_blocking(move || fetch_todo(&pool, todo_id)).await?;
             Ok(Json(todo))
         }
     }
