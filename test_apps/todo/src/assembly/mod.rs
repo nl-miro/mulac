@@ -26,8 +26,8 @@ pub mod io {
         OutboxSubscriber,
         connect,
         fetch_todo,
-        migrate,
         record_event_payload,
+        run_migrations,
         //
     };
     pub use crate::TodoEvent;

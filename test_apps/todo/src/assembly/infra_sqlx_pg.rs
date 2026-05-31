@@ -1,5 +1,6 @@
 use super::application::{AppError, block_on_blocking};
 use super::domain::{Clock, TodoDto};
+use diesel_migrations::{EmbeddedMigrations, MigrationHarness, embed_migrations};
 use kernel::{EventError, EventSubscriberPort, NewEventEnvelope};
 use sqlx::{PgPool, postgres::PgPoolOptions};
 use uuid::Uuid;
@@ -28,8 +29,14 @@ pub async fn connect(database_url: &str) -> anyhow::Result<PgPool> {
         .await?)
 }
 
-pub async fn migrate(pool: &PgPool) -> anyhow::Result<()> {
-    sqlx::migrate!("./migrations").run(pool).await?;
+pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations");
+
+pub fn run_migrations(database_url: &str) -> anyhow::Result<()> {
+    let pool = kernel::io::build_pool(database_url)
+        .map_err(|e| anyhow::anyhow!("pool error: {e}"))?;
+    let mut conn = pool.get()?;
+    conn.run_pending_migrations(MIGRATIONS)
+        .map_err(|e| anyhow::anyhow!("migration error: {e}"))?;
     Ok(())
 }
 
