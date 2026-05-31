@@ -2,6 +2,8 @@ mod command_handler_registry;
 mod event_subscriber_registry;
 mod workers;
 
+pub use kernel_derive::{ApplicationCommand, ApplicationEvent};
+
 pub mod io {
     pub use super::command_handler_registry::CommandHandlerRegistry;
     pub use super::event_subscriber_registry::EventSubscriberRegistry;
