@@ -92,7 +92,7 @@ Rules:
 ## Field and date semantics
 
 - `PUT /todos/:id` and `PUT /todos/:id/due-date` replace the whole value; there are no partial updates.
-- `title` is required and trimmed before storage; a blank title is a validation error (422) and changes nothing.
+- `title` is required and trimmed before storage; a blank title is a validation error (400) and changes nothing.
 - `description` is optional. Omitting it and sending `null` both clear it.
 - `due_at` is optional. Omitting it and sending `null` both clear it.
 - `due_at` is an RFC 3339 timestamp with an offset, normalised to UTC. Storage, the HTTP response and the event all carry the same instant, whatever offset was sent. An invalid timestamp is rejected and changes nothing.
@@ -113,7 +113,7 @@ Rules:
 
 - For every command except `DeleteTodo`, `todo` is the todo as it is after the command.
 - For `DeleteTodo`, `todo` is `null`. The deletion is committed and the inbox message is marked `processed`.
-- If the command is rejected (404, 409, 422), the inbox message is marked `failed` and the same status code is returned.
+- If the command is rejected (400, 404, 409), the inbox message is marked `failed` and the same status code is returned.
 
 ## HTTP/API expectations
 
