@@ -7,7 +7,7 @@ use diesel_migrations::{
     MigrationHarness,
     embed_migrations, //
 };
-use kernel::{EventError, EventSubscriberPort, NewEventEnvelope};
+use kernel::io::{EventError, EventSubscriberPort, NewEventEnvelope};
 use uuid::Uuid;
 
 pub type DbPool = Pool<ConnectionManager<PgConnection>>;

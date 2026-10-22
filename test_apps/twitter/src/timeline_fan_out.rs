@@ -10,7 +10,7 @@ mod models {
         pub author_id: Uuid,
     }
 
-    impl kernel::ApplicationCommand for Command {
+    impl kernel::io::ApplicationCommand for Command {
         fn command_type(&self) -> &'static str {
             super::COMMAND_NAME
         }
@@ -70,12 +70,12 @@ mod handler {
 mod eventing {
     use kernel::io::{
         CommandGateway,
+        GatewayNewCommandEnvelope as NewCommandEnvelope,
         NewCommand,
-        NewCommandEnvelope,
         NewCommandMetadata,
         //
     };
-    use kernel::{EventError, EventSubscriberPort, NewEventEnvelope};
+    use kernel::io::{EventError, EventSubscriberPort, NewEventEnvelope};
     use std::sync::Arc;
     use uuid::Uuid;
 

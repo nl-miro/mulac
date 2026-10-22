@@ -1,7 +1,7 @@
 # Kernel Specification
 
 > **Status:** decided 2026-10-22 (D-04, D-07 and D-11 in [test-coverage-report.md](../docs/test-coverage-report.md)).
-> The current implementation does not yet match this contract. See [Implementation gaps](#implementation-gaps).
+> QA-01 registration and transport assembly are implemented and covered. Lifecycle gating, retry-policy enforcement and broker-confirmation gaps remain; see [Implementation gaps](#implementation-gaps).
 
 ## Overview
 
@@ -25,7 +25,7 @@ The crate root declares only `pub mod io`, following the repository's single-int
 - application boundary: `ApplicationCommand`, `NewCommandEnvelope<C>`, and the re-exported library types (`ApplicationEvent`, `EventSubscriberPort`, `NewCommandMetadata`, `NewEventEnvelope`, errors, gateways, consumers)
 - runtime helpers: `run_command_worker`, `run_event_worker`, `block_on_blocking`, `first_command_error`, `first_event_error`
 
-Library `io` facades export every type a supported mode needs, whatever storage features are enabled. For example, `NewCommand` is available without the `diesel` feature, because direct mode needs it as well.
+The kernel facade exports the types needed by its supported modes. `NewCommandEnvelope<C>` is the typed application envelope; `GatewayNewCommandEnvelope` is the raw gateway envelope. Independent library feature-gating cleanup remains tracked under D-11.
 
 ## Capability matrix
 
@@ -48,13 +48,14 @@ That API is still open and is not decided here.
 
 Building direct mode involves a dependency cycle: the command dispatcher needs the event gateway, the event gateway
 needs the subscribers, and command-gateway subscribers need the command gateway. The kernel resolves the cycle with
-a gateway handle that is set once, after the command gateway is built and before `start()` returns. Dispatching
-through the handle before it is set is impossible, because no event can be dispatched before `start()` returns.
+a non-owning `CommandGateway::Reference` built using `Arc::new_cyclic`. The target becomes available before
+`start()` returns, without a strong-reference cycle. Factories construct subscribers during startup; they must not
+dispatch commands themselves. Premature dispatch returns an error rather than silently succeeding.
 
 ### Persistent mode: outbox subscribers
 
 The kernel-registered subscriber (reserved name `_outbox`) converts each event into a `NewOutboxEnvelope` and
-records it. The routing key comes from the event metadata. If the routing key is missing or empty, the subscriber
+records it. The routing key comes from `NewEventMetadata::routing_key` (and is preserved through durable event storage). If the routing key is missing or empty, the subscriber
 fails, so the event entry follows the normal retry policy instead of being marked `completed` without outbound work.
 
 ## Configuration
@@ -83,12 +84,37 @@ Direct mode ignores config values so that a single `from_env()` configuration wo
 | An application subscriber named `_outbox`, or `outbox_subscriber` called twice for one event type | `ReservedSubscriberName` |
 | `outbox_subscriber` registered in direct mode | `Unsupported` |
 | Persistent mode without a pool and without `database_url` | `Config` |
-| Some but not all of the inbox AMQP fields (`amqp_url`, `inbox_queue`, `inbox_exchange`) set | `Config` |
+| Inbox queue/exchange configured without all three inbox AMQP fields | `Config` |
+| AMQP URL without inbox intake/outbox subscribers, or outbox configuration without outbox subscribers | `Config` |
 | Outbox subscribers registered without `amqp_url` and `outbox_exchange` | `Config` |
+
+## Persistent assembly details
+
+`start_persistent(pool, drain_rounds)` accepts an explicit pool as before; passing `None` builds one from
+`database_url`. Startup requires a live multi-thread Tokio runtime and reports `Unsupported` otherwise.
+It owns command/event workers (one-second polling), optional inbox intake and outbox publication, and a
+reservation-sweep loop (one-minute polling, five-minute stale threshold). Applications need not spawn additional
+command/event workers. `drain_rounds` still controls synchronous command/event draining after dispatch; zero leaves
+processing to the workers. Keep the handle alive while workers are needed; dropping it requests cancellation.
+
+`PersistentKernelState::inbox_recorder` records durably; direct `AppState` has no inbox recorder.
+`PersistentKernelState::event_gateway()` exposes durable event acceptance. Exchanges are provisioned by the
+application. Inbox startup declares the configured queue using the inbox adapter and binds it to the configured
+exchange with `#` (use a topic or fanout exchange for catch-all intake). Outbox publication uses the configured
+exchange and content type. An empty outbox exchange selects the AMQP default exchange. Transport setup errors
+fail startup before background loops are spawned. Partial/unused AMQP configuration is a `Config` error.
+
+Adding `routing_key: Option<String>` to both event metadata types requires updating Rust struct literals;
+previously stored JSON metadata without the field remains readable. Handler-generated events obtain the routing key from
+`ApplicationEvent::routing_key()` (default `None`); events intended for outbox recording must override that method
+or supply routing metadata on a directly recorded event. Missing routing causes event failure/retry, never silent completion.
 
 ## Lifecycle
 
-**D-07: decided; implementation pending.** The kernel owns its background loops and ties them to the handle's cancellation token. The following are contractual outcomes, not claims that the current handles already implement them.
+**D-07: partially implemented.** Persistent handles own worker joins, `shutdown()` requests cancellation, and
+`wait()` observes all joins without cancelling and retains worker errors/panics. Dispatch gating and in-flight
+follow-up exemptions remain pending. The following are the complete contractual outcomes, not a claim that all
+lifecycle scenarios have been verified.
 
 ### Cancellation and waiting
 
@@ -135,16 +161,34 @@ let kernel = boot(KernelConfig::from_env()?)
 
 ## Implementation gaps
 
-Current `kernel/src/lib.rs` differs from this contract:
+Registration assembly now lives in private `assembly`, `registrations`, and `runtime` modules; the crate exposes
+only `pub mod io`. Both test applications import through that facade. The former `NoopInboxStore` and
+`NoopEventSubscriber` paths have been removed.
 
-- `start()` replaces command-gateway subscribers with `NoopEventSubscriber`, registers a no-op `_outbox` subscriber
-  instead of rejecting it, and backs `AppState.inbox_recorder` with `NoopInboxStore`.
-- `start_persistent()` registers a no-op `_outbox` subscriber, so events are marked `completed` without an outbox
-  entry being written. It wires no inbox, outbox consumer, publisher, or sweepers, and takes the pool as its only
-  database input.
-- `KernelConfig` is stored as `_config` and never read. `KernelError` has no `Config` or `Unsupported` variants.
-- Neither handle owns worker joins. Direct `wait()` returns immediately; persistent `wait()` cancels its token and returns immediately. Neither implements the waiting/error-reporting contract above.
-- Existing dispatch handles have no shutdown gate or accepted-execution exemption for in-flight follow-ups. These guarantees require future implementation and tests.
-- Synchronous AMQP publication currently calls `Handle::block_on` when a runtime is present and creates a fallback runtime otherwise. `block_on_blocking` uses `block_in_place` and the current runtime handle. These paths do not establish support for arbitrary calling contexts or enforce the documented restrictions.
-- The test apps write their own outbox subscribers against their own tables instead of using `outbox_subscriber`.
-- `kernel/src/lib.rs` exports about 30 items at the crate root next to `pub mod io`, and both test apps import from the root (`kernel::ApplicationCommand`, `kernel::EventSubscriberPort`, `kernel::boot`, …). Commanding exports `NewCommand` only under `#[cfg(feature = "diesel")]`.
+Remaining gaps outside QA-01:
+
+- Dispatch handles have no shutdown gate or accepted-execution exemption for in-flight follow-ups (D-07).
+- Sweepers are wired, but component retry/exhaustion policy fixes and recovery coverage remain D-01/D-02 work.
+- The AMQP publisher still needs D-06 confirmation/return/timeout and persistent-delivery enforcement. A passing
+  routed publication test does not establish those failure/durability guarantees.
+- Inbox invalid-transport-ID rejection remains D-03 work; inbox-entry-to-command registration is still undecided.
+- Synchronous AMQP publication and `block_on_blocking` do not enforce runtime restrictions for independent callers.
+- The test apps retain their app-owned outbox tables/subscribers rather than using `outbox_subscriber`.
+- Independent commanding facade feature gating and metadata propagation/error-classification fixes remain D-11 work.
+
+## QA-01 verification
+
+`cargo test --manifest-path kernel/Cargo.toml --all-features --offline` runs registration/error tests,
+outbox-adapter tests, and a compile-fail check that direct state exposes no inbox.
+Three opt-in integration tests use isolated PostgreSQL schemas and uniquely named RabbitMQ resources:
+
+```sh
+KERNEL_TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5433/postgres \
+KERNEL_TEST_AMQP_URL=amqp://guest:guest@127.0.0.1:5672/%2f \
+cargo test --manifest-path kernel/Cargo.toml --offline --test persistent -- --ignored --test-threads=1
+```
+
+These verify persistent subscribers/follow-up commands, database URL versus explicit-pool selection, background
+processing with no synchronous draining, durable inbox acceptance (and storage-failure rejection), real outbox
+recording, missing-routing failure/retry, configured exchange/content type publication, and AMQP inbox intake.
+They do not establish the remaining lifecycle, retry, acknowledgement-ordering or broker-failure contracts.

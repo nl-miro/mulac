@@ -3,7 +3,7 @@ pub const TODO_DELETED_EVENT: &str = "TodoDeleted";
 
 mod models {
     use crate::assembly::io::TodoDto;
-    use kernel::ApplicationEvent;
+    use kernel::io::ApplicationEvent;
     use poem_openapi::Object;
     use serde::{Deserialize, Serialize};
     use uuid::Uuid;
@@ -13,7 +13,7 @@ mod models {
         pub todo_id: Uuid,
     }
 
-    impl kernel::ApplicationCommand for DeleteTodoCommand {
+    impl kernel::io::ApplicationCommand for DeleteTodoCommand {
         fn command_type(&self) -> &'static str {
             super::DELETE_TODO_COMMAND
         }
@@ -34,7 +34,7 @@ mod models {
 mod handler {
     use super::models::{DeleteTodoCommand, TodoDeleted};
     use crate::assembly::io::{DbPool, TodoEvent};
-    use kernel::{CommandError, CommandHandlerPort};
+    use kernel::io::{CommandError, CommandHandlerPort};
 
     pub struct DeleteTodoHandler {
         pool: DbPool,
@@ -100,7 +100,7 @@ mod http {
         let command_id = Uuid::now_v7();
         let envelope = NewCommandEnvelope {
             command: AppCommand::DeleteTodo(DeleteTodoCommand { todo_id: id }),
-            metadata: kernel::NewCommandMetadata {
+            metadata: kernel::io::NewCommandMetadata {
                 command_id,
                 correlation_id: Some(command_id),
                 causation_id: None,

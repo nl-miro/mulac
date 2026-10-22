@@ -153,6 +153,7 @@ mod conversions {
                 correlation_id: meta.correlation_id,
                 causation_id: meta.causation_id,
                 source: meta.source,
+                routing_key: meta.routing_key,
             }
         }
     }

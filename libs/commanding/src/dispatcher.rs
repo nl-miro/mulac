@@ -17,6 +17,12 @@ mod handler {
 
     pub trait ApplicationEvent: serde::Serialize + Send + Sync {
         fn event_type(&self) -> &'static str;
+
+        /// Optional outbound destination copied into event metadata.
+        /// Kernel outbox registrations reject events without a nonblank key.
+        fn routing_key(&self) -> Option<&str> {
+            None
+        }
     }
 
     pub trait CommandHandlerPort<C, E>: Send + Sync {
@@ -65,6 +71,7 @@ mod handler {
                             correlation_id,
                             causation_id,
                             source: None,
+                            routing_key: event.routing_key().map(str::to_owned),
                         }),
                     })
                 })

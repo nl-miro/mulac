@@ -30,6 +30,9 @@ mod models {
         pub correlation_id: Option<Uuid>,
         pub causation_id: Option<Uuid>,
         pub source: Option<String>,
+        /// Destination for kernel outbox subscribers; absent events cannot be exported.
+        #[serde(default)]
+        pub routing_key: Option<String>,
     }
 
     /// Read-side envelope returned to the consumer after reservation.
@@ -53,6 +56,9 @@ mod models {
         pub correlation_id: Option<Uuid>,
         pub causation_id: Option<Uuid>,
         pub source: Option<String>,
+        /// Destination for kernel outbox subscribers; absent events cannot be exported.
+        #[serde(default)]
+        pub routing_key: Option<String>,
     }
 
     #[derive(Debug, thiserror::Error)]

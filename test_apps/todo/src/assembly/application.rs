@@ -85,8 +85,8 @@ pub fn validate_title(title: &str) -> Result<(), AppError> {
     Ok(())
 }
 
-pub fn interpret_dispatch_error(error: kernel::KernelError) -> AppError {
-    if let kernel::KernelError::Command(MulacCommandError::HandlerExecution(message)) = &error {
+pub fn interpret_dispatch_error(error: kernel::io::KernelError) -> AppError {
+    if let kernel::io::KernelError::Command(MulacCommandError::HandlerExecution(message)) = &error {
         if message.contains("todo not found") {
             return AppError::NotFound;
         }
@@ -99,7 +99,7 @@ pub fn interpret_dispatch_error(error: kernel::KernelError) -> AppError {
     AppError::Storage(anyhow::anyhow!("command dispatch failed: {error}"))
 }
 
-pub trait Command: kernel::ApplicationCommand {
+pub trait Command: kernel::io::ApplicationCommand {
     fn todo_id(&self) -> Uuid;
 }
 
@@ -126,7 +126,7 @@ impl serde::Serialize for AppCommand {
     }
 }
 
-impl kernel::ApplicationCommand for AppCommand {
+impl kernel::io::ApplicationCommand for AppCommand {
     fn command_type(&self) -> &'static str {
         match self {
             Self::CreateTodo(_) => CREATE_TODO_COMMAND,
@@ -152,11 +152,11 @@ impl Command for AppCommand {
     }
 }
 
-pub type NewCommandEnvelope = kernel::NewCommandEnvelope<AppCommand>;
-pub type MulacState = kernel::PersistentKernelState;
-pub type MulacHandle = kernel::PersistentKernelHandle;
+pub type NewCommandEnvelope = kernel::io::NewCommandEnvelope<AppCommand>;
+pub type MulacState = kernel::io::PersistentKernelState;
+pub type MulacHandle = kernel::io::PersistentKernelHandle;
 
-pub async fn start_mulac(db_pool: DbPool) -> Result<MulacHandle, kernel::KernelError> {
+pub async fn start_mulac(db_pool: DbPool) -> Result<MulacHandle, kernel::io::KernelError> {
     use crate::assembly::io::OutboxSubscriber;
     use crate::task_complete::io::{CompleteTodoHandler, TODO_COMPLETED_EVENT};
     use crate::task_create::io::{CreateTodoHandler, TODO_CREATED_EVENT};
@@ -165,7 +165,7 @@ pub async fn start_mulac(db_pool: DbPool) -> Result<MulacHandle, kernel::KernelE
     use crate::task_schedule_due_dates::io::{TODO_DUE_DATE_CHANGED_EVENT, UpdateDueDateHandler};
     use crate::task_update::io::{TODO_UPDATED_EVENT, UpdateTodoHandler};
 
-    kernel::boot(kernel::KernelConfig::default())
+    kernel::io::boot(kernel::io::KernelConfig::default())
         .command_handler(
             CREATE_TODO_COMMAND,
             Arc::new(CreateTodoHandler::new(db_pool.clone())),
@@ -194,37 +194,37 @@ pub async fn start_mulac(db_pool: DbPool) -> Result<MulacHandle, kernel::KernelE
             TODO_CREATED_EVENT,
             "todo-created-outbox",
             Arc::new(OutboxSubscriber::new(db_pool.clone()))
-                as Arc<dyn kernel::EventSubscriberPort>,
+                as Arc<dyn kernel::io::EventSubscriberPort>,
         )
         .event_subscriber(
             TODO_COMPLETED_EVENT,
             "todo-completed-outbox",
             Arc::new(OutboxSubscriber::new(db_pool.clone()))
-                as Arc<dyn kernel::EventSubscriberPort>,
+                as Arc<dyn kernel::io::EventSubscriberPort>,
         )
         .event_subscriber(
             TODO_REOPENED_EVENT,
             "todo-reopened-outbox",
             Arc::new(OutboxSubscriber::new(db_pool.clone()))
-                as Arc<dyn kernel::EventSubscriberPort>,
+                as Arc<dyn kernel::io::EventSubscriberPort>,
         )
         .event_subscriber(
             TODO_UPDATED_EVENT,
             "todo-updated-outbox",
             Arc::new(OutboxSubscriber::new(db_pool.clone()))
-                as Arc<dyn kernel::EventSubscriberPort>,
+                as Arc<dyn kernel::io::EventSubscriberPort>,
         )
         .event_subscriber(
             TODO_DUE_DATE_CHANGED_EVENT,
             "todo-due-date-changed-outbox",
             Arc::new(OutboxSubscriber::new(db_pool.clone()))
-                as Arc<dyn kernel::EventSubscriberPort>,
+                as Arc<dyn kernel::io::EventSubscriberPort>,
         )
         .event_subscriber(
             TODO_DELETED_EVENT,
             "todo-deleted-outbox",
             Arc::new(OutboxSubscriber::new(db_pool.clone()))
-                as Arc<dyn kernel::EventSubscriberPort>,
+                as Arc<dyn kernel::io::EventSubscriberPort>,
         )
         .start_persistent(db_pool, 1)
 }

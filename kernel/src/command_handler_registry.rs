@@ -1,8 +1,8 @@
 use commanding::io::{CommandError, ErasedCommandHandler};
 use std::{collections::HashMap, sync::Arc};
 
-use crate::GatewayNewCommandEnvelope;
-use crate::NewEventEnvelope;
+use crate::io::GatewayNewCommandEnvelope;
+use crate::io::NewEventEnvelope;
 
 pub struct CommandHandlerRegistry {
     handlers: HashMap<String, Arc<dyn ErasedCommandHandler>>,

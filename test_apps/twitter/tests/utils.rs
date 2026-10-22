@@ -1,8 +1,8 @@
 use diesel::prelude::*;
 use diesel::r2d2::{ConnectionManager, Pool};
 use kernel::io::{
+    GatewayNewCommandEnvelope as NewCommandEnvelope,
     NewCommand,
-    NewCommandEnvelope,
     NewCommandMetadata,
     ReservableCommandSpec, //
 };

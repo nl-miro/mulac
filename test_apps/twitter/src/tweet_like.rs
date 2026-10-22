@@ -2,7 +2,7 @@ pub const COMMAND_NAME: &str = "LikeTweet";
 pub const EVENT_NAME: &str = "TweetLiked";
 
 mod models {
-    use kernel::ApplicationEvent;
+    use kernel::io::ApplicationEvent;
     use poem_openapi::Object;
     use serde::{Deserialize, Serialize};
     use uuid::Uuid;
@@ -13,7 +13,7 @@ mod models {
         pub tweet_id: Uuid,
     }
 
-    impl kernel::ApplicationCommand for Command {
+    impl kernel::io::ApplicationCommand for Command {
         fn command_type(&self) -> &'static str {
             super::COMMAND_NAME
         }

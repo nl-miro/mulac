@@ -13,7 +13,7 @@ pub(crate) mod user_follow;
 pub(crate) mod user_unfollow;
 
 use assembly::io::{DbPool, MulacState};
-use kernel::ApplicationEvent;
+use kernel::io::ApplicationEvent;
 use poem_openapi::Union;
 use serde::{Deserialize, Serialize};
 

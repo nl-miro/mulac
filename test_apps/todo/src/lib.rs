@@ -10,7 +10,7 @@ mod task_reopen;
 mod task_schedule_due_dates;
 mod task_update;
 
-use kernel::ApplicationEvent;
+use kernel::io::ApplicationEvent;
 use poem_openapi::Union;
 use serde::{Deserialize, Serialize};
 
@@ -103,7 +103,7 @@ mod inbox {
             }
         }
 
-        impl kernel::ApplicationCommand for TodoCommand {
+        impl kernel::io::ApplicationCommand for TodoCommand {
             fn command_type(&self) -> &'static str {
                 self.message_type()
             }
@@ -138,7 +138,7 @@ mod inbox {
             run_blocking,
             //
         };
-        use kernel::NewCommandMetadata;
+        use kernel::io::NewCommandMetadata;
         use poem::web::Data;
         use poem_openapi::{OpenApi, payload::Json};
         use uuid::Uuid;

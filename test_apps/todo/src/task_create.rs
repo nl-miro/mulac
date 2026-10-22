@@ -4,7 +4,7 @@ pub const TODO_CREATED_EVENT: &str = "TodoCreated";
 mod models {
     use crate::assembly::io::TodoDto;
     use chrono::{DateTime, Utc};
-    use kernel::ApplicationEvent;
+    use kernel::io::ApplicationEvent;
     use poem_openapi::Object;
     use serde::{Deserialize, Serialize};
     use uuid::Uuid;
@@ -17,7 +17,7 @@ mod models {
         pub due_at: Option<DateTime<Utc>>,
     }
 
-    impl kernel::ApplicationCommand for CreateTodoCommand {
+    impl kernel::io::ApplicationCommand for CreateTodoCommand {
         fn command_type(&self) -> &'static str {
             super::CREATE_TODO_COMMAND
         }
@@ -38,7 +38,7 @@ mod models {
 mod handler {
     use super::models::{CreateTodoCommand, TodoCreated};
     use crate::assembly::io::{DbPool, TodoEvent};
-    use kernel::{CommandError, CommandHandlerPort};
+    use kernel::io::{CommandError, CommandHandlerPort};
 
     pub struct CreateTodoHandler {
         pool: DbPool,
@@ -109,7 +109,7 @@ mod http {
         //
     };
     use chrono::{DateTime, Utc};
-    use kernel::NewCommandMetadata;
+    use kernel::io::NewCommandMetadata;
     use poem::web::Data;
     use poem_openapi::{Object, OpenApi, payload::Json};
     use serde::{Deserialize, Serialize};

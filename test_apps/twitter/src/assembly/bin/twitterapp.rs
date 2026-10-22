@@ -22,8 +22,6 @@ use test_app_twitter::io::{
     TweetRetweetApi,
     TweetUnlikeApi,
     UnfollowUserApi,
-    run_command_worker,
-    run_event_worker,
     start_mulac, //
 };
 use test_app_twitter::io::{build_pool, run_migrations};
@@ -59,9 +57,6 @@ async fn main() -> Result<()> {
 
             let kernel = start_mulac(pool.clone())
                 .map_err(|e| anyhow::anyhow!("start_mulac failed: {e}"))?;
-            let token = kernel.child_token();
-            tokio::spawn(run_command_worker(kernel.command_consumer(), token.clone()));
-            tokio::spawn(run_event_worker(kernel.event_consumer(), token));
             let state = AppState::new(pool, kernel.state());
 
             let api = OpenApiService::new(
@@ -91,11 +86,13 @@ async fn main() -> Result<()> {
 
             tracing::info!(%bind_addr, "starting test_app_twitter");
 
-            tokio::select! {
-                result = poem::Server::new(TcpListener::bind(bind_addr)).run(app) => result?,
-                _ = tokio::signal::ctrl_c() => kernel.shutdown(),
-            }
+            let result = tokio::select! {
+                result = poem::Server::new(TcpListener::bind(bind_addr)).run(app) => result,
+                _ = tokio::signal::ctrl_c() => Ok(()),
+            };
+            kernel.shutdown();
             kernel.wait().await?;
+            result?;
         }
 
         other => anyhow::bail!("unknown command `{other}`; expected `serve` or `migrate`"),

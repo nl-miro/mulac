@@ -9,7 +9,7 @@ use crate::tweet_unlike::io::Command as UnlikeTweetCommand;
 use crate::user_follow::io::Command as FollowUserCommand;
 use crate::user_unfollow::io::Command as UnfollowUserCommand;
 use kernel::io::CommandError as MulacCommandError;
-use kernel::{
+use kernel::io::{
     ApplicationCommand,
     KernelError, //
 };
@@ -159,7 +159,7 @@ impl Command for AppCommand {
     }
 }
 
-pub type NewCommandEnvelope = kernel::NewCommandEnvelope<AppCommand>;
+pub type NewCommandEnvelope = kernel::io::NewCommandEnvelope<AppCommand>;
 
 pub async fn run_blocking<F, T>(f: F) -> Result<T, AppError>
 where
@@ -173,8 +173,8 @@ where
 
 // ── Mulac state ───────────────────────────────────────────────────────────────
 
-pub type MulacState = kernel::PersistentKernelState;
-pub type MulacHandle = kernel::PersistentKernelHandle;
+pub type MulacState = kernel::io::PersistentKernelState;
+pub type MulacHandle = kernel::io::PersistentKernelHandle;
 
 pub fn start_mulac(pool: DbPool) -> Result<MulacHandle, KernelError> {
     use crate::assembly::infra_diesel::OutboxSubscriber;
@@ -192,7 +192,7 @@ pub fn start_mulac(pool: DbPool) -> Result<MulacHandle, KernelError> {
     use crate::user_follow::io::Handler as FollowUserHandler;
     use crate::user_unfollow::io::Handler as UnfollowUserHandler;
 
-    kernel::boot(kernel::KernelConfig::default())
+    kernel::io::boot(kernel::io::KernelConfig::default())
         .command_handler("PostTweet", Arc::new(PostTweetHandler::new(pool.clone())))
         .command_handler(
             "DeleteTweet",
@@ -217,49 +217,57 @@ pub fn start_mulac(pool: DbPool) -> Result<MulacHandle, KernelError> {
         .event_subscriber(
             "TweetPosted",
             "tweet-posted-outbox",
-            Arc::new(OutboxSubscriber::new(pool.clone())) as Arc<dyn kernel::EventSubscriberPort>,
+            Arc::new(OutboxSubscriber::new(pool.clone()))
+                as Arc<dyn kernel::io::EventSubscriberPort>,
         )
         .event_subscriber(
             "TweetDeleted",
             "tweet-deleted-outbox",
-            Arc::new(OutboxSubscriber::new(pool.clone())) as Arc<dyn kernel::EventSubscriberPort>,
+            Arc::new(OutboxSubscriber::new(pool.clone()))
+                as Arc<dyn kernel::io::EventSubscriberPort>,
         )
         .event_subscriber(
             "TweetRetweeted",
             "tweet-retweeted-outbox",
-            Arc::new(OutboxSubscriber::new(pool.clone())) as Arc<dyn kernel::EventSubscriberPort>,
+            Arc::new(OutboxSubscriber::new(pool.clone()))
+                as Arc<dyn kernel::io::EventSubscriberPort>,
         )
         .event_subscriber(
             "TweetLiked",
             "tweet-liked-outbox",
-            Arc::new(OutboxSubscriber::new(pool.clone())) as Arc<dyn kernel::EventSubscriberPort>,
+            Arc::new(OutboxSubscriber::new(pool.clone()))
+                as Arc<dyn kernel::io::EventSubscriberPort>,
         )
         .event_subscriber(
             "TweetUnliked",
             "tweet-unliked-outbox",
-            Arc::new(OutboxSubscriber::new(pool.clone())) as Arc<dyn kernel::EventSubscriberPort>,
+            Arc::new(OutboxSubscriber::new(pool.clone()))
+                as Arc<dyn kernel::io::EventSubscriberPort>,
         )
         .event_subscriber(
             "UserFollowed",
             "user-followed-outbox",
-            Arc::new(OutboxSubscriber::new(pool.clone())) as Arc<dyn kernel::EventSubscriberPort>,
+            Arc::new(OutboxSubscriber::new(pool.clone()))
+                as Arc<dyn kernel::io::EventSubscriberPort>,
         )
         .event_subscriber(
             "UserUnfollowed",
             "user-unfollowed-outbox",
-            Arc::new(OutboxSubscriber::new(pool.clone())) as Arc<dyn kernel::EventSubscriberPort>,
+            Arc::new(OutboxSubscriber::new(pool.clone()))
+                as Arc<dyn kernel::io::EventSubscriberPort>,
         )
         .event_subscriber(
             "DirectMessageSent",
             "direct-message-sent-outbox",
-            Arc::new(OutboxSubscriber::new(pool.clone())) as Arc<dyn kernel::EventSubscriberPort>,
+            Arc::new(OutboxSubscriber::new(pool.clone()))
+                as Arc<dyn kernel::io::EventSubscriberPort>,
         )
         .event_subscriber_with_command_gateway(
             "TweetPosted",
             "timeline-fan-out",
             move |command_gateway| {
                 Arc::new(FanOutSubscriber::new(command_gateway))
-                    as Arc<dyn kernel::EventSubscriberPort>
+                    as Arc<dyn kernel::io::EventSubscriberPort>
             },
         )
         .start_persistent(pool, 2)

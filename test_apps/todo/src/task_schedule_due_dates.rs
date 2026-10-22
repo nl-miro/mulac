@@ -4,7 +4,7 @@ pub const TODO_DUE_DATE_CHANGED_EVENT: &str = "TodoDueDateChanged";
 mod models {
     use crate::assembly::io::TodoDto;
     use chrono::{DateTime, Utc};
-    use kernel::ApplicationEvent;
+    use kernel::io::ApplicationEvent;
     use poem_openapi::Object;
     use serde::{Deserialize, Serialize};
     use uuid::Uuid;
@@ -15,7 +15,7 @@ mod models {
         pub due_at: Option<DateTime<Utc>>,
     }
 
-    impl kernel::ApplicationCommand for UpdateDueDateCommand {
+    impl kernel::io::ApplicationCommand for UpdateDueDateCommand {
         fn command_type(&self) -> &'static str {
             super::UPDATE_DUE_DATE_COMMAND
         }
@@ -36,7 +36,7 @@ mod models {
 mod handler {
     use super::models::{TodoDueDateChanged, UpdateDueDateCommand};
     use crate::assembly::io::{DbPool, TodoEvent};
-    use kernel::{CommandError, CommandHandlerPort};
+    use kernel::io::{CommandError, CommandHandlerPort};
 
     pub struct UpdateDueDateHandler {
         pool: DbPool,
@@ -116,7 +116,7 @@ mod http {
                 todo_id: id,
                 due_at,
             }),
-            metadata: kernel::NewCommandMetadata {
+            metadata: kernel::io::NewCommandMetadata {
                 command_id,
                 correlation_id: Some(command_id),
                 causation_id: None,

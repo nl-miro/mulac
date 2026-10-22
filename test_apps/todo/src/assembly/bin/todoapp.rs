@@ -21,8 +21,6 @@ use test_app_todo::io::{
     ReopenApi,
     UpdateApi,
     build_pool,
-    run_command_worker,
-    run_event_worker,
     run_migrations,
     start_mulac, //
 };
@@ -58,9 +56,6 @@ async fn main() -> anyhow::Result<()> {
 
             // Boot the in-process kernel and register all command handlers and event subscribers.
             let kernel = start_mulac(pool.clone()).await?;
-            let token = kernel.child_token();
-            tokio::spawn(run_command_worker(kernel.command_consumer(), token.clone()));
-            tokio::spawn(run_event_worker(kernel.event_consumer(), token));
             let state = AppState::new(pool, kernel.state());
 
             // Assemble the OpenAPI service from individual feature API structs.
@@ -92,11 +87,13 @@ async fn main() -> anyhow::Result<()> {
             tracing::info!(%bind_addr, "starting test_app_todo");
 
             // Run until Ctrl-C; signal the kernel to drain in-flight work before exiting.
-            tokio::select! {
-                result = poem::Server::new(TcpListener::bind(bind_addr)).run(app) => result?,
-                _ = tokio::signal::ctrl_c() => kernel.shutdown(),
-            }
+            let result = tokio::select! {
+                result = poem::Server::new(TcpListener::bind(bind_addr)).run(app) => result,
+                _ = tokio::signal::ctrl_c() => Ok(()),
+            };
+            kernel.shutdown();
             kernel.wait().await?;
+            result?;
         }
 
         other => anyhow::bail!("unknown command `{other}`; expected `serve` or `migrate`"),

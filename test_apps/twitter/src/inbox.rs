@@ -28,7 +28,7 @@ mod models {
         SendDirectMessage(SendDirectMessageInput),
     }
 
-    impl kernel::ApplicationCommand for TwitterCommand {
+    impl kernel::io::ApplicationCommand for TwitterCommand {
         fn command_type(&self) -> &'static str {
             self.message_type()
         }
@@ -123,7 +123,7 @@ mod models {
     pub fn to_app_command(command: TwitterCommand) -> crate::assembly::io::AppCommand {
         use crate::assembly::io::AppCommand;
         #[allow(unused_imports)]
-        use kernel::ApplicationCommand as _;
+        use kernel::io::ApplicationCommand as _;
         match command {
             TwitterCommand::PostTweet(c) => AppCommand::PostTweet(crate::tweet_post::io::Command {
                 tweet_id: c.tweet_id,

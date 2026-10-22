@@ -1,18 +1,19 @@
 use eventing::io::{EventError, EventSubscriberPort};
 use std::{collections::HashMap, sync::Arc};
 
-use crate::NewEventEnvelope;
+use crate::io::NewEventEnvelope;
+
+type NamedSubscriber = (String, Arc<dyn EventSubscriberPort>);
 
 pub struct EventSubscriberRegistry {
-    subscribers: HashMap<String, Vec<(String, Arc<dyn EventSubscriberPort>)>>,
+    subscribers: HashMap<String, Vec<NamedSubscriber>>,
 }
 
 impl EventSubscriberRegistry {
     pub fn from_subscribers(
         subscribers: Vec<(String, String, Arc<dyn EventSubscriberPort>)>,
     ) -> Self {
-        let mut by_event: HashMap<String, Vec<(String, Arc<dyn EventSubscriberPort>)>> =
-            HashMap::new();
+        let mut by_event: HashMap<String, Vec<NamedSubscriber>> = HashMap::new();
 
         for (event_type, subscriber_name, subscriber) in subscribers {
             by_event

@@ -1,7 +1,7 @@
 use super::application::AppError;
 use super::domain::{Clock, TodoDto};
 use diesel_migrations::{EmbeddedMigrations, MigrationHarness, embed_migrations};
-use kernel::{EventError, EventSubscriberPort, NewEventEnvelope};
+use kernel::io::{EventError, EventSubscriberPort, NewEventEnvelope};
 use uuid::Uuid;
 
 pub use kernel::io::{DbPool, build_pool};

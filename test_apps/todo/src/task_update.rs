@@ -3,7 +3,7 @@ pub const TODO_UPDATED_EVENT: &str = "TodoUpdated";
 
 mod models {
     use crate::assembly::io::TodoDto;
-    use kernel::ApplicationEvent;
+    use kernel::io::ApplicationEvent;
     use poem_openapi::Object;
     use serde::{Deserialize, Serialize};
     use uuid::Uuid;
@@ -15,7 +15,7 @@ mod models {
         pub description: Option<String>,
     }
 
-    impl kernel::ApplicationCommand for UpdateTodoCommand {
+    impl kernel::io::ApplicationCommand for UpdateTodoCommand {
         fn command_type(&self) -> &'static str {
             super::UPDATE_TODO_COMMAND
         }
@@ -36,7 +36,7 @@ mod models {
 mod handler {
     use super::models::{TodoUpdated, UpdateTodoCommand};
     use crate::assembly::io::{DbPool, TodoEvent};
-    use kernel::{CommandError, CommandHandlerPort};
+    use kernel::io::{CommandError, CommandHandlerPort};
 
     pub struct UpdateTodoHandler {
         pool: DbPool,
@@ -125,7 +125,7 @@ mod http {
                 title: request.title,
                 description: request.description,
             }),
-            metadata: kernel::NewCommandMetadata {
+            metadata: kernel::io::NewCommandMetadata {
                 command_id,
                 correlation_id: Some(command_id),
                 causation_id: None,
