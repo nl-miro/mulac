@@ -9,7 +9,32 @@
 
 `CommandDispatcher` is the shared execution engine for both variants. It resolves the command handler from a registry, invokes it, and hands produced events to the event dispatcher.
 
-The TwoPhased variant guarantees at-least-once execution. Command handlers must therefore tolerate duplicate invocations or implement their own deduplication.
+The TwoPhased variant guarantees at-least-once execution. Application handlers own business-effect idempotency and recovery of required events across retries; mutation deduplication alone does not establish event recovery. See [the Command Dispatcher contract](contracts.md#command-dispatcher).
+
+## Retry responsibility and event identity
+
+**Decision recorded 2026-10-22: application-handler responsibility.** This decision changes no runtime behavior, public API, schema, or retry policy, and does not establish that existing application handlers satisfy their obligations.
+
+The library owns durable command acceptance in TwoPhased mode, reservation/retry processing, and dispatch of the events returned by each execution. Application handlers own repeated business effects and recovery of events required by their committed changes. The library does not provide atomic business-change/event-recording guarantees, exactly-once business effects, or reconstruction of unrecorded outputs from a previous attempt.
+
+### Committed mutation followed by failed handoff
+
+The Twitter follow handler illustrates the application failure boundary:
+
+1. The handler commits a follow relationship and returns a `UserFollowed` event.
+2. Handoff of that event fails before durable event acceptance.
+3. The command is retried; the handler finds the relationship already present and returns no events.
+4. The dispatcher succeeds on the empty result, permitting command completion even though the original event was never durably recorded.
+
+Avoiding a duplicate relationship makes the mutation idempotent, but does not recover `UserFollowed`. Recovery of that required event belongs to the application handler, not the kernel. This remains an application reliability and coverage gap; recording this decision does not fix it or prescribe a recovery mechanism.
+
+### Re-execution versus redelivery
+
+- `wrap_handler` generates a fresh UUID v7 for each event produced by an execution, including a repeated execution of the same command. Deduplication by event ID does not merge these separately generated events, even if their logical meaning or payload is identical.
+- A previously recorded event retains its stored identity when its delivery is retried. Command re-execution and durable event redelivery must not be treated as the same identity operation; existing outbox message-ID stability is unchanged.
+- If some event handoffs succeed before a later handoff fails, those accepted events and business side effects are not rolled back. A subsequent command execution can produce additional events with new identities. Application handlers own the resulting business/recovery obligations.
+- A successful execution returning zero events is valid. The dispatcher has no previous-output reconstruction obligation and cannot infer from the empty result whether application recovery is complete.
+- In Direct mode errors return to the caller, which decides whether to retry. In TwoPhased mode the queue retries according to its existing policy. Application ownership applies to both modes, without implying unlimited retries or guaranteed success after exhaustion.
 
 ## Architecture
 
@@ -90,7 +115,7 @@ Shared execution engine used by both variants. Not called directly by applicatio
 - Resolves the command handler via `CommandHandlerPort` using `command_type`.
 - Invokes the handler and collects produced `EventEnvelope` instances.
 - Hands each event to the event dispatcher.
-- Returns the combined result to its caller (gateway or consumer).
+- Returns success when all events from the current execution have been accepted, including when the handler returns none; a handoff failure returns an error. Previously accepted events are not rolled back and outputs from earlier executions are not reconstructed.
 
 ### CommandRecorder / CommandRecorderRepository
 

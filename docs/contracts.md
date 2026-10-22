@@ -91,11 +91,19 @@ A background process runs on a configurable interval (default: every 10 minutes)
 - TwoPhased: execution is at-least-once; the same `CommandEntry` may be processed more than once (after a failed report or a stale reservation release)
 - TwoPhased: a `reserved` `CommandEntry` will not be concurrently claimed by another consumer
 
+**Business effects and event recovery — decided 2026-10-22:**
+- Application handlers own business-effect idempotency and recovery of required events across retries, including when a business mutation commits but event handoff fails. Making a repeated mutation a no-op is not, by itself, sufficient to recover its required events.
+- The library owns durable command acceptance in TwoPhased mode, reservation/retry processing, and dispatch of the events returned by each execution. It does not guarantee atomicity between application business changes and event recording, or exactly-once business effects.
+- The dispatcher succeeds when all events returned by the current execution are accepted by the configured event boundary. An empty event result also succeeds and permits command completion; the library does not reconstruct outputs from earlier attempts. Completion is not proof that the application recovered every event required by earlier business changes.
+- `wrap_handler` assigns fresh event UUIDs whenever an execution produces events, including command re-executions. Stable event IDs across command executions are not guaranteed; event-ID deduplication does not collapse separately generated events from those executions.
+- Redelivery of an already-recorded event is different from command re-execution: its stored event identity remains unchanged. Existing event/outbox identity guarantees are unaffected.
+- Direct retries remain caller-controlled; TwoPhased retries follow the queue retry policy. Neither mode assumes responsibility for repairing application business effects or recovering unrecorded outputs from a previous execution.
+
 **Requires from collaborators:**
 - Caller must provide a well-formed `CommandEnvelope` with all required metadata fields
 - Caller must ensure a handler is registered for the command type before dispatching; an unroutable command is a caller error
-- Command handler must be idempotent regardless of variant
-- Event Dispatcher must be available to accept handoff; if it is not, TwoPhased retries the `CommandEntry` which can re-invoke the handler — making handler idempotency essential
+- Command handler must be idempotent regardless of variant and must own recovery of its required events across retries; application compliance with these obligations requires separate evidence
+- Event Dispatcher must be available to accept handoff; if it is not, TwoPhased retries the `CommandEntry` which can re-invoke the handler. Successful earlier side effects or handoffs are not rolled back, and the application must account for partial success
 
 ---
 
