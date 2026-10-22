@@ -16,7 +16,7 @@ test_app_todo/
 
 ## Required functionalities
 
-The app should support these 10 functionalities:
+The app should support these 11 functionalities:
 
 1. **Create a todo item**  
    A user can add a new todo with a title and optional description.
@@ -40,13 +40,16 @@ The app should support these 10 functionalities:
    A user can remove a todo permanently.
 
 8. **Filter todos by status**  
-   The app can show active, completed, or all todos.
+   The app can show active, completed, archived, or all todos.
 
 9. **Assign due date / schedule**  
    A todo may optionally have a due date or scheduled time.
 
 10. **Emit and process todo-related messages/events**  
     The app should integrate with the repository messaging/inbox-outbox direction so todo actions can produce and consume messages for testing architectural flows.
+
+11. **Archive and unarchive a todo**  
+    An active or completed todo can be archived, which makes it read-only. Unarchiving returns it to active.
 
 ## Suggested domain model
 
@@ -64,11 +67,53 @@ Recommended identifier type:
 
 - `Uuid`
 
-## Suggested statuses
+## Statuses and transitions
 
-- `active`
-- `completed`
-- optional `archived`
+Statuses: `active` (the initial status on create), `completed`, `archived`.
+
+| Command | from `active` | from `completed` | from `archived` |
+| --- | --- | --- | --- |
+| Complete — `POST /todos/:id/complete` | → `completed`, `TodoCompleted` | 409 | 409 |
+| Reopen — `POST /todos/:id/reopen` | 409 | → `active`, `TodoReopened` | 409 |
+| Archive — `POST /todos/:id/archive` | → `archived`, `TodoArchived` | → `archived`, `TodoArchived` | 409 |
+| Unarchive — `POST /todos/:id/unarchive` | 409 | 409 | → `active`, `TodoUnarchived` |
+| Update — `PUT /todos/:id` | updated, `TodoUpdated` | updated, `TodoUpdated` | 409 |
+| Due date — `PUT /todos/:id/due-date` | updated, `TodoDueDateChanged` | updated, `TodoDueDateChanged` | 409 |
+| Delete — `DELETE /todos/:id` | 204, `TodoDeleted` | 204, `TodoDeleted` | 204, `TodoDeleted` |
+
+Rules:
+
+- **409 Conflict** means the command is not allowed from the current status. It changes no row, leaves `updated_at` alone, and produces no event and no outbox entry. Repeating a transition (completing a completed todo, reopening an active one, archiving an archived one) is a conflict, not a silent no-op.
+- **404 Not Found** for every command whose todo does not exist, including a repeated delete.
+- A transition only applies if the todo is still in the expected status when it is written. Two concurrent identical transitions therefore produce exactly one success and one 409.
+- Every successful change sets `updated_at` to the time of the change. `id` and `created_at` never change.
+- Each successful change emits exactly one event, whose `todo` snapshot equals the state after the change (for `TodoDeleted`, the state just before deletion).
+
+## Field and date semantics
+
+- `PUT /todos/:id` and `PUT /todos/:id/due-date` replace the whole value; there are no partial updates.
+- `title` is required and trimmed before storage; a blank title is a validation error (422) and changes nothing.
+- `description` is optional. Omitting it and sending `null` both clear it.
+- `due_at` is optional. Omitting it and sending `null` both clear it.
+- `due_at` is an RFC 3339 timestamp with an offset, normalised to UTC. Storage, the HTTP response and the event all carry the same instant, whatever offset was sent. An invalid timestamp is rejected and changes nothing.
+- Past due dates are accepted.
+- `POST /todos` accepts optional `description` and `due_at` under the same rules.
+
+## List contract
+
+- `GET /todos?status=<filter>` accepts `active`, `completed`, `archived` or `all`. Omitting `status` means `all`. Any other value is a 400 error.
+- A filtered list contains exactly the todos in that status.
+- Ordering: `created_at` ascending, ties broken by `id` ascending.
+- An empty result is `200` with `{"items": []}`.
+- `GET /todos/:id` returns the current state; a deleted todo is 404 there and absent from every list.
+
+## Inbox command response
+
+`POST /messages/commands` returns `200 {"message_id": ..., "todo": ...}` once the command has been applied:
+
+- For every command except `DeleteTodo`, `todo` is the todo as it is after the command.
+- For `DeleteTodo`, `todo` is `null`. The deletion is committed and the inbox message is marked `processed`.
+- If the command is rejected (404, 409, 422), the inbox message is marked `failed` and the same status code is returned.
 
 ## HTTP/API expectations
 
@@ -96,10 +141,14 @@ At minimum, define and use a small set of todo-related commands and events, such
   - `ReopenTodo`
   - `UpdateTodo`
   - `DeleteTodo`
+  - `ArchiveTodo`
+  - `UnarchiveTodo`
 - events:
   - `TodoCreated`
   - `TodoCompleted`
   - `TodoDueDateChanged`
+  - `TodoArchived`
+  - `TodoUnarchived`
 
 At least one inbound path should be exercised through the inbox, and at least one outbound path should be exercised through the outbox.
 
