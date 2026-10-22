@@ -4,6 +4,18 @@ This document defines the interface contracts for each mulac component. Each con
 
 For component responsibilities and lifecycle rules, see [components.md](components.md).
 
+## Lifecycle and runtime boundary
+
+**D-07: decided 2026-10-22; implementation pending.** See [Kernel lifecycle](../kernel/SPEC.md#lifecycle) and [supported runtime contexts](../kernel/SPEC.md#supported-runtime-contexts) for the shared kernel-managed contract.
+
+- `shutdown()` is an idempotent cancellation request. Workers stop taking new batches/deliveries and finish already-started attempts, including completion/failure recording and acknowledgements. Queued work is not drained; there is no kernel shutdown deadline. Existing operation-specific timeouts are unchanged.
+- `wait()` does not request cancellation. It waits for all kernel-owned workers to stop and reports any unrecoverable worker error or panic afterward. Such exits do not cancel siblings or trigger automatic restart; per-entry retry behavior is unchanged. Application-owned request tasks are not joined by `wait()`.
+- New external dispatch through kernel-provided state, gateways, and clones is rejected after shutdown begins, before side effects or durable acceptance. Already-accepted executions may finish event handoff and issue follow-up commands; persistent follow-ups may remain queued for restart, and direct follow-ups may finish inline. This exemption belongs to the accepted execution, not to any holder of an existing handle.
+- Unexpected inbox stream closure is a transport error. Explicit cancellation is the clean shutdown path, not a reason to report failed recording/acknowledgement as successful.
+- Async workers/publication and runtime bridges promise support under a live multi-thread Tokio runtime. Synchronous AMQP publication belongs on associated blocking threads, not directly in async tasks; `block_on_blocking` is restricted to multi-thread runtime tasks. Standalone synchronous publication and current-thread runtimes are outside the promised support boundary.
+
+**Current gaps:** kernel handles do not join workers or implement the dispatch gate/in-flight exemption; runtime restrictions are not automatically enforced. These decisions do not change public APIs or prove runtime compliance. Applications retain responsibility for stopping and awaiting their own request tasks. Ordinary synchronous functions that do not bridge a runtime are not restricted by this runtime boundary.
+
 ## Entry retry policy
 
 This policy applies to every durable queue-backed entry type (`InboxEntry`, `CommandEntry`, `EventEntry`, `OutboxEntry`).
@@ -49,6 +61,7 @@ A background process runs on a configurable interval (default: every 10 minutes)
 
 **Guarantees:**
 - Acceptance is signalled to the caller only after the `InboxEntry` is durably stored
+- Unexpected intake stream closure is a transport error; explicit cancellation follows the [lifecycle boundary](#lifecycle-and-runtime-boundary), allowing an already-started delivery to finish recording and acknowledgement without taking another delivery
 - A message UUID whose row still exists will not produce a new `InboxEntry`, even from a different source or after more than 24 hours; its original row remains unchanged
 - A `reserved` entry will not be concurrently claimed by another consumer
 - Delivery to consumers is at-least-once; the same entry may be surfaced more than once (after a failed report or a stale reservation release)

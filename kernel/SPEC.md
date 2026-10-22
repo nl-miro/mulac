@@ -1,6 +1,6 @@
 # Kernel Specification
 
-> **Status:** decided 2026-10-22 (D-04 in [test-coverage-report.md](../docs/test-coverage-report.md)).
+> **Status:** decided 2026-10-22 (D-04 and D-07 in [test-coverage-report.md](../docs/test-coverage-report.md)).
 > The current implementation does not yet match this contract. See [Implementation gaps](#implementation-gaps).
 
 ## Overview
@@ -26,7 +26,7 @@ fails with an error. The kernel never silently swaps in a no-op for something th
 | `outbox_subscriber(type)` | **Unsupported**: `start()` fails with `KernelError::Unsupported` | Supported: writes an outbox entry through `outbox::io::OutboxRecorder`; requires outbox AMQP config |
 | Inbox recording (`AppState` inbox recorder) | Not exposed | Supported: records into `InboxStoreStorage` |
 | Inbox AMQP intake | Not available | Supported when inbox AMQP config is present |
-| Command and event workers | Not applicable | Run by the kernel until the handle's token is cancelled |
+| Command and event workers | Not applicable | Kernel-owned loops follow the cancellation and failure rules under [Lifecycle](#lifecycle) |
 | Outbox consumer and AMQP publication | Not available | Run by the kernel when outbox subscribers are registered |
 | Stale-reservation sweepers (command, event, inbox, outbox) | Not applicable | Run by the kernel for every component in use, following the [entry retry policy](../docs/contracts.md#entry-retry-policy) |
 
@@ -77,8 +77,36 @@ Direct mode ignores config values so that a single `from_env()` configuration wo
 
 ## Lifecycle
 
-The kernel starts all of its background loops and ties them to the handle's cancellation token.
-`shutdown()` cancels the token; `wait()` resolves once every loop has stopped.
+**D-07: decided; implementation pending.** The kernel owns its background loops and ties them to the handle's cancellation token. The following are contractual outcomes, not claims that the current handles already implement them.
+
+### Cancellation and waiting
+
+- `shutdown()` is idempotent and requests cancellation. Workers stop taking new batches or deliveries, finish already-started work, and perform its completion/failure recording and acknowledgements. Finishing an attempt does not guarantee that the attempt succeeds.
+- Shutdown does not drain queued work. Unprocessed durable work remains available for restart, subject to the existing retry and stale-reservation policies.
+- There is no kernel-imposed shutdown deadline. Slow or blocked in-flight work can delay termination indefinitely; existing operation-specific timeouts, including publisher-confirm timeouts, are unaffected.
+- `wait()` observes termination and does not initiate cancellation. It resolves only after every kernel-owned worker has stopped, returning an error if any exited with an unrecoverable error or panic. Calling it while workers continue running may wait indefinitely.
+- An unrecoverable worker exit or panic neither cancels sibling workers nor triggers automatic restart. Siblings continue until separately stopped; `wait()` retains the failure and cannot report success merely because the remaining workers later stop cleanly. Per-entry failures continue to follow their existing retry behavior.
+- `wait()` does not join arbitrary application-owned request tasks. Applications must stop and await their own request intake/tasks. In direct mode, with no kernel-owned workers, waiting does not imply that application-owned direct dispatch tasks have finished.
+- Inbox stream closure without explicit cancellation is a transport error, not clean shutdown. Explicit cancellation is the clean shutdown path; recording or acknowledgement failures must not be reported as successful completion.
+
+### Dispatch during shutdown
+
+- Once shutdown begins, new external dispatch through kernel-provided state, gateways, and their clones is rejected before side effects or durable acceptance. Holding a previously obtained handle does not bypass this restriction.
+- Already-accepted executions may finish event handoff and issue follow-up commands. The exemption follows the accepted execution, not mere possession of a handle; new external requests remain rejected even while other work is in flight.
+- Persistent follow-up commands may be recorded without execution before shutdown. They remain queued for restart; accepting them does not authorize workers to claim additional batches during shutdown. Direct in-flight follow-ups may complete inline.
+- Distinguishing accepted in-flight follow-ups from new external dispatch is a required, pending capability. This decision specifies no implementation mechanism or new public type. It does not add lifecycle guarantees to independently constructed component gateways outside kernel ownership.
+
+## Supported runtime contexts
+
+Kernel-managed asynchronous operations and runtime-bridging helpers promise support under a live **multi-thread Tokio runtime**:
+
+| Operation | Supported invocation context |
+| --- | --- |
+| Async workers and async publication (`publish_async`) | Asynchronous execution under the live multi-thread runtime |
+| Synchronous AMQP publication (`publish`) | Blocking threads associated with that runtime, not direct calls from async tasks |
+| `block_on_blocking` | Multi-thread Tokio runtime tasks |
+
+Standalone synchronous publication and current-thread runtimes are outside this promised support boundary, even where current code contains fallback behavior. Runtime restrictions are not automatically enforced today; unsupported calls must not be assumed safe from panic or deadlock. This boundary concerns asynchronous operations and runtime bridges, not ordinary synchronous domain/storage functions that do not bridge a runtime.
 
 ## Example
 
@@ -102,5 +130,7 @@ Current `kernel/src/lib.rs` differs from this contract:
   entry being written. It wires no inbox, outbox consumer, publisher, or sweepers, and takes the pool as its only
   database input.
 - `KernelConfig` is stored as `_config` and never read. `KernelError` has no `Config` or `Unsupported` variants.
-- `wait()` cancels the token instead of waiting for the background loops.
+- Neither handle owns worker joins. Direct `wait()` returns immediately; persistent `wait()` cancels its token and returns immediately. Neither implements the waiting/error-reporting contract above.
+- Existing dispatch handles have no shutdown gate or accepted-execution exemption for in-flight follow-ups. These guarantees require future implementation and tests.
+- Synchronous AMQP publication currently calls `Handle::block_on` when a runtime is present and creates a fallback runtime otherwise. `block_on_blocking` uses `block_in_place` and the current runtime handle. These paths do not establish support for arbitrary calling contexts or enforce the documented restrictions.
 - The test apps write their own outbox subscribers against their own tables instead of using `outbox_subscriber`.

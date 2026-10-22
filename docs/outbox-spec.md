@@ -329,6 +329,14 @@ Publisher confirms are enabled once per channel.
 
 `Completed` does not mean the message is durably stored by the broker. That also requires durable queues, which the publisher does not verify.
 
+### Runtime and shutdown boundary
+
+**D-07: decided; lifecycle enforcement and runtime validation remain pending.** Publication promises support under a live multi-thread Tokio runtime. Use of the async publication API belongs in asynchronous execution; synchronous `publish` is supported on blocking threads associated with that runtime, not directly in async tasks. Standalone synchronous publication and current-thread runtimes are outside the promised support boundary. Current runtime fallback/bridging code does not establish safety in those contexts or automatically enforce these restrictions.
+
+Kernel shutdown stops new outbox batch claims while allowing an already-started batch to finish publication attempts and completion/failure recording. Finishing does not imply successful broker acceptance: the publish-outcome rules above still apply. Queued work is not drained, and shutdown has no kernel-imposed deadline. The publisher-confirm timeout remains an operation-specific bound, not a deadline for joining all workers.
+
+`wait()` observes all kernel-owned worker termination without requesting cancellation. An unrecoverable worker error or panic leaves siblings running and is reported only after all owned workers stop; it does not trigger automatic restart. Per-entry publication failures still follow the existing retry policy. Current kernel handles do not implement worker joining. See [Kernel lifecycle](../kernel/SPEC.md#lifecycle) and [supported runtime contexts](../kernel/SPEC.md#supported-runtime-contexts).
+
 ## Delivery and Idempotency
 
 - The outbox acceptance boundary is durable storage of the `OutboxEntry`, or an idempotent conflict on an already-recorded `event_id`.

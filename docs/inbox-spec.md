@@ -56,7 +56,15 @@ Bridges an external AMQP consumer to the inbox recorder. One worker per queue bi
 - Spawns a blocking task to record the message via `InboxRecorder`.
 - On success: acknowledges the delivery via `AcknowledgeHandle`.
 - On recording failure: negative-acknowledges (nacks) the delivery and backs off.
-- Respects a `CancellationToken`; shuts down cleanly on cancellation or stream end.
+- Respects a `CancellationToken`; explicit cancellation is the clean shutdown path. Stream closure without explicit cancellation is a transport error, not clean shutdown.
+
+### Cancellation and worker termination
+
+**D-07: decided; kernel lifecycle enforcement remains pending.** Under the [kernel lifecycle contract](../kernel/SPEC.md#lifecycle), cancellation stops new intake. An already-started delivery finishes recording and its acknowledgement or negative acknowledgement before the worker stops; recording/acknowledgement failures remain errors, not successful disposal. Cancellation while idle or backing off does not require a new delivery to arrive before stopping.
+
+No queue drain or kernel shutdown deadline is promised. In-flight work can delay termination indefinitely; existing operation-specific timeout/error behavior is unchanged. `wait()` must wait for all kernel-owned workers without initiating cancellation. An unrecoverable inbox-worker error, including unexpected stream closure, does not cancel sibling workers or trigger automatic restart; the failure is reported by `wait()` after all owned workers have stopped. Per-delivery failures remain subject to their existing handling policies.
+
+Inbox asynchronous operation is supported under a live multi-thread Tokio runtime; current-thread runtime support is not promised. Applications remain responsible for stopping and awaiting their own request tasks. Current handles do not own worker joins, so documentation of these guarantees is not evidence that waiting or failure reporting is implemented. See [supported runtime contexts](../kernel/SPEC.md#supported-runtime-contexts).
 
 ### AmqpTransport / AmqpClient
 
