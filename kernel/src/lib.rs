@@ -1,3 +1,7 @@
+// Lets `#[derive(ApplicationCommand)]` / `#[derive(ApplicationEvent)]` resolve
+// `::mulac_kernel` when used inside this crate.
+extern crate self as mulac_kernel;
+
 mod command_handler_registry;
 mod event_subscriber_registry;
 mod workers;
