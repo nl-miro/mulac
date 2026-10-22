@@ -22,7 +22,7 @@ This policy applies to every durable queue-backed entry type (`InboxEntry`, `Com
 **Accepts:**
 An `InboundMessage` containing:
 - A UTF-8 text payload; non-UTF-8 deliveries are rejected at the transport boundary and dead-lettered without retry
-- Required transport metadata: stable message ID, source identifier, received-at timestamp
+- Required transport metadata: stable UUID message ID, source identifier, received-at timestamp. Message IDs have no additional UUID-version restriction; source is metadata, not part of the deduplication key.
 
 **Produces:**
 An `InboxEntry` — a durable record containing the raw payload and transport metadata.
@@ -34,19 +34,27 @@ An `InboxEntry` — a durable record containing the raw payload and transport me
 - a call to `completed` or `failed` for an entry no longer owned by the caller (released by the sweep) is rejected
 
 **Deduplication:**
-Duplicate detection is active for a configurable retention window (default: 24 hours). A message whose ID was already seen from the same source within this window is silently discarded; messages outside the window are accepted as new.
+The message UUID alone is the deduplication key within an `inbox_entries` table, across all sources. A repeated UUID is accepted as a duplicate without creating or changing a row, regardless of source, payload differences, age, or lifecycle state. The original payload, metadata, timestamps, and processing state are preserved. Different UUIDs remain distinct messages even when their payloads are identical.
+
+Deduplication protection lasts while the corresponding row exists. There is no configurable retention window or automatic expiry after 24 hours. Deleting the row removes its deduplication protection, allowing that UUID to be recorded again. This contract introduces no cleanup policy and no deduplication guarantee across separate inbox tables.
+
+**Message-ID validation — decided; enforcement pending:**
+- Missing, empty, or non-UUID transport message IDs must be rejected before recording; no replacement UUID may be generated and no success acknowledgement may be sent.
+- For AMQP, rejection must not requeue the delivery. Processing continues with subsequent deliveries after successful rejection; rejection failures surface as errors rather than being silently treated as successful disposal.
+- Dead-lettering depends on broker configuration; rejection alone does not guarantee a dead-letter destination.
+- **Current implementation gap:** UUID-only storage deduplication already exists, but AMQP parsing converts missing/malformed IDs to an absent ID and recording conversion generates a fresh UUID. The rejection policy above is not yet enforced. Existing public types, conversion APIs, and storage schemas are unchanged by this documentation decision.
 
 **Stale reservation sweep:**
 A background process runs on a configurable interval (default: every 10 minutes) and releases any `reserved` entry whose reservation is older than a configurable staleness threshold (default: 15 minutes) to `failed` (scheduled per the [entry retry policy](#entry-retry-policy)), or to `dead` if its attempts are exhausted.
 
 **Guarantees:**
 - Acceptance is signalled to the caller only after the `InboxEntry` is durably stored
-- A message whose ID was already seen from the same source within the deduplication retention window will not produce a new `InboxEntry`; messages outside the window or from a different source are accepted as new
+- A message UUID whose row still exists will not produce a new `InboxEntry`, even from a different source or after more than 24 hours; its original row remains unchanged
 - A `reserved` entry will not be concurrently claimed by another consumer
 - Delivery to consumers is at-least-once; the same entry may be surfaced more than once (after a failed report or a stale reservation release)
 
 **Requires from collaborators:**
-- Transport adapter must supply a stable, unique message ID with each `InboundMessage`
+- Transport adapter must supply a stable UUID message ID with each `InboundMessage`; producers sharing an inbox table must use distinct IDs for distinct messages, regardless of source
 - Transport adapter must not acknowledge delivery to the broker until the Inbox signals acceptance
 - Inbox consumer must tolerate at-least-once delivery (duplicate `InboxEntry` processing must be safe)
 - Inbox consumer must call `completed` or `failed` for every reserved entry; unreported entries will be released by the sweep and retried

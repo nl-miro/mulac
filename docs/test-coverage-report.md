@@ -46,7 +46,7 @@ Where an item depends on a contract decision below, its expected result remains 
 | --- | --- | --- |
 | D-01 | **Resolved 2026-10-22** — see [contracts.md — Entry retry policy](contracts.md#entry-retry-policy). An attempt is one reservation; default `max_attempts` 6; delay `attempts × 30s`, linear, no cap; `failed` and the sweep both go to `failed`, or `dead` at the limit. | Code follow-ups: remove the 120s cap (`MAX_RETRY_BACKOFF_SECONDS` in commanding/eventing `infra_diesel.rs` and `command_consumer.rs`; `RETRY_BACKOFF_CAP_SECONDS`, `retry_delay_seconds` and the sweep `LEAST(...)` in outbox `infra_diesel.rs`). Inbox already has no cap. |
 | D-02 | **Resolved 2026-10-22** with D-01 — an exhausted stale reservation transitions to `dead`. | Code follow-up: commanding (`stale_command_sweep.rs`), eventing (`assembly/infra_diesel.rs` sweep) and inbox (`stale_reservation_sweep.rs`, whose doc comment already promises `Dead`) always write `failed`, so exhausted entries get stuck because reservation excludes `attempts >= max`. Port the outbox sweep `CASE`. |
-| D-03 | Inbox deduplication key and retention window | Contracts describe source-plus-message-ID deduplication with a retention window; current recording uses UUID identity. Missing/malformed transport IDs can generate a new ID on each delivery. |
+| D-03 | **Decided 2026-10-22; rejection enforcement pending** — see [the Inbox contract](contracts.md#inbox). Deduplicate by UUID alone across sources within the same inbox table while its row exists; no time-based window. Require a valid supplied UUID, without an additional version restriction. | Storage already uses UUID identity. Missing, empty, or non-UUID transport IDs must instead be rejected before storage, without a replacement ID or success acknowledgement. AMQP rejection must not requeue; continue after successful rejection and surface rejection failures. Dead-lettering depends on broker configuration. Current parsing/conversion still allows generated fallback IDs; enforcement and its tests remain pending. |
 | D-04 | Supported kernel capabilities in direct and persistent modes | Direct startup substitutes no-ops for command-gateway subscriber factories; both modes register no-op outbox subscribers; direct inbox storage is a no-op. Configuration is stored as `_config` without being applied. |
 | D-05 | Identity and business effects across command retries | Command execution generates fresh event IDs; an idempotent/no-op repeated mutation may return no event even when an earlier event handoff failed. At-least-once execution is not an exactly-once business-effect guarantee. |
 | D-06 | Broker acceptance versus routing success | Outbox accepts `Confirmation::NotRequested` and every `Ack(_)`, including returned-message information. Missing confirmation and mandatory returns need explicit outcomes. Durable broker persistence must not be inferred from acceptance alone. |
@@ -105,8 +105,11 @@ Relevant contract sources include [components.md](components.md), [contracts.md]
 - Recording failure never acknowledges acceptance; its negative acknowledgement requests the contractual redelivery behavior.
 - Storage success followed by acknowledgement failure or process interruption retains the accepted row; stable-ID redelivery does not create another row.
 - Duplicate recording does not overwrite the original payload or lifecycle.
+- Missing, empty, or non-UUID message IDs produce no inbox insertion or success acknowledgement and no replacement UUID. AMQP rejection does not requeue; later valid deliveries remain processable after successful rejection. Rejection failures surface as errors; dead-lettering is conditional on broker configuration.
 - Acknowledgement errors, negative-acknowledgement errors, and recording-task failures remain distinguishable and cannot falsely signal acceptance.
 - Cancellation at the recording/acknowledgement boundary preserves the documented in-flight guarantee.
+
+**Implementation status:** D-03 is decided, but invalid-ID rejection is not implemented or verified. The current fallback remains; these criteria are required future outcomes, not additional passing coverage.
 
 ### QA-05 — Outbox publication requires the agreed broker evidence
 
@@ -135,8 +138,9 @@ Cover interruption after durable recording, reservation, business mutation, even
 - Same identity with different payload, type, routing, metadata, or timestamps does not silently replace accepted data.
 - Re-recording reserved, failed, completed, or dead work does not reset its lifecycle or attempts.
 - Distinct IDs with identical payload remain distinct work.
-- Inbox source and retention-window boundaries follow the approved deduplication contract.
-- Missing/malformed inbound IDs have explicit redelivery semantics; generated IDs must not be described as stable deduplication across independent deliveries.
+- Within one inbox table, the same UUID from the same or a different source leaves one original row unchanged, including with different payloads and across lifecycle states.
+- The same UUID after more than 24 hours remains deduplicated while its row exists. There is no configurable retention window; deleting the row removes protection and permits recording that UUID again. No cleanup policy is implied.
+- Missing, empty, or non-UUID inbound IDs are rejected before recording, without generating a replacement UUID. This decided rejection policy remains pending implementation; current fallback behavior is not evidence of compliance.
 - Failed storage never returns durable acceptance.
 
 ### QA-08 — Twitter validation is consistent across entry points
@@ -230,9 +234,11 @@ Cover duplicate command handlers; duplicate `(event_type, subscriber_name)` pair
 
 **Scope:** inbox `AmqpClient`, `AmqpTransport`, `WorkerLoop`. **Coverage:** one metadata example. **Decisions:** D-03, D-07.
 
-Cover valid/absent/malformed UUID properties, empty exchange/routing key, empty/non-ASCII payloads, invalid UTF-8, stream closure, transport errors, and cancellation during receive/backoff.
+Cover valid UUID message IDs without an additional version restriction; absent, empty, and malformed message-ID properties; unchanged correlation-ID handling; empty exchange/routing key; empty/non-ASCII payloads; invalid UTF-8; stream closure; transport errors; and cancellation during receive/backoff.
 
 **Acceptance:** valid bytes and metadata retain their declared meaning. Invalid UTF-8 is never stored and receives the specified nonretry/poison-message disposition; later valid deliveries remain processable. No polling occurs during contractual backoff. Closure and failure are distinguishable from clean cancellation. Reconnection/redelivery behavior satisfies only the explicitly supported guarantee.
+
+**Decided message-ID outcomes (enforcement pending):** missing, empty, or non-UUID message IDs cause no insertion, generated replacement ID, or success acknowledgement. Their AMQP deliveries are rejected without requeue; processing continues after successful rejection, including a following valid delivery. Rejection failure is surfaced rather than ignored. Dead-lettering depends on broker configuration and is not guaranteed by rejection alone. The existing metadata example does not establish these outcomes, and no new runtime verification is claimed.
 
 ### QA-18 — Persistence conversion and error-history integrity
 

@@ -6,6 +6,18 @@ The inbox crate provides a durable inbound message buffer that decouples externa
 
 The inbox guarantees at-least-once delivery to consumers. Deduplication, stale-reservation recovery, and retry scheduling are built in.
 
+## Message identity and deduplication
+
+**Decision recorded 2026-10-22; message-ID rejection enforcement is pending.** See [the Inbox contract](contracts.md#inbox).
+
+- The supplied message UUID is the `inbox_entries.id` primary key. Deduplication uses that UUID alone within the same inbox table; source remains metadata and does not partition identity.
+- Sequential or concurrent recording of the same UUID leaves one original row unchanged, regardless of source, payload differences, age, or lifecycle state. Distinct UUIDs with identical payloads remain distinct entries.
+- Protection lasts while the row exists, including beyond 24 hours. There is no configurable time window. Deleting the row allows the UUID to be recorded again; this decision adds no cleanup policy.
+- The intended acceptance contract requires a valid UUID message ID, with no additional UUID-version restriction. Missing, empty, or non-UUID IDs must be rejected before storage, without generating replacement IDs or sending success acknowledgements.
+- For AMQP, invalid-ID rejection must not requeue the delivery. After successful rejection, processing continues with subsequent deliveries. Rejection failures surface as errors. Dead-lettering occurs only if broker configuration provides it; rejection alone does not guarantee it.
+
+**Current implementation:** storage already deduplicates on UUID identity. Inbound types still allow an absent message ID; the AMQP adapter treats missing/malformed UUID properties as absent, and conversion to the write-side envelope generates a UUID v7 fallback. Consequently, repeated deliveries without a valid ID can still create separate entries. Removing that fallback and enforcing rejection remain future code work, not completed behavior. This documentation update changes no public type, conversion API, or database schema. Correlation-ID handling is unaffected.
+
 ## Architecture
 
 The crate follows a hexagonal (ports and adapters) architecture with four layers:
@@ -50,12 +62,14 @@ Bridges an external AMQP consumer to the inbox recorder. One worker per queue bi
 
 Wraps a `lapin::Consumer`. Implements `InboxTransportPort` by converting AMQP `Delivery` objects into `InboundMessageEnvelope`, extracting UUID properties from AMQP message headers.
 
+Missing/malformed message-ID properties currently become absent IDs. The required no-requeue rejection and continuation behavior described under [message identity](#message-identity-and-deduplication) is pending implementation.
+
 ### InboxRecorder / InboxRecorderRepository
 
 Use case: record an inbound message durably.
 
 - Converts an `InboundMessageEnvelope` to a `NewInboxMessageEnvelope`.
-- Generates a UUID v7 message ID when the transport does not supply one.
+- Currently generates a UUID v7 message ID when the transport does not supply a valid one. This fallback conflicts with the decided rejection policy above and must not be treated as the intended acceptance contract.
 - Delegates persistence to `InboxStorePort`.
 
 ### InboxConsumer / InboxConsumerRepository
@@ -78,7 +92,7 @@ Use case: release stale reservations back to the eligible queue.
 
 ### InboxStoreStorage (infra, Diesel)
 
-Implements `InboxStorePort`. Inserts a new `inbox_entries` row. Does not touch existing rows on conflict.
+Implements `InboxStorePort`. Inserts a new `inbox_entries` row using the supplied message UUID as its primary key. On an ID conflict, recording succeeds without changing the existing row; source and elapsed time do not participate in conflict detection.
 
 ### InboxConsumerStorage (infra, Diesel)
 
@@ -96,7 +110,7 @@ The core domain model for a stored message.
 
 | Field            | Type                    | Description                             |
 |------------------|-------------------------|-----------------------------------------|
-| `id`             | `i64`                   | Auto-increment primary key              |
+| `id`             | `Uuid`                  | Supplied message UUID; deduplication key |
 | `status`         | `InboxStatus`           | Lifecycle state                         |
 | `payload`        | `String`                | Raw UTF-8 message body                  |
 | `meta`           | `Option<MetadataJsonb>` | JSONB-serialised routing metadata       |
@@ -125,10 +139,15 @@ Numeric codes use intentional gaps (1, 3, 6 are reserved for future insertion wi
 
 Transport-facing inbound message before storage.
 
-| Field      | Type                           | Description               |
-|------------|--------------------------------|---------------------------|
-| `payload`  | `String`                       | Raw message body          |
-| `metadata` | `Option<InboxMessageMetadata>` | Optional routing metadata |
+The current Rust type exposes `message_id: Option<Uuid>` directly alongside payload, correlation ID, source, and routing key. The optional representation remains unchanged; the decided acceptance contract requires a present valid UUID. The table below shows those current fields.
+
+| Field            | Type             | Description |
+|------------------|------------------|-------------|
+| `payload`        | `String`         | Raw message body |
+| `message_id`     | `Option<Uuid>`   | Currently optional; required for acceptance under the decided contract |
+| `correlation_id` | `Option<Uuid>`   | Cross-service correlation chain |
+| `source`         | `Option<String>` | Source metadata, not a deduplication-key component |
+| `routing_key`    | `Option<String>` | Routing hint from transport headers |
 
 ### InboxMessageMetadata (application)
 
@@ -150,7 +169,7 @@ Read-side envelope returned to consumers after reservation.
 
 ### NewInboxMessageEnvelope / NewInboxMessageMetadata (record_messages)
 
-Write-side envelope used for recording. `message_id` is always `Uuid` (never `Option`) — generated as UUID v7 when absent from the transport.
+Write-side envelope used for recording. `message_id` is always `Uuid` (never `Option`). The current conversion generates a UUID v7 when the inbound ID is absent; under the decided contract, the ID must instead come from a valid supplied message ID and missing/malformed IDs must be rejected. That conversion change is pending; no new signature is specified or claimed here.
 
 ### ReservableInboxSpec (inbox_consumer)
 
@@ -198,8 +217,8 @@ async fn reserve(&self, spec: &ReservableInboxSpec) -> Result<Vec<InboxMessageEn
 ### InboxProcessPort
 
 ```rust
-async fn completed(&self, id: i64, reservation_id: Uuid) -> Result<(), InboxError>;
-async fn failed(&self, id: i64, reservation_id: Uuid, max_attempts: i32) -> Result<(), InboxError>;
+async fn completed(&self, id: Uuid, reservation_id: Uuid) -> Result<(), InboxError>;
+async fn failed(&self, id: Uuid, reservation_id: Uuid, max_attempts: i32) -> Result<(), InboxError>;
 ```
 
 ### InboxSweepPort
@@ -227,7 +246,7 @@ Table: `inbox_entries`
 
 ```sql
 CREATE TABLE inbox_entries (
-    id              BIGSERIAL    PRIMARY KEY,
+    id              UUID         PRIMARY KEY,
     status          INTEGER      NOT NULL,
     payload         TEXT         NOT NULL,
     meta            JSONB,
