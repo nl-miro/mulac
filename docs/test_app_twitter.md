@@ -79,12 +79,20 @@ Errors: `{ "error": "..." }` with HTTP 400 / 404 / 409 / 500.
 ## Inbox and outbox
 
 **`inbox_messages`** — records every command envelope received at `POST /api/messages/commands`.
-- `status`: `received → processed` or `received → failed`
-- Duplicate `id` returns `409 Conflict`
+- `received`: recorded; the outcome is not known yet.
+- `processed`: the command was applied.
+- `failed`: the command was **rejected** (validation 400, not-found 404, conflict 409). Terminal; never re-dispatched.
+- An infrastructure error (storage, inline drain, worker) does **not** mark the row `failed`. The row stays `received` with `error` set to the latest failure, and the request returns 5xx. The command may already be durably recorded and may still complete.
+- Redelivering a message ID that already exists returns `409 Conflict` whatever its status. Redelivery is not a recovery path.
+- **Background recovery:** an app-level job runs on a configurable interval (default: every minute). It re-dispatches `received` rows whose `received_at` is older than a configurable threshold (default: 5 minutes, so in-flight requests are left alone). It re-dispatches with the original message ID as the command ID, and applies the same status rules to the result.
+  - Rows are claimed with `FOR UPDATE SKIP LOCKED`, so concurrent recovery runs never re-dispatch the same row at once.
+  - There is no attempt cap: a row stays `received` until it resolves, and `error` makes long-stuck rows visible to monitoring.
+  - Re-dispatch is safe because the kernel records commands idempotently by command ID; a message produces at most one command entry.
 
 **`outbox_messages`** — app-level journal of published events.
-- `id` equals the originating kernel `event_id` (PK-reuse idempotency)
-- `status`: `pending` (AMQP publishing is not implemented; see deferred items)
+- `id` equals the originating kernel `event_id`, inserted with `ON CONFLICT (id) DO NOTHING`. A replayed event (the kernel delivers events at least once) adds no row.
+- An event without an `event_id` fails the subscriber, so the kernel retries the event entry instead of writing an unkeyed row.
+- `status` stays `pending`: nothing publishes from the app outbox table; it is a test record of emitted events (AMQP publishing is not implemented; see deferred items).
 - Payload shape: `{"type": "TweetPosted", "payload": { ... }}`
 
 **Do not confuse with kernel tables:**
