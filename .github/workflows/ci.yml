@@ -19,7 +19,6 @@ jobs:
         with:
           workspaces: |
             . -> target
-            test_apps -> target
 
       - name: Format check
         run:  make fmt
@@ -27,5 +26,7 @@ jobs:
       - name: Check workspace
         run: make check
 
-      - name: Test workspace
-        run: make test
+      # Library crates only (kernel + libs). The DB-backed test apps run in
+      # their own workflows (test-app-todo.yml, test-app-twitter.yml).
+      - name: Test libraries
+        run: make test-libs
