@@ -1,17 +1,17 @@
 use commanding::io::{CommandError, ErasedCommandHandler};
 use std::{collections::HashMap, sync::Arc};
 
-use crate::GatewayNewCommandEnvelope;
 use crate::NewEventEnvelope;
+use crate::{CommandHandlers, GatewayNewCommandEnvelope};
 
 pub struct CommandHandlerRegistry {
     handlers: HashMap<String, Arc<dyn ErasedCommandHandler>>,
 }
 
 impl CommandHandlerRegistry {
-    pub fn from_handlers(handlers: Vec<(String, Arc<dyn ErasedCommandHandler>)>) -> Self {
+    pub fn from_handlers(handlers: CommandHandlers) -> Self {
         Self {
-            handlers: handlers.into_iter().collect(),
+            handlers: handlers.into_items().into_iter().collect(),
         }
     }
 }

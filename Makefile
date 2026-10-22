@@ -56,6 +56,8 @@ endef
 package:
 	@echo "== libs v$(LIBS_VERSION) =="
 	cargo package --no-verify --manifest-path libs/Cargo.toml --workspace
+	@echo "== kernel_derive v$(KERNEL_VERSION) =="
+	cargo package --no-verify --manifest-path kernel_derive/Cargo.toml
 	@echo "== kernel v$(KERNEL_VERSION) =="
 	cargo package --no-verify --manifest-path kernel/Cargo.toml
 
@@ -65,6 +67,9 @@ publish:
 	$(call publish-lib,commanding,mulac-commanding)
 	$(call publish-lib,outbox,mulac-outbox)
 	$(call publish-lib,inbox,mulac-inbox)
+	cargo package --no-verify --manifest-path kernel_derive/Cargo.toml
+	$(MAKE) -C $(MARGO_PROJECT) add CRATE=$(CURDIR)/kernel_derive/target/package/mulac-kernel-derive-$(KERNEL_VERSION).crate
+
 pack_and_publish:
 	cargo package --no-verify --manifest-path libs/mulac_diesel/Cargo.toml
 	$(MAKE) -C $(MARGO_PROJECT) add CRATE=$(CURDIR)/libs/target/package/mulac_diesel-$(LIBS_VERSION).crate
@@ -76,6 +81,8 @@ pack_and_publish:
 	$(MAKE) -C $(MARGO_PROJECT) add CRATE=$(CURDIR)/libs/target/package/mulac-outbox-$(LIBS_VERSION).crate
 	cargo package --no-verify --manifest-path libs/inbox/Cargo.toml
 	$(MAKE) -C $(MARGO_PROJECT) add CRATE=$(CURDIR)/libs/target/package/mulac-inbox-$(LIBS_VERSION).crate
+	cargo package --no-verify --manifest-path kernel_derive/Cargo.toml
+	$(MAKE) -C $(MARGO_PROJECT) add CRATE=$(CURDIR)/kernel_derive/target/package/mulac-kernel-derive-$(KERNEL_VERSION).crate
 	cargo package --no-verify --manifest-path kernel/Cargo.toml
 	$(MAKE) -C $(MARGO_PROJECT) add CRATE=$(CURDIR)/kernel/target/package/mulac-kernel-$(KERNEL_VERSION).crate
 
