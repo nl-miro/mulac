@@ -69,8 +69,8 @@ Use case: reserve stored outbound work and publish it to an external transport.
 Use case: release stale reservations back to the eligible queue.
 
 - Finds all `Reserved` entries whose `reserved_at` is older than the configured timeout.
-- Resets them to `Failed` with retry scheduling, clearing reservation fields.
-- Does not increment the attempt counter; only explicit `failed()` calls count as attempts.
+- Resets them to `Failed` with retry scheduling, or to `Dead` when `attempts >= max_attempts`, clearing reservation fields.
+- Does not increment the attempt counter; the attempt was already counted at reservation.
 
 ### OutboxStoreStorage (infra, Diesel)
 
@@ -294,10 +294,11 @@ The primary key is UUID (not BIGSERIAL) because the event ID is generated before
 
 Applies to retriable `failed()` transitions caused by transport publication failures:
 
-- Retry delay = `attempts × 30 seconds`
-- Cap: 2 minutes per attempt
-- After `max_attempts` (default 6) the entry transitions to `Dead`
-- Stale sweep does **not** increment the attempt counter
+- An attempt is one reservation; `reserve` increments `attempts`, `failed()` and the stale sweep do not
+- Retry delay = `attempts × 30 seconds` (linear, no cap)
+- When `attempts >= max_attempts` (default 6) the entry transitions to `Dead`
+- The stale sweep applies the same rules: `Failed` with the retry delay, or `Dead` when attempts are exhausted
+- See [contracts.md — Entry retry policy](contracts.md#entry-retry-policy)
 - `dead()` bypasses retry scheduling and is reserved for non-retriable post-acceptance transformation failures
 
 ## Delivery and Idempotency

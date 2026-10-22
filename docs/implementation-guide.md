@@ -109,7 +109,7 @@ pub fn repository(database_url: String) -> Result<CommandRecorderRepository, Str
   ```
 
 - Reservation uses `SELECT … FOR UPDATE SKIP LOCKED` in a single transaction. See [ADR-004](adr/004-skip-locked-reservation.md).
-- Failed transitions apply retry backoff: `attempts × 30 seconds`, capped at 2 minutes. See [contracts.md](contracts.md).
+- Failed transitions apply retry backoff: `attempts × 30 seconds` (linear, no cap); the stale sweep applies the same rule and goes to `Dead` once attempts are exhausted. See [contracts.md](contracts.md#entry-retry-policy).
 - All generated IDs use UUID v7. See [ADR-003](adr/003-uuid-v7-identifiers.md).
 
 ### lib.rs

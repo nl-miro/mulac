@@ -8,10 +8,12 @@ For component responsibilities and lifecycle rules, see [components.md](componen
 
 This policy applies to every durable queue-backed entry type (`InboxEntry`, `CommandEntry`, `EventEntry`, `OutboxEntry`).
 
-- Calling `failed(entry_id)` does **not** return the entry to `received` immediately; it schedules the next attempt after a configurable backoff delay (default: exponential backoff starting at 30 seconds, multiplying each subsequent delay by 2 and capping any single delay at 2 minutes).
-- The retry count (default: 5), backoff multiplier (default: 2), and maximum per-attempt delay (default: 2 minutes) are configurable per component.
-- Once the configured retry limit is reached the entry transitions to `dead` and will not be retried automatically; an operator may manually reset a `dead` entry back to `received`, which clears the retry counter and allows the full retry sequence to run again.
-- A stale-reservation release (sweep) returns the entry to `received` without incrementing the retry counter; only an explicit `failed` call counts as an attempt. Consumers that repeatedly let entries go stale without calling `failed` will prevent retry exhaustion — such entries will cycle through `received → reserved → received` indefinitely and must be identified through operational monitoring.
+- **Attempt counting:** an attempt is one reservation. `reserve` increments the entry's attempt counter; `failed` and the stale-reservation sweep do not. Because every reservation counts, an entry whose consumer crashes or times out repeatedly still exhausts its attempts instead of cycling indefinitely.
+- **Attempt limit:** `max_attempts` (default: 6 — one initial delivery plus five retries) is configurable per component. Entries whose attempt counter has reached `max_attempts` are never reserved again.
+- **Backoff:** a retriable transition schedules the next attempt at `now + attempts × 30 seconds` (linear, no cap). The entry becomes eligible for reservation again once that time has passed.
+- **`failed(entry_id)`:** transitions the entry to `failed` with the backoff above, or to `dead` when `attempts >= max_attempts`.
+- **Stale-reservation release (sweep):** transitions the entry to `failed` with the same backoff, or to `dead` when `attempts >= max_attempts`. The sweep never returns an entry to `received`.
+- **`dead`** entries are not retried automatically; an operator may manually reset a `dead` entry back to `received`, which clears the attempt counter and allows the full retry sequence to run again.
 
 ---
 
@@ -26,7 +28,7 @@ An `InboundMessage` containing:
 An `InboxEntry` — a durable record containing the raw payload and transport metadata.
 
 **Consumer-facing operations:**
-- `reserve(count) → InboxEntry[]` — atomically transitions up to `count` `received` entries to `reserved` and returns them; a `reserved` entry cannot be claimed by another consumer
+- `reserve(count) → InboxEntry[]` — atomically transitions up to `count` eligible entries (`received`, or `failed` whose scheduled retry time has passed, with attempts below the limit) to `reserved` and returns them; a `reserved` entry cannot be claimed by another consumer
 - `completed(entry_id)` — signals successful processing; the Inbox transitions the entry to `completed`
 - `failed(entry_id)` — signals processing failure; the Inbox transitions the entry to `failed` and schedules it for retry
 - a call to `completed` or `failed` for an entry no longer owned by the caller (released by the sweep) is rejected
@@ -35,7 +37,7 @@ An `InboxEntry` — a durable record containing the raw payload and transport me
 Duplicate detection is active for a configurable retention window (default: 24 hours). A message whose ID was already seen from the same source within this window is silently discarded; messages outside the window are accepted as new.
 
 **Stale reservation sweep:**
-A background process runs on a configurable interval (default: every 10 minutes) and releases any `reserved` entry whose reservation is older than a configurable staleness threshold (default: 15 minutes) back to `received`.
+A background process runs on a configurable interval (default: every 10 minutes) and releases any `reserved` entry whose reservation is older than a configurable staleness threshold (default: 15 minutes) to `failed` (scheduled per the [entry retry policy](#entry-retry-policy)), or to `dead` if its attempts are exhausted.
 
 **Guarantees:**
 - Acceptance is signalled to the caller only after the `InboxEntry` is durably stored
@@ -66,13 +68,13 @@ The `command type` field is the routing key used to resolve the handler; it is p
 - TwoPhased: a durable `CommandEntry`; a queue consumer later invokes the handler and produces `EventEnvelope` instances handed off to the Event Dispatcher
 
 **Consumer-facing operations (TwoPhased only):**
-- `reserve(count) → CommandEntry[]` — atomically transitions up to `count` `received` entries to `reserved` and returns them; a `reserved` entry cannot be claimed by another consumer
+- `reserve(count) → CommandEntry[]` — atomically transitions up to `count` eligible entries (`received`, or `failed` whose scheduled retry time has passed, with attempts below the limit) to `reserved` and returns them; a `reserved` entry cannot be claimed by another consumer
 - `completed(entry_id)` — signals successful processing; the dispatcher transitions the entry to `completed`
 - `failed(entry_id)` — signals processing failure; the dispatcher transitions the entry to `failed` and schedules it for retry
 - a call to `completed` or `failed` for an entry no longer owned by the caller (released by the sweep) is rejected
 
 **Stale reservation sweep (TwoPhased only):**
-A background process runs on a configurable interval (default: every 10 minutes) and releases any `reserved` entry whose reservation is older than a configurable staleness threshold (default: 15 minutes) back to `received`.
+A background process runs on a configurable interval (default: every 10 minutes) and releases any `reserved` entry whose reservation is older than a configurable staleness threshold (default: 15 minutes) to `failed` (scheduled per the [entry retry policy](#entry-retry-policy)), or to `dead` if its attempts are exhausted.
 
 **Guarantees:**
 - Direct: the command is executed at most once; if the handler fails, or if the handler succeeds but inline handoff to the Event Dispatcher fails afterward, the error is propagated to the caller and retrying is the caller's responsibility
@@ -104,13 +106,13 @@ The `routing key` is supplied by the event producer and used by downstream subsc
 - TwoPhased: a durable `EventEntry`; a queue consumer later delivers to all subscribers as a unit; retry can re-invoke already-successful subscribers
 
 **Consumer-facing operations (TwoPhased only):**
-- `reserve(count) → EventEntry[]` — atomically transitions up to `count` `received` entries to `reserved` and returns them; a `reserved` entry cannot be claimed by another consumer
+- `reserve(count) → EventEntry[]` — atomically transitions up to `count` eligible entries (`received`, or `failed` whose scheduled retry time has passed, with attempts below the limit) to `reserved` and returns them; a `reserved` entry cannot be claimed by another consumer
 - `completed(entry_id)` — signals successful delivery to all subscribers; the dispatcher transitions the entry to `completed`
 - `failed(entry_id)` — signals delivery failure; the dispatcher transitions the entry to `failed` and schedules it for retry
 - a call to `completed` or `failed` for an entry no longer owned by the caller (released by the sweep) is rejected
 
 **Stale reservation sweep (TwoPhased only):**
-A background process runs on a configurable interval (default: every 10 minutes) and releases any `reserved` entry whose reservation is older than a configurable staleness threshold (default: 15 minutes) back to `received`.
+A background process runs on a configurable interval (default: every 10 minutes) and releases any `reserved` entry whose reservation is older than a configurable staleness threshold (default: 15 minutes) to `failed` (scheduled per the [entry retry policy](#entry-retry-policy)), or to `dead` if its attempts are exhausted.
 
 **Guarantees:**
 - Direct: each subscriber is invoked at most once per dispatch; if one subscriber fails the error propagates to the caller and retrying is the caller's responsibility; already-invoked subscribers are not rolled back
@@ -143,14 +145,14 @@ An `EventEnvelope` — received as a subscriber of the Event Dispatcher; the Out
 - Stage 2: an outbound message accepted by the external transport — the outbox consumer publishes the message and waits for broker acceptance
 
 **Consumer-facing operations:**
-- `reserve(count) → OutboxEntry[]` — atomically transitions up to `count` `received` entries to `reserved` and returns them; a `reserved` entry cannot be claimed by another consumer
+- `reserve(count) → OutboxEntry[]` — atomically transitions up to `count` eligible entries (`received`, or `failed` whose scheduled retry time has passed, with attempts below the limit) to `reserved` and returns them; a `reserved` entry cannot be claimed by another consumer
 - `completed(entry_id)` — signals broker acceptance; the Outbox transitions the entry to `completed`
 - `failed(entry_id)` — signals delivery failure; the Outbox transitions the entry to `failed` and schedules it for retry
 - `dead(entry_id)` — signals a non-retriable post-acceptance transformation failure such as serialisation; the Outbox transitions the entry to `dead` immediately without scheduling retry
 - a call to `completed`, `failed`, or `dead` for an entry no longer owned by the caller (released by the sweep) is rejected
 
 **Stale reservation sweep:**
-A background process runs on a configurable interval (default: every 10 minutes) and releases any `reserved` entry whose reservation is older than a configurable staleness threshold (default: 15 minutes) back to `received`.
+A background process runs on a configurable interval (default: every 10 minutes) and releases any `reserved` entry whose reservation is older than a configurable staleness threshold (default: 15 minutes) to `failed` (scheduled per the [entry retry policy](#entry-retry-policy)), or to `dead` if its attempts are exhausted.
 
 **Guarantees:**
 - Acceptance is signalled only after the `OutboxEntry` is durably stored

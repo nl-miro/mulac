@@ -118,8 +118,8 @@ Use case: reserve persisted events and deliver them via `EventDispatcher` (TwoPh
 Use case: release stale reservations back to the eligible queue (TwoPhased only).
 
 - Finds all `Reserved` entries whose `reserved_at` is older than the configured timeout.
-- Resets them to `Failed` with retry scheduling, clearing reservation fields.
-- Does **not** increment the attempt counter; only explicit `failed()` calls count as attempts.
+- Resets them to `Failed` with retry scheduling, or to `Dead` when `attempts >= max_attempts`, clearing reservation fields.
+- Does not increment the attempt counter; the attempt was already counted at reservation.
 
 ### EventStoreStorage (infra, Diesel)
 
@@ -132,7 +132,7 @@ Implements `EventReservePort`, `EventProcessPort`, and `EventSweepPort`.
 - **reserve**: uses `SELECT … FOR UPDATE SKIP LOCKED`, then updates status to `Reserved`, assigns `reservation_id` (UUID v7), increments `attempts`, and returns full event envelopes.
 - **completed**: updates status to `Completed`, clears `reservation_id` and `reserved_at`, and sets `processed_at`.
 - **failed**: evaluates `attempts` against `max_attempts`; transitions to `Failed` (schedules retry) or `Dead` (exhausted). Clears reservation fields.
-- **sweep**: releases stale `Reserved` entries by clearing reservation fields and scheduling another attempt without incrementing `attempts`.
+- **sweep**: releases stale `Reserved` entries by clearing reservation fields and transitioning them to `Failed` (schedules retry) or `Dead` (exhausted), without incrementing `attempts`.
 
 ## Models
 
@@ -333,10 +333,11 @@ Recommended indexes:
 
 Applies to `failed()` transitions:
 
-- Retry delay = `attempts × 30 seconds`
-- Cap: 2 minutes per attempt
-- After `max_attempts` (default 6) the entry transitions to `Dead`
-- Stale sweep does **not** increment the attempt counter
+- An attempt is one reservation; `reserve` increments `attempts`, `failed()` and the stale sweep do not
+- Retry delay = `attempts × 30 seconds` (linear, no cap)
+- When `attempts >= max_attempts` (default 6) the entry transitions to `Dead`
+- The stale sweep applies the same rules: `Failed` with the retry delay, or `Dead` when attempts are exhausted
+- See [contracts.md — Entry retry policy](contracts.md#entry-retry-policy)
 
 ## Reliability Semantics
 
