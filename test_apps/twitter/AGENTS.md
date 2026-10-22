@@ -105,30 +105,38 @@ enum InboundEntity {
 
 ## Command outcome matrix (§9.4)
 
+Apply the [Twitter temporal semantics](../../docs/test_app_twitter.md#temporal-semantics) decision (D-10) to this matrix. An active target has no `deleted_at` value. Missing/deleted-target checks for like, retweet, and unlike apply before any success/no-op outcome. **Unlike rejection for soft-deleted targets is decided but not yet implemented or verified**; current code checks existence only.
+
 | Command           | Case                             | HTTP | Event | Outbox |
 |-------------------|----------------------------------|------|-------|--------|
 | PostTweet         | new tweet_id                     | 200  | yes   | yes    |
 | PostTweet         | duplicate tweet_id               | 409  | no    | no     |
 | DeleteTweet       | active tweet, matching author    | 204  | yes   | yes    |
 | DeleteTweet       | missing / deleted / wrong author | 404  | no    | no     |
-| Retweet           | original exists, new retweet_id  | 200  | yes   | yes    |
-| Retweet           | original missing                 | 404  | no    | no     |
+| Retweet           | immediate target active, new retweet_id | 200 | yes | yes |
+| Retweet           | immediate target missing/deleted | 404  | no    | no     |
 | Retweet           | duplicate retweet_id             | 409  | no    | no     |
 | FollowUser        | self-follow                      | 400  | no    | no     |
 | FollowUser        | new relationship                 | 200  | yes   | yes    |
 | FollowUser        | already following (no-op)        | 200  | no    | no     |
 | UnfollowUser      | relationship exists              | 200  | yes   | yes    |
 | UnfollowUser      | relationship absent (no-op)      | 200  | no    | no     |
-| LikeTweet         | tweet exists, like absent        | 200  | yes   | yes    |
-| LikeTweet         | tweet missing                    | 404  | no    | no     |
-| LikeTweet         | already liked (no-op)            | 200  | no    | no     |
-| UnlikeTweet       | like exists → deleted            | 204  | yes   | yes    |
-| UnlikeTweet       | like absent (no-op)              | 204  | no    | no     |
-| UnlikeTweet       | tweet missing                    | 404  | no    | no     |
+| LikeTweet         | active tweet, like absent        | 200  | yes   | yes    |
+| LikeTweet         | tweet missing/deleted            | 404  | no    | no     |
+| LikeTweet         | active tweet, already liked (no-op) | 200 | no | no |
+| UnlikeTweet       | active tweet, like exists → removed | 204 | yes | yes |
+| UnlikeTweet       | active tweet, like absent (no-op) | 204  | no    | no     |
+| UnlikeTweet       | tweet missing/deleted            | 404  | no    | no     |
 | SendDirectMessage | new message_id                   | 200  | yes   | yes    |
 | SendDirectMessage | duplicate message_id             | 409  | no    | no     |
 | SendDirectMessage | blank/too-long content           | 400  | no    | no     |
 | FanOutTweet       | any                              | —    | no    | no     |
+
+Temporal rules accompanying these outcomes:
+- Each fan-out attempt reads current followers; retries may add new followers, and unfollow does not remove existing timeline rows. Delayed fan-out still proceeds after tweet deletion. No new fan-out triggers are introduced.
+- Deletion affects only the selected tweet; existing likes, timeline rows, and retweet descendants remain. No cascading or derived deletion events occur.
+- Retweets may target active retweets. `retweeted_from` and event `original_tweet_id` preserve the immediate target; deleted ancestors do not invalidate an active descendant.
+- These are stored-data/command rules, not visibility rules for the deferred timeline read API. Full scenario coverage and the deleted-target unlike behavior remain pending; application-owned event recovery obligations are unchanged.
 
 ---
 
