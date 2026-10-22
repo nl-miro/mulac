@@ -187,7 +187,7 @@ The gateway input envelope. `command_id` is always `Uuid` — the caller must su
 | `causation_id`   | `Option<Uuid>`   | ID of the message that caused this command |
 | `source`         | `Option<String>` | Originating service identifier             |
 
-`causation_id` should be propagated from the triggering inbox message's `message_id` when a command originates from inbox processing. Produced `EventEnvelope` instances should carry the command's `command_id` as their own `causation_id`.
+Metadata follows [contracts.md — Metadata propagation](contracts.md#metadata-propagation): a command from inbox processing carries the inbox `message_id` as `causation_id`; a follow-up command from an event subscriber carries the triggering `event_id`; produced `EventEnvelope` instances carry the command's `command_id` as `causation_id`, its correlation, and its `source`.
 
 ### CommandEnvelope (application)
 

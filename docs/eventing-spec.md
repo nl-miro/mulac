@@ -168,7 +168,7 @@ The gateway input envelope. `event_id` is always supplied inside metadata; no ge
 | `causation_id`   | `Option<Uuid>`   | ID of the command/message that caused this event |
 | `source`         | `Option<String>` | Originating service identifier                   |
 
-When events are produced from a command, `causation_id` should be the command's `command_id`. `correlation_id` should be propagated from the incoming command or inbox message when available.
+Events produced from a command follow [contracts.md — Metadata propagation](contracts.md#metadata-propagation): `causation_id` is the command's `command_id`, `correlation_id` is the command's correlation (or its `command_id`), and `source` is the command's `source`.
 
 ### EventEnvelope (application)
 
@@ -328,6 +328,17 @@ Recommended indexes:
 - `(status, scheduled_at)` — reservation queries
 - `(status, reserved_at)` — stale sweep queries
 - `(event_type, received_at)` — operational inspection by event type
+
+## Gateway Error Classification
+
+`EventGateway::dispatch` (inherent) and `EventDispatchPort::dispatch` (trait, used by `CommandDispatcher`) behave identically in both variants:
+
+| Condition | Error |
+| --- | --- |
+| Envelope has no metadata (no `event_id`) | `EventError::Conversion`; nothing is dispatched or recorded |
+| Any failure from the dispatcher (Direct) or recorder (TwoPhased) | The original `EventError` variant, unchanged (`Storage`, `SubscriberNotFound`, `SubscriberExecution`, `Conversion`, …) |
+
+The gateway never re-wraps errors as `EventDispatch(String)`. Inside commanding, a handoff failure surfaces as `CommandError::Eventing(<original EventError>)`, so callers can still tell a storage failure from a subscriber failure.
 
 ## Retry Policy
 

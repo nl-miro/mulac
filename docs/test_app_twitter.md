@@ -10,7 +10,7 @@ A Twitter-like reference application that exercises the Mulac command/event fram
 - App-owned `AppState { pool, mulac }` with two-phased command/event gateways
 - App-owned `inbox_messages` and `outbox_messages` tables separate from kernel `*_entries` tables
 - Idempotent outbox with PK reuse (`outbox_messages.id == source event_id`)
-- Timeline fan-out via an event subscriber that dispatches internal commands
+- Timeline fan-out via an event subscriber that dispatches internal commands; each follow-up command chains its metadata from the `TweetPosted` event (`causation_id` = `event_id`, `correlation_id` = the event's correlation), per [contracts.md — Metadata propagation](contracts.md#metadata-propagation)
 
 ## Source layout
 

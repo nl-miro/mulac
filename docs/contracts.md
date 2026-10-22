@@ -27,6 +27,30 @@ This policy applies to every durable queue-backed entry type (`InboxEntry`, `Com
 - **Stale-reservation release (sweep):** transitions the entry to `failed` with the same backoff, or to `dead` when `attempts >= max_attempts`. The sweep never returns an entry to `received`.
 - **`dead`** entries are not retried automatically; an operator may manually reset a `dead` entry back to `received`, which clears the attempt counter and allows the full retry sequence to run again.
 
+## Metadata propagation
+
+These rules keep one trace across commands, events and follow-up commands.
+
+**Events produced by a command handler** (assigned by the commanding library when it wraps the handler):
+
+| Field | Value |
+| --- | --- |
+| `event_id` | Fresh UUID v7 for each produced event, including on re-execution of the same command |
+| `causation_id` | The command's `command_id` |
+| `correlation_id` | The command's `correlation_id`, or its `command_id` when it has none |
+| `source` | The command's `source`; a command without a source produces events without one |
+
+**Follow-up commands dispatched by an event subscriber** (an obligation on the subscriber; the kernel does not stamp these fields):
+
+| Field | Value |
+| --- | --- |
+| `command_id` | Chosen by the subscriber |
+| `causation_id` | The triggering event's `event_id` |
+| `correlation_id` | The triggering event's `correlation_id`, or its `event_id` when it has none |
+| `source` | Chosen by the subscriber, identifying it (e.g. `event:TweetPosted`) |
+
+**Commands from inbox messages:** `causation_id` is the inbox `message_id`; `correlation_id` is the message's correlation when the transport supplies one, otherwise the `message_id`.
+
 ---
 
 ## Inbox

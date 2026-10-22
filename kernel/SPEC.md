@@ -1,6 +1,6 @@
 # Kernel Specification
 
-> **Status:** decided 2026-10-22 (D-04 and D-07 in [test-coverage-report.md](../docs/test-coverage-report.md)).
+> **Status:** decided 2026-10-22 (D-04, D-07 and D-11 in [test-coverage-report.md](../docs/test-coverage-report.md)).
 > The current implementation does not yet match this contract. See [Implementation gaps](#implementation-gaps).
 
 ## Overview
@@ -15,6 +15,17 @@ The kernel assembles mulac's components (commanding, eventing, inbox, outbox) be
 
 **Invariant:** every registration and every config field either takes real effect in the chosen mode, or startup
 fails with an error. The kernel never silently swaps in a no-op for something the application registered.
+
+## Public API
+
+The crate root declares only `pub mod io`, following the repository's single-interface rule. Everything an application uses is imported from `kernel::io`:
+
+- builder and startup: `boot`, `KernelConfig`, `KernelBuilder`, `KernelError`
+- handles and state: `KernelHandle`, `AppState`, `PersistentKernelHandle`, `PersistentKernelState`
+- application boundary: `ApplicationCommand`, `NewCommandEnvelope<C>`, and the re-exported library types (`ApplicationEvent`, `EventSubscriberPort`, `NewCommandMetadata`, `NewEventEnvelope`, errors, gateways, consumers)
+- runtime helpers: `run_command_worker`, `run_event_worker`, `block_on_blocking`, `first_command_error`, `first_event_error`
+
+Library `io` facades export every type a supported mode needs, whatever storage features are enabled. For example, `NewCommand` is available without the `diesel` feature, because direct mode needs it as well.
 
 ## Capability matrix
 
@@ -111,10 +122,12 @@ Standalone synchronous publication and current-thread runtimes are outside this 
 ## Example
 
 ```rust
-let kernel = kernel::boot(kernel::KernelConfig::from_env()?)
+use kernel::io::{EventSubscriberPort, KernelConfig, boot};
+
+let kernel = boot(KernelConfig::from_env()?)
     .command_handler("PostTweet", Arc::new(PostTweetHandler::new(pool.clone())))
     .event_subscriber_with_command_gateway("TweetPosted", "timeline-fan-out", |gateway| {
-        Arc::new(FanOutSubscriber::new(gateway)) as Arc<dyn kernel::EventSubscriberPort>
+        Arc::new(FanOutSubscriber::new(gateway)) as Arc<dyn EventSubscriberPort>
     })
     .outbox_subscriber("TweetPosted")
     .start_persistent(pool, 2)?;
@@ -134,3 +147,4 @@ Current `kernel/src/lib.rs` differs from this contract:
 - Existing dispatch handles have no shutdown gate or accepted-execution exemption for in-flight follow-ups. These guarantees require future implementation and tests.
 - Synchronous AMQP publication currently calls `Handle::block_on` when a runtime is present and creates a fallback runtime otherwise. `block_on_blocking` uses `block_in_place` and the current runtime handle. These paths do not establish support for arbitrary calling contexts or enforce the documented restrictions.
 - The test apps write their own outbox subscribers against their own tables instead of using `outbox_subscriber`.
+- `kernel/src/lib.rs` exports about 30 items at the crate root next to `pub mod io`, and both test apps import from the root (`kernel::ApplicationCommand`, `kernel::EventSubscriberPort`, `kernel::boot`, …). Commanding exports `NewCommand` only under `#[cfg(feature = "diesel")]`.
