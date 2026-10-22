@@ -154,11 +154,24 @@ An `EventEnvelope` — received as a subscriber of the Event Dispatcher; the Out
 - Each accepted `EventEnvelope` maps to exactly one outbound message; cardinality is always 1:1.
 - Routing key errors are caught at acceptance before an `OutboxEntry` is created; the `EventEnvelope` is rejected and no durable record is written.
 - Serialisation errors occur after the `OutboxEntry` exists; the outbox consumer calls `dead(entry_id)` to transition the entry to `dead` immediately, bypassing the retry schedule.
-- Transport failures (broker unavailable, broker rejection after message delivery) follow the standard [entry retry policy](#entry-retry-policy).
+- Transport failures follow the standard [entry retry policy](#entry-retry-policy). They include: broker unavailable, broker negative acknowledgement, an unroutable mandatory publish returned by the broker, confirmations not active on the channel, and a confirmation that never arrives (channel closed or confirm timeout).
 
 **Produces:**
 - Stage 1: a durable `OutboxEntry` — the event is stored durably upon acceptance
 - Stage 2: an outbound message accepted by the external transport — the outbox consumer publishes the message and waits for broker acceptance
+
+**Broker acceptance:**
+Broker acceptance means the broker positively confirmed the publish *and*, when the publish is mandatory (the default), routed it to at least one queue. Every other outcome is a retriable transport failure (`failed`), never acceptance:
+
+| Broker outcome | Outbox outcome |
+| --- | --- |
+| Publisher confirm `ack`, no returned message | Accepted → `completed` |
+| `ack` with a returned message (mandatory publish matched no queue) | Transport failure → `failed` |
+| `nack` | Transport failure → `failed` |
+| Confirmations not active on the channel | Transport failure → `failed` |
+| No confirmation (channel or connection closed, or confirm timeout) | Transport failure → `failed`; the message may still have been published, which at-least-once delivery covers |
+
+Publishing without the mandatory flag is an explicit opt-out: the broker then silently drops unroutable messages and still acknowledges them, and that loss is outside the Outbox contract.
 
 **Consumer-facing operations:**
 - `reserve(count) → OutboxEntry[]` — atomically transitions up to `count` eligible entries (`received`, or `failed` whose scheduled retry time has passed, with attempts below the limit) to `reserved` and returns them; a `reserved` entry cannot be claimed by another consumer
@@ -175,6 +188,7 @@ A background process runs on a configurable interval (default: every 10 minutes)
 - Delivery to the external transport is at-least-once; if broker acceptance succeeds but the `completed` transition fails, the entry is retried and the outbound message may be published again
 - A `reserved` `OutboxEntry` will not be concurrently claimed by another consumer
 - No ordering guarantee across entries or after retries; delivery order is not guaranteed
+- Broker acceptance does not imply durable broker storage. Messages are published persistent by default, but surviving a broker restart also requires durable queues, which the Outbox does not verify; that is a deployment concern
 
 **Requires from collaborators:**
 - Event Dispatcher must not consider the event delivered until the Outbox confirms durable storage of the `OutboxEntry`

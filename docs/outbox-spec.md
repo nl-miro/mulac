@@ -58,7 +58,7 @@ Use case: reserve stored outbound work and publish it to an external transport.
 
 - Reserves up to `limit` eligible entries atomically.
 - Converts each `OutboxEntryEnvelope` into an `OutboundMessageEnvelope`.
-- Publishes each outbound message via `OutboxPublisherPort` and waits for broker acceptance.
+- Publishes each outbound message via `OutboxPublisherPort` and waits for broker acceptance, as defined in [contracts.md — Outbox](contracts.md#outbox) and [AMQP Publisher](#amqp-publisher).
 - Marks each entry `Completed` after broker acceptance.
 - Marks each entry `Failed` when publication fails with a retriable transport error.
 - Marks each entry `Dead` when post-acceptance transformation fails permanently, such as payload serialisation.
@@ -292,7 +292,7 @@ The primary key is UUID (not BIGSERIAL) because the event ID is generated before
 
 ## Retry Policy
 
-Applies to retriable `failed()` transitions caused by transport publication failures:
+Applies to retriable `failed()` transitions caused by transport publication failures (broker unavailable, `nack`, unroutable mandatory return, confirms not active, missing confirmation):
 
 - An attempt is one reservation; `reserve` increments `attempts`, `failed()` and the stale sweep do not
 - Retry delay = `attempts × 30 seconds` (linear, no cap)
@@ -301,10 +301,38 @@ Applies to retriable `failed()` transitions caused by transport publication fail
 - See [contracts.md — Entry retry policy](contracts.md#entry-retry-policy)
 - `dead()` bypasses retry scheduling and is reserved for non-retriable post-acceptance transformation failures
 
+## AMQP Publisher
+
+`AmqpPublisher` (feature `amqp`) implements `OutboxPublisherPort` over a lapin channel in publisher-confirm mode.
+
+### AmqpPublishConfig
+
+| Field                  | Default              | Description                                                                           |
+|------------------------|----------------------|---------------------------------------------------------------------------------------|
+| `exchange`             | `""`                 | Target exchange; the routing key comes from the entry metadata                        |
+| `mandatory`            | `true`               | Ask the broker to return unroutable messages; `false` opts out of routing detection   |
+| `default_content_type` | `"application/json"` | Content type used when the entry metadata has none                                    |
+| `persistent`           | `true`               | Publish with `delivery_mode = 2`                                                      |
+| `confirm_timeout`      | configurable         | Upper bound on waiting for the publisher confirm                                      |
+
+Publisher confirms are enabled once per channel.
+
+### Publish outcomes
+
+| lapin result                                  | `publish` result             | Entry      |
+|-----------------------------------------------|------------------------------|------------|
+| `Confirmation::Ack(None)`                     | `Ok(())`                     | `Completed` |
+| `Confirmation::Ack(Some(returned))`           | `Transport` (reply code/text) | `Failed`   |
+| `Confirmation::Nack(_)`                       | `Transport`                  | `Failed`   |
+| `Confirmation::NotRequested`                  | `Transport`                  | `Failed`   |
+| Publish/confirm error, or confirm timeout     | `Transport`                  | `Failed`   |
+
+`Completed` does not mean the message is durably stored by the broker. That also requires durable queues, which the publisher does not verify.
+
 ## Delivery and Idempotency
 
 - The outbox acceptance boundary is durable storage of the `OutboxEntry`, or an idempotent conflict on an already-recorded `event_id`.
-- The publication boundary is broker acceptance / publisher confirmation.
+- The publication boundary is broker acceptance: a positive publisher confirmation with no mandatory return (see [AMQP Publisher](#amqp-publisher)).
 - If broker acceptance succeeds but `completed()` fails, the entry may be retried and the same outbound message may be published again.
 - Consumers downstream of the external transport must treat `message_id` as an idempotency key when possible. By default, `message_id` equals `event_id`, unless the event dispatcher supplied a distinct outbound message ID.
 - The outbox does not guarantee ordering across entries, destinations, retries, or concurrent consumers.
