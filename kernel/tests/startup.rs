@@ -63,6 +63,7 @@ fn event() -> NewEventEnvelope {
         event_type: "TestEvent".into(),
         payload: r#"{"value":42}"#.into(),
         metadata: Some(NewEventMetadata {
+            sequence: None,
             event_id: inbound().message_id.unwrap(),
             correlation_id: None,
             causation_id: None,

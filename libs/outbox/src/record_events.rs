@@ -53,6 +53,15 @@ mod recorder {
     }
 
     fn validate_routing_key(envelope: &NewOutboxEnvelope) -> Result<(), OutboxError> {
+        if envelope
+            .metadata
+            .sequence
+            .is_some_and(|value| value == 0 || value > i64::MAX as u64)
+        {
+            return Err(OutboxError::Routing(
+                "sequence must be between 1 and i64::MAX".into(),
+            ));
+        }
         if envelope.metadata.routing_key.trim().is_empty() {
             return Err(OutboxError::Routing("routing_key is required".into()));
         }
@@ -114,6 +123,7 @@ mod tests {
         NewOutboxEnvelope {
             payload: "{}".into(),
             metadata: NewOutboxMetadata {
+                sequence: None,
                 event_id,
                 message_id: None,
                 correlation_id: None,

@@ -105,6 +105,14 @@ mod conversions {
             })?;
 
             let now = Utc::now();
+            if metadata
+                .sequence
+                .is_some_and(|value| value == 0 || value > i64::MAX as u64)
+            {
+                return Err(EventError::Conversion(
+                    "sequence must be between 1 and i64::MAX".into(),
+                ));
+            }
             let meta = serde_json::to_value(metadata).ok().map(MetadataJsonb);
 
             Ok(NewEventEntry {
@@ -149,6 +157,7 @@ mod conversions {
     impl From<EventMetadata> for NewEventMetadata {
         fn from(meta: EventMetadata) -> Self {
             NewEventMetadata {
+                sequence: meta.sequence,
                 event_id: meta.event_id,
                 correlation_id: meta.correlation_id,
                 causation_id: meta.causation_id,

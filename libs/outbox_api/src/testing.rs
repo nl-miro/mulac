@@ -121,6 +121,7 @@ fn reserved_entry(routing_key: &str, reservation_id: Option<Uuid>) -> OutboxEntr
     let now = Utc::now();
     let id = Uuid::now_v7();
     let metadata = OutboxEntryMetadata {
+        sequence: None,
         event_id: id,
         message_id: id,
         correlation_id: None,

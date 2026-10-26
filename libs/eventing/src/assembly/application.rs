@@ -11,6 +11,19 @@ pub mod io {
 }
 
 mod models {
+
+    fn sequence<'de, D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Option<u64>, D::Error> {
+        let value = <Option<u64> as serde::Deserialize>::deserialize(deserializer)?;
+        if value.is_some_and(|sequence| sequence == 0 || sequence > i64::MAX as u64) {
+            return Err(serde::de::Error::custom(
+                "sequence must be between 1 and i64::MAX",
+            ));
+        }
+        Ok(value)
+    }
+
     use crate::assembly::domain::ExtraInfo;
     use uuid::Uuid;
 
@@ -26,6 +39,12 @@ mod models {
 
     #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
     pub struct NewEventMetadata {
+        #[serde(
+            default,
+            skip_serializing_if = "Option::is_none",
+            deserialize_with = "sequence"
+        )]
+        pub sequence: Option<u64>,
         pub event_id: Uuid,
         pub correlation_id: Option<Uuid>,
         pub causation_id: Option<Uuid>,
@@ -49,6 +68,12 @@ mod models {
 
     #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
     pub struct EventMetadata {
+        #[serde(
+            default,
+            skip_serializing_if = "Option::is_none",
+            deserialize_with = "sequence"
+        )]
+        pub sequence: Option<u64>,
         pub event_id: Uuid,
         pub correlation_id: Option<Uuid>,
         pub causation_id: Option<Uuid>,
@@ -100,5 +125,27 @@ mod ports {
             max_attempts: i32,
             reason: Option<String>,
         ) -> Result<(), EventError>;
+    }
+}
+
+#[cfg(test)]
+mod sequence_tests {
+    use super::io::*;
+    #[test]
+    fn metadata_rejects_invalid_revisions_and_preserves_legacy_omission() {
+        let mut value = serde_json::json!({"event_id":uuid::Uuid::now_v7(),"correlation_id":null,"causation_id":null,"source":null});
+        let old: NewEventMetadata = serde_json::from_value(value.clone()).unwrap();
+        assert!(old.sequence.is_none());
+        assert_eq!(serde_json::to_value(old).unwrap(), value);
+        for invalid in [
+            serde_json::json!(0),
+            serde_json::json!(-1),
+            serde_json::json!(i64::MAX as u64 + 1),
+            serde_json::json!("1"),
+        ] {
+            value["sequence"] = invalid;
+            assert!(serde_json::from_value::<NewEventMetadata>(value.clone()).is_err());
+            assert!(serde_json::from_value::<EventMetadata>(value.clone()).is_err());
+        }
     }
 }

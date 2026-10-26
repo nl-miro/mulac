@@ -62,6 +62,7 @@ mod models {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct NewOutboxMetadata {
+        pub sequence: Option<u64>,
         pub event_id: uuid::Uuid,
         pub message_id: Option<uuid::Uuid>,
         pub correlation_id: Option<uuid::Uuid>,
@@ -81,6 +82,7 @@ mod conversions {
         fn from(metadata: NewOutboxMetadata) -> Self {
             let message_id = metadata.message_id.unwrap_or(metadata.event_id);
             OutboxEntryMetadata {
+                sequence: metadata.sequence,
                 event_id: metadata.event_id,
                 message_id,
                 correlation_id: metadata.correlation_id,
@@ -151,6 +153,7 @@ mod tests {
 
     fn metadata(event_id: Uuid, message_id: Option<Uuid>) -> NewOutboxMetadata {
         NewOutboxMetadata {
+            sequence: None,
             event_id,
             message_id,
             correlation_id: None,
@@ -174,7 +177,10 @@ mod tests {
     fn supplied_message_id_is_preserved() {
         let event_id = Uuid::now_v7();
         let message_id = Uuid::now_v7();
-        let converted = OutboxEntryMetadata::from(metadata(event_id, Some(message_id)));
+        let mut input = metadata(event_id, Some(message_id));
+        input.sequence = Some(7);
+        let converted = OutboxEntryMetadata::from(input);
+        assert_eq!(converted.sequence, Some(7));
         assert_eq!(converted.event_id, event_id);
         assert_eq!(converted.message_id, message_id);
     }

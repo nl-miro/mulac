@@ -351,6 +351,7 @@ mod tests {
 
     fn metadata(event_id: Uuid) -> OutboxEntryMetadata {
         OutboxEntryMetadata {
+            sequence: None,
             event_id,
             message_id: event_id,
             correlation_id: None,

@@ -79,6 +79,7 @@ fn reset_schema(pool: &DbPool) {
 
 fn metadata(event_id: Uuid, routing_key: &str) -> NewOutboxMetadata {
     NewOutboxMetadata {
+        sequence: None,
         event_id,
         message_id: None,
         correlation_id: None,
@@ -288,6 +289,7 @@ fn duplicate_publish_after_completion_failure_keeps_message_id_stable() {
     let reservation_id = Uuid::now_v7();
     let now = Utc::now();
     let metadata = OutboxEntryMetadata {
+        sequence: None,
         event_id,
         message_id: event_id,
         correlation_id: None,

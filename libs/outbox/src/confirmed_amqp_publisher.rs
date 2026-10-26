@@ -209,6 +209,7 @@ mod tests {
         OutboundMessageEnvelope {
             payload: br#"{"title":"Charger"}"#.to_vec(),
             metadata: OutboxEntryMetadata {
+                sequence: None,
                 event_id,
                 message_id: event_id,
                 correlation_id: Some(Uuid::now_v7()),

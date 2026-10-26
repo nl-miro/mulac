@@ -36,3 +36,13 @@ that each adapter depends only on its own framework, and to check that each
 opt-in adapter feature builds alone, stays out of the default build and pulls
 in no Diesel. It also checks that `outbox_api` and the adapters never depend
 on lapin.
+
+## Optional application event revisions
+
+`ApplicationEvent::sequence()` defaults to `None`. Applications may supply a
+positive per-aggregate revision up to PostgreSQL BIGINT's maximum. The typed
+command wrapper carries it through event metadata without changing framework
+IDs, correlation, causation or payloads. Event reservation and subscriber
+conversions preserve it. Outbox metadata has the same optional field; recorders
+must copy it from the originating event. Missing legacy metadata stays missing.
+This supplies provenance, not ordering or atomic command/event persistence.

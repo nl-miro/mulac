@@ -70,6 +70,7 @@ impl OutboxPublisherPort for NoopPublisher {
 fn io_facade_reexports_core_outbox_api() {
     let event_id = Uuid::now_v7();
     let metadata = NewOutboxMetadata {
+        sequence: None,
         event_id,
         message_id: None,
         correlation_id: None,

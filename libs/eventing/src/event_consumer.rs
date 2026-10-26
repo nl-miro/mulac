@@ -165,6 +165,7 @@ mod conversions {
     impl From<&EventMetadata> for NewEventMetadata {
         fn from(meta: &EventMetadata) -> Self {
             NewEventMetadata {
+                sequence: meta.sequence,
                 event_id: meta.event_id,
                 correlation_id: meta.correlation_id,
                 causation_id: meta.causation_id,
