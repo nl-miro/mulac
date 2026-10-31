@@ -46,3 +46,30 @@ IDs, correlation, causation or payloads. Event reservation and subscriber
 conversions preserve it. Outbox metadata has the same optional field; recorders
 must copy it from the originating event. Missing legacy metadata stays missing.
 This supplies provenance, not ordering or atomic command/event persistence.
+
+## Publish crates
+
+Run `make pack_and_publish` (or `make publish`) to package all libraries and the
+kernel in dependency order, add them to `~/work/labs/crates`, commit the registry
+artifacts, and push its `main` branch. GitHub Pages then deploys the registry at
+<https://null-labs-hq.github.io/crates/>. This does not commit or push mulac itself.
+
+Requires Python 3.11+, Cargo, `margo`, an initialized registry checkout on `main`,
+and GitHub push access. HTTPS authentication uses `gh auth git-credential` when
+`gh` is installed. Override `CRATES_DIR`, `MARGO`, or `CRATES_PUSH_URL` as needed.
+Keep unrelated registry changes out of the generated index/assets and crate paths.
+
+Packaging uses a temporary loopback sparse registry so new dependencies resolve
+before Pages deploys; published manifests retain the hosted registry URL. Identical
+retries are safe, and an existing version with different bytes is rejected.
+Packaging retains `--no-verify`; run `make ci` before publishing a release.
+
+For local staging without committing or pushing:
+
+```sh
+python3 scripts/pack_and_publish.py --registry "$HOME/work/labs/crates"
+```
+
+Run `make test-publishing` for publishing helper tests. A failed push leaves the
+local registry commit intact; fix authentication or reconcile remote changes and
+retry. No force-push is performed.

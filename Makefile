@@ -4,9 +4,6 @@ CARGO_DIRS := $(shell find . -name Cargo.toml -not -path '*/target/*' -exec dirn
 LIB_DIRS   := $(filter-out ./test_apps/%,$(CARGO_DIRS))
 APP_DIRS   := $(filter     ./test_apps/%,$(CARGO_DIRS))
 
-KERNEL_VERSION := $(shell cargo pkgid --manifest-path kernel/Cargo.toml | sed 's/.*[#@]//')
-LIBS_VERSION   := $(shell awk -F'"' '/^version/{print $$2; exit}' libs/Cargo.toml)
-
 define run-fmt-in-crates
 	@set -e; \
 	for dir in $(CARGO_DIRS); do \
@@ -98,56 +95,24 @@ ci:
 		cargo clippy --no-deps -p mulac_axum --all-targets --no-default-features --features $$feature,utoipa $(LIBS_MANIFEST) -- -D warnings; \
 	done
 
-MARGO_PROJECT := /home/nulllabs/work/labs/margo
+# Static registry checkout deployed by GitHub Pages from main.
+CRATES_DIR ?= $(HOME)/work/labs/crates
+MARGO ?= margo
+CRATES_PUSH_URL ?= https://github.com/null-labs-hq/crates.git
 
-define publish-lib
-	cargo package --no-verify --manifest-path libs/$(1)/Cargo.toml
-	$(MAKE) -C $(MARGO_PROJECT) add CRATE=$(CURDIR)/libs/target/package/$(2)-$(LIBS_VERSION).crate
-endef
+.PHONY: package publish pack_and_publish test-publishing
 
 package:
-	@echo "== libs v$(LIBS_VERSION) =="
 	cargo package --no-verify --manifest-path libs/Cargo.toml --workspace
-	@echo "== kernel v$(KERNEL_VERSION) =="
 	cargo package --no-verify --manifest-path kernel/Cargo.toml
 
-publish:
-	$(call publish-lib,mulac_diesel,mulac_diesel)
-	$(call publish-lib,eventing,mulac-eventing)
-	$(call publish-lib,commanding,mulac-commanding)
-	$(call publish-lib,outbox,mulac-outbox)
-	$(call publish-lib,inbox,mulac-inbox)
-	$(call publish-lib,inbox_api,inbox_api)
-	$(call publish-lib,commanding_api,commanding_api)
-	$(call publish-lib,eventing_api,eventing_api)
-	$(call publish-lib,outbox_api,outbox_api)
-	$(call publish-lib,mulac_poem,mulac_poem)
-	$(call publish-lib,mulac_axum,mulac_axum)
+publish: pack_and_publish
+
 pack_and_publish:
-	cargo package --no-verify --manifest-path libs/mulac_diesel/Cargo.toml
-	$(MAKE) -C $(MARGO_PROJECT) add CRATE=$(CURDIR)/libs/target/package/mulac_diesel-$(LIBS_VERSION).crate
-	cargo package --no-verify --manifest-path libs/eventing/Cargo.toml
-	$(MAKE) -C $(MARGO_PROJECT) add CRATE=$(CURDIR)/libs/target/package/mulac-eventing-$(LIBS_VERSION).crate
-	cargo package --no-verify --manifest-path libs/commanding/Cargo.toml
-	$(MAKE) -C $(MARGO_PROJECT) add CRATE=$(CURDIR)/libs/target/package/mulac-commanding-$(LIBS_VERSION).crate
-	cargo package --no-verify --manifest-path libs/outbox/Cargo.toml
-	$(MAKE) -C $(MARGO_PROJECT) add CRATE=$(CURDIR)/libs/target/package/mulac-outbox-$(LIBS_VERSION).crate
-	cargo package --no-verify --manifest-path libs/inbox/Cargo.toml
-	$(MAKE) -C $(MARGO_PROJECT) add CRATE=$(CURDIR)/libs/target/package/mulac-inbox-$(LIBS_VERSION).crate
-	cargo package --no-verify --manifest-path libs/inbox_api/Cargo.toml
-	$(MAKE) -C $(MARGO_PROJECT) add CRATE=$(CURDIR)/libs/target/package/inbox_api-$(LIBS_VERSION).crate
-	cargo package --no-verify --manifest-path libs/commanding_api/Cargo.toml
-	$(MAKE) -C $(MARGO_PROJECT) add CRATE=$(CURDIR)/libs/target/package/commanding_api-$(LIBS_VERSION).crate
-	cargo package --no-verify --manifest-path libs/eventing_api/Cargo.toml
-	$(MAKE) -C $(MARGO_PROJECT) add CRATE=$(CURDIR)/libs/target/package/eventing_api-$(LIBS_VERSION).crate
-	cargo package --no-verify --manifest-path libs/outbox_api/Cargo.toml
-	$(MAKE) -C $(MARGO_PROJECT) add CRATE=$(CURDIR)/libs/target/package/outbox_api-$(LIBS_VERSION).crate
-	cargo package --no-verify --manifest-path libs/mulac_poem/Cargo.toml
-	$(MAKE) -C $(MARGO_PROJECT) add CRATE=$(CURDIR)/libs/target/package/mulac_poem-$(LIBS_VERSION).crate
-	cargo package --no-verify --manifest-path libs/mulac_axum/Cargo.toml
-	$(MAKE) -C $(MARGO_PROJECT) add CRATE=$(CURDIR)/libs/target/package/mulac_axum-$(LIBS_VERSION).crate
-	cargo package --no-verify --manifest-path kernel/Cargo.toml
-	$(MAKE) -C $(MARGO_PROJECT) add CRATE=$(CURDIR)/kernel/target/package/mulac-kernel-$(KERNEL_VERSION).crate
+	python3 scripts/pack_and_publish.py --registry "$(CRATES_DIR)" --margo "$(MARGO)" --deploy --push-url "$(CRATES_PUSH_URL)"
+
+test-publishing:
+	python3 -m unittest discover -s scripts -p 'test_*.py'
 
 test-apps-up:
 	@$(MAKE) -C test_apps up
