@@ -7,11 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-10-31
+
 ### Changed
 
 - Rename `commanding_api`, `eventing_api`, `inbox_api`, and `outbox_api` to
   `mulac_commanding_api`, `mulac_eventing_api`, `mulac_inbox_api`, and
   `mulac_outbox_api`. Update dependency names and Rust imports accordingly.
+  This is a source-level migration for users of these APIs, despite the patch
+  version; the previously published package names remain available at `0.4.0`.
+- Bump library, kernel, and test application versions and internal dependency
+  requirements to `0.4.1`.
+- Publish through `~/work/labs/crates` to the hosted GitHub Pages registry.
+  `make pack_and_publish` packages dependencies in order, verifies archive
+  checksums, and commits and pushes the registry artifacts. Identical retries
+  are safe; existing versions with different bytes are rejected.
 
 ## [0.4.0] - 2026-10-31
 
@@ -94,3 +104,5 @@ command and event dispatchers.
 [0.1.0]: https://github.com/your-org/mulac/releases/tag/v0.1.0
 
 [0.4.0]: https://github.com/nulllabsdev/mulac/releases/tag/v0.4.0
+
+[0.4.1]: https://github.com/nulllabsdev/mulac/releases/tag/0.4.1
