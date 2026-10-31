@@ -11,7 +11,7 @@ testing = ["dep:chrono", "dep:uuid"]
 
 [dependencies]
 chrono = { workspace = true, optional = true }
-outbox = { path = "../outbox", version = "0.3.0", registry = "margo", default-features = false, package = "mulac-outbox" }
+outbox = { path = "../outbox", version = "0.4.0", registry = "margo", default-features = false, package = "mulac-outbox" }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-31
+
+### Added
+
+- Framework-neutral inbox, commanding, eventing, and outbox API crates.
+- Poem and Axum HTTP adapters for queue APIs, including optional OpenAPI support.
+- Optional application-owned event sequences carried through command dispatch,
+  event storage, and outbox metadata while preserving framework delivery IDs.
+
 ### Fixed
 
 - Kernel startup no longer installs successful no-op inbox stores or event
@@ -19,6 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Migrate the todo test application from SQLx to Diesel, sharing one pool for
+  application queries and kernel persistence.
+- Bump all library, kernel, and test application versions and internal version
+  requirements to `0.4.0`.
 - **Startup compatibility:** applications using `start()` must supply an inbox
   store explicitly. `KernelConfig::database_url` does not provision one.
   The direct-only inbox store option is rejected by `start_persistent`.
@@ -73,3 +86,5 @@ command and event dispatchers.
   specification.
 
 [0.1.0]: https://github.com/your-org/mulac/releases/tag/v0.1.0
+
+[0.4.0]: https://github.com/nulllabsdev/mulac/releases/tag/v0.4.0

@@ -8,7 +8,7 @@ tokio = ["dep:tokio"]
 testing = ["dep:uuid"]
 
 [dependencies]
-eventing = { path = "../eventing", version = "0.3.0", registry = "margo", default-features = false, package = "mulac-eventing" }
+eventing = { path = "../eventing", version = "0.4.0", registry = "margo", default-features = false, package = "mulac-eventing" }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
