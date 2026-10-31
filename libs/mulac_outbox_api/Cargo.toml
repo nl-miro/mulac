@@ -1,14 +1,17 @@
 [package]
-name = "eventing_api"
+name = "mulac_outbox_api"
 version.workspace = true
 edition.workspace = true
 
 [features]
+default = ["diesel"]
+diesel = ["outbox/diesel"]
 tokio = ["dep:tokio"]
-testing = ["dep:uuid"]
+testing = ["dep:chrono", "dep:uuid"]
 
 [dependencies]
-eventing = { path = "../eventing", version = "0.4.0", registry = "margo", default-features = false, package = "mulac-eventing" }
+chrono = { workspace = true, optional = true }
+outbox = { path = "../outbox", version = "0.4.0", registry = "margo", default-features = false, package = "mulac-outbox" }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true

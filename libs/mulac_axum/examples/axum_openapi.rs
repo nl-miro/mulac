@@ -6,7 +6,6 @@
 use axum::extract::State;
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use inbox_api::io::InboxService;
 use mulac_axum::io::{
     InboxAdapter,
     InboxHttpError,
@@ -16,6 +15,7 @@ use mulac_axum::io::{
     SubmitInbox,
     //
 };
+use mulac_inbox_api::io::InboxService;
 use utoipa::OpenApi;
 
 /// Store one message without processing it. Unknown routing keys are accepted.

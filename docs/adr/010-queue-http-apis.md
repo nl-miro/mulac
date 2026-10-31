@@ -6,7 +6,7 @@
 ## Context
 
 [ADR-009](009-inbox-http-adapters.md) moved the inbox HTTP operations into
-`inbox_api` with Poem and Axum adapters. Applications still implement the
+`mulac_inbox_api` with Poem and Axum adapters. Applications still implement the
 other three batch endpoints themselves:
 
 | Endpoint             | Runs one batch of                                  |
@@ -17,8 +17,8 @@ other three batch endpoints themselves:
 
 Each application repeats the limit validation, the `spawn_blocking` call,
 result conversion and error mapping. The offers service does this in one
-Poem `QueueApi`. The skeleton crates `commanding_api`, `eventing_api` and
-`outbox_api` exist but contain no code.
+Poem `QueueApi`. The skeleton crates `mulac_commanding_api`, `mulac_eventing_api` and
+`mulac_outbox_api` exist but contain no code.
 
 The three endpoints share one wire contract with `/inbox/run`: a
 `{"limit":N}` request from `1` to `1000` and a
@@ -36,14 +36,14 @@ only one with a third (`503`) outcome and a service-owned publisher.
 
 | Crate             | Responsibility                                                                 |
 |-------------------|--------------------------------------------------------------------------------|
-| `commanding_api`  | `RunCommandsRequest`/`RunCommandsResponse`, `CommandingService`, errors         |
-| `eventing_api`    | `RunEventsRequest`/`RunEventsResponse`, `EventingService`, errors               |
-| `outbox_api`      | `RunOutboxRequest`/`RunOutboxResponse`, `OutboxService`, errors, unconfigured state |
+| `mulac_commanding_api`  | `RunCommandsRequest`/`RunCommandsResponse`, `CommandingService`, errors         |
+| `mulac_eventing_api`    | `RunEventsRequest`/`RunEventsResponse`, `EventingService`, errors               |
+| `mulac_outbox_api`      | `RunOutboxRequest`/`RunOutboxResponse`, `OutboxService`, errors, unconfigured state |
 | `mulac_poem`      | Private `commanding`, `eventing` and `outbox` modules with a `*Adapter` each    |
 | `mulac_axum`      | The same modules with an adapter, extractor, response and error type each       |
 
 - Each `*_api` crate is framework-free and depends on its own queue crate with
-  `default-features = false`. It does not depend on the kernel, on `inbox_api`
+  `default-features = false`. It does not depend on the kernel, on `mulac_inbox_api`
   or on the other `*_api` crates.
 - Each `*_api` crate has an optional `tokio` feature with an
   `Async*Service` that owns the `spawn_blocking` call and maps a join failure
@@ -56,19 +56,19 @@ only one with a third (`503`) outcome and a service-owned publisher.
   as HTTP callers. Consumer failures are data in a `200` response, not errors.
 - Reservation, retries, backoff, the six-attempt limit and dead-lettering stay
   in the queue crates. The HTTP contract exposes none of them.
-- `commanding_api` and `eventing_api` wrap a consumer that the application or
+- `mulac_commanding_api` and `mulac_eventing_api` wrap a consumer that the application or
   the kernel assembled (`PersistentKernelHandle::command_consumer()` and
   `event_consumer()`), because the dispatchers hold application handlers and
   subscribers. They have no `from_postgres` constructor and no `diesel`
-  feature. `outbox_api` keeps a `from_postgres(pool, publisher)` constructor
+  feature. `mulac_outbox_api` keeps a `from_postgres(pool, publisher)` constructor
   behind `diesel`, because nothing else assembles an outbox consumer.
 
 ### Per-crate run types and one schema owner per framework
 
-Each `*_api` crate defines its own run types, copied from `inbox_api`'s
+Each `*_api` crate defines its own run types, copied from `mulac_inbox_api`'s
 `RunRequest`/`RunResponse`, with the same bounds (`MIN_LIMIT = 1`,
 `MAX_LIMIT = 1000`), the same `limit must be between 1 and 1000` message and
-the same `from_result` mapping. `inbox_api` is unchanged.
+the same `from_result` mapping. `mulac_inbox_api` is unchanged.
 
 The per-crate types are never published as schemas:
 
@@ -120,17 +120,17 @@ Batch responses keep reporting the queue crates' error messages, as today.
 Sanitizing them would be a separate behavior change.
 
 Commanding and eventing errors are either client errors (`400`) or server
-errors (`500`), classified by `is_client_error()` as in `inbox_api`.
+errors (`500`), classified by `is_client_error()` as in `mulac_inbox_api`.
 
 ### Outbox: unconfigured state and publisher ownership
 
-- `outbox_api` models a missing publisher as a Mulac state: an unconfigured
+- `mulac_outbox_api` models a missing publisher as a Mulac state: an unconfigured
   service validates the request and then returns `PublisherNotConfigured`,
   displayed as `outbox publisher is not configured`, which the adapters map
   to `503`. It never touches storage, and invalid bodies still return `400`
   first. Because the outbox has three outcomes, its error type classifies
   itself as invalid, unavailable or internal instead of using a boolean.
-- The publisher stays owned by the service. `outbox_api` and the adapters
+- The publisher stays owned by the service. `mulac_outbox_api` and the adapters
   accept any `Arc<dyn OutboxPublisherPort>` and neither enable nor forward
   `mulac-outbox/amqp`. Broker configuration, environment parsing and topology
   remain application concerns.

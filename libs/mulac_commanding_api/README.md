@@ -1,4 +1,4 @@
-# commanding_api
+# mulac_commanding_api
 
 Framework-free HTTP contract and operation for running one batch of due
 commands with the [`commanding`](../commanding) crate, shared by the
@@ -48,6 +48,6 @@ does not stop a command that has already started.
   the storage error first.
 - A blocking task failure displays `queue processing task failed`; the cause
   stays in `source()`.
-- The run types are copies of `inbox_api`'s. `testing::valid_run_requests`,
+- The run types are copies of `mulac_inbox_api`'s. `testing::valid_run_requests`,
   `invalid_run_requests` and `run_request_error_messages` are the shared table
   every `*_api` crate and adapter runs, so the copies cannot drift silently.

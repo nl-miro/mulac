@@ -6,6 +6,7 @@
 //! ```sh
 //! DATABASE_URL=postgres://... cargo run -p mulac_poem --features outbox --example poem_outbox
 //! ```
+use mulac_outbox_api::io::OutboxService;
 use mulac_poem::io::{
     OutboxAdapter,
     RunRequest,
@@ -18,7 +19,6 @@ use outbox::io::{
     OutboxPublisherPort,
     //
 };
-use outbox_api::io::OutboxService;
 use poem::{Result, Route, Server, listener::TcpListener};
 use poem_openapi::{OpenApi, OpenApiService, payload::Json};
 use std::sync::Arc;

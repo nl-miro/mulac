@@ -16,7 +16,7 @@ use crate::extract::io::{
 use axum::Json;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use inbox_api::io::{
+use mulac_inbox_api::io::{
     AsyncInboxService,
     RunResponse,
     SubmitInboxResponse,
@@ -90,7 +90,7 @@ mod tests {
     use axum::http::{Request, header};
     use axum::routing::post;
     use http_body_util::BodyExt;
-    use inbox_api::io::{InboxService, testing};
+    use mulac_inbox_api::io::{InboxService, testing};
     use serde_json::{Value, json};
     use tower::ServiceExt;
 

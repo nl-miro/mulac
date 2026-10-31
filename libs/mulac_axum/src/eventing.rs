@@ -18,7 +18,7 @@ use axum::extract::rejection::JsonRejection;
 use axum::extract::{FromRequest, Request};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use eventing_api::io::{
+use mulac_eventing_api::io::{
     AsyncEventingService,
     EventingApiError,
     RunEventsRequest,
@@ -145,8 +145,8 @@ mod tests {
     use axum::extract::{DefaultBodyLimit, State};
     use axum::http::{Request, header};
     use axum::routing::post;
-    use eventing_api::io::{EventingService, testing};
     use http_body_util::BodyExt;
+    use mulac_eventing_api::io::{EventingService, testing};
     use serde_json::{Value, json};
     use tower::ServiceExt;
 

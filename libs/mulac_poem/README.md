@@ -1,9 +1,9 @@
 # mulac_poem
 
-Poem and poem-openapi adapter for [`inbox_api`](../inbox_api) and, behind
+Poem and poem-openapi adapter for [`mulac_inbox_api`](../mulac_inbox_api) and, behind
 the `commanding`, `eventing` and `outbox` features,
-[`commanding_api`](../commanding_api), [`eventing_api`](../eventing_api) and
-[`outbox_api`](../outbox_api).
+[`mulac_commanding_api`](../mulac_commanding_api), [`mulac_eventing_api`](../mulac_eventing_api) and
+[`mulac_outbox_api`](../mulac_outbox_api).
 Applications declare the endpoints; the adapter parses, validates and
 executes them. See [ADR-009](../../docs/adr/009-inbox-http-adapters.md) and
 [ADR-010](../../docs/adr/010-queue-http-apis.md).
@@ -31,10 +31,10 @@ crate's run types and add no schema.
 
 | Feature      | Default | Enables                                       |
 |--------------|---------|-----------------------------------------------|
-| `diesel`     | yes     | `inbox_api/diesel` (`from_postgres`), and `outbox_api/diesel` with `outbox` |
-| `commanding` | no      | `CommandingAdapter` and `commanding_api`      |
-| `eventing`   | no      | `EventingAdapter` and `eventing_api`          |
-| `outbox`     | no      | `OutboxAdapter` and `outbox_api`              |
+| `diesel`     | yes     | `mulac_inbox_api/diesel` (`from_postgres`), and `mulac_outbox_api/diesel` with `outbox` |
+| `commanding` | no      | `CommandingAdapter` and `mulac_commanding_api`      |
+| `eventing`   | no      | `EventingAdapter` and `mulac_eventing_api`          |
+| `outbox`     | no      | `OutboxAdapter` and `mulac_outbox_api`              |
 
 ## Usage
 

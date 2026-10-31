@@ -16,7 +16,7 @@ use axum::extract::rejection::JsonRejection;
 use axum::extract::{FromRequest, Request};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use inbox_api::io::{
+use mulac_inbox_api::io::{
     InboxApiError,
     RunRequest,
     SubmitInboxRequest,

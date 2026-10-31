@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Rename `commanding_api`, `eventing_api`, `inbox_api`, and `outbox_api` to
+  `mulac_commanding_api`, `mulac_eventing_api`, `mulac_inbox_api`, and
+  `mulac_outbox_api`. Update dependency names and Rust imports accordingly.
+
 ## [0.4.0] - 2026-10-31
 
 ### Added

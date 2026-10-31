@@ -1,4 +1,4 @@
-# eventing_api
+# mulac_eventing_api
 
 Framework-free HTTP contract and operation for dispatching one batch of due
 events with the [`eventing`](../eventing) crate, shared by the
@@ -49,6 +49,6 @@ that has already started.
   errors, the storage error first.
 - A blocking task failure displays `queue processing task failed`; the cause
   stays in `source()`.
-- The run types are copies of `inbox_api`'s. `testing::valid_run_requests`,
+- The run types are copies of `mulac_inbox_api`'s. `testing::valid_run_requests`,
   `invalid_run_requests` and `run_request_error_messages` are the shared table
   every `*_api` crate and adapter runs, so the copies cannot drift silently.

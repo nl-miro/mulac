@@ -3,8 +3,8 @@
 //! Applications declare the endpoints and delegate to [`io::InboxAdapter`] or,
 //! with the `commanding`, `eventing` and `outbox` features,
 //! `io::CommandingAdapter`, `io::EventingAdapter` and `io::OutboxAdapter`;
-//! parsing, validation and execution live in `inbox_api`, `commanding_api`,
-//! `eventing_api` and `outbox_api`.
+//! parsing, validation and execution live in `mulac_inbox_api`, `mulac_commanding_api`,
+//! `mulac_eventing_api` and `mulac_outbox_api`.
 pub mod io {
     pub use crate::adapter::io::{
         InboxAdapter,

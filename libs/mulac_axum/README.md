@@ -1,8 +1,8 @@
 # mulac_axum
 
-Axum adapter for [`inbox_api`](../inbox_api) and, behind the `commanding`,
-`eventing` and `outbox` features, [`commanding_api`](../commanding_api),
-[`eventing_api`](../eventing_api) and [`outbox_api`](../outbox_api). Applications declare the routes; the adapter's extractors and responses handle parsing, validation,
+Axum adapter for [`mulac_inbox_api`](../mulac_inbox_api) and, behind the `commanding`,
+`eventing` and `outbox` features, [`mulac_commanding_api`](../mulac_commanding_api),
+[`mulac_eventing_api`](../mulac_eventing_api) and [`mulac_outbox_api`](../mulac_outbox_api). Applications declare the routes; the adapter's extractors and responses handle parsing, validation,
 execution and error responses. See
 [ADR-009](../../docs/adr/009-inbox-http-adapters.md) and
 [ADR-010](../../docs/adr/010-queue-http-apis.md).
@@ -52,11 +52,11 @@ rejections.
 
 | Feature      | Default | Enables                                                    |
 |--------------|---------|------------------------------------------------------------|
-| `diesel`     | yes     | `inbox_api/diesel` (`from_postgres`), and `outbox_api/diesel` with `outbox` |
+| `diesel`     | yes     | `mulac_inbox_api/diesel` (`from_postgres`), and `mulac_outbox_api/diesel` with `outbox` |
 | `utoipa`     | no      | `ToSchema` for the adapter types, using the shared names   |
-| `commanding` | no      | `CommandingAdapter` and its types, with `commanding_api`   |
-| `eventing`   | no      | `EventingAdapter` and its types, with `eventing_api`       |
-| `outbox`     | no      | `OutboxAdapter` and its types, with `outbox_api`           |
+| `commanding` | no      | `CommandingAdapter` and its types, with `mulac_commanding_api`   |
+| `eventing`   | no      | `EventingAdapter` and its types, with `mulac_eventing_api`       |
+| `outbox`     | no      | `OutboxAdapter` and its types, with `mulac_outbox_api`           |
 
 ## Usage
 

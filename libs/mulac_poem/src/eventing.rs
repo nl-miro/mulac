@@ -7,7 +7,7 @@ use crate::types::io::{
     RunResponse,
     //
 };
-use eventing_api::io::{
+use mulac_eventing_api::io::{
     AsyncEventingService,
     EventingApiError,
     RunEventsRequest,
@@ -65,7 +65,7 @@ impl From<RunRequest> for RunEventsRequest {
 
 impl From<RunEventsResponse> for RunResponse {
     fn from(response: RunEventsResponse) -> Self {
-        Self(inbox_api::io::RunResponse {
+        Self(mulac_inbox_api::io::RunResponse {
             processed: response.processed,
             errors: response.errors,
         })
@@ -85,7 +85,7 @@ fn err_eventing_failed(error: EventingApiError) -> Error {
 mod tests {
     use super::*;
     use crate::adapter::io::InboxAdapter;
-    use eventing_api::io::{EventingService, testing};
+    use mulac_eventing_api::io::{EventingService, testing};
     use poem::{Route, test::TestClient};
     use poem_openapi::{OpenApi, OpenApiService};
     use serde_json::{Value, json};
@@ -109,7 +109,7 @@ mod tests {
     }
 
     fn client(service: EventingService) -> TestClient<Route> {
-        let (inbox, _) = inbox_api::io::testing::recording_service();
+        let (inbox, _) = mulac_inbox_api::io::testing::recording_service();
         let api = OpenApiService::new(
             TestApi {
                 inbox: InboxAdapter::new(inbox),

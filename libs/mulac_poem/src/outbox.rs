@@ -7,7 +7,7 @@ use crate::types::io::{
     RunResponse,
     //
 };
-use outbox_api::io::{
+use mulac_outbox_api::io::{
     AsyncOutboxService,
     OutboxApiError,
     OutboxApiErrorKind,
@@ -72,7 +72,7 @@ impl From<RunRequest> for RunOutboxRequest {
 
 impl From<RunOutboxResponse> for RunResponse {
     fn from(response: RunOutboxResponse) -> Self {
-        Self(inbox_api::io::RunResponse {
+        Self(mulac_inbox_api::io::RunResponse {
             processed: response.processed,
             errors: response.errors,
         })
@@ -92,7 +92,7 @@ fn err_outbox_failed(error: OutboxApiError) -> Error {
 mod tests {
     use super::*;
     use crate::adapter::io::InboxAdapter;
-    use outbox_api::io::testing;
+    use mulac_outbox_api::io::testing;
     use poem::{Route, test::TestClient};
     use poem_openapi::{OpenApi, OpenApiService};
     use serde_json::{Value, json};
@@ -116,7 +116,7 @@ mod tests {
     }
 
     fn client(outbox: OutboxAdapter) -> TestClient<Route> {
-        let (inbox, _) = inbox_api::io::testing::recording_service();
+        let (inbox, _) = mulac_inbox_api::io::testing::recording_service();
         let api = OpenApiService::new(
             TestApi {
                 inbox: InboxAdapter::new(inbox),

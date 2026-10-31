@@ -7,7 +7,7 @@ use crate::types::io::{
     RunResponse,
     //
 };
-use commanding_api::io::{
+use mulac_commanding_api::io::{
     AsyncCommandingService,
     CommandingApiError,
     RunCommandsRequest,
@@ -65,7 +65,7 @@ impl From<RunRequest> for RunCommandsRequest {
 
 impl From<RunCommandsResponse> for RunResponse {
     fn from(response: RunCommandsResponse) -> Self {
-        Self(inbox_api::io::RunResponse {
+        Self(mulac_inbox_api::io::RunResponse {
             processed: response.processed,
             errors: response.errors,
         })
@@ -85,7 +85,7 @@ fn err_commanding_failed(error: CommandingApiError) -> Error {
 mod tests {
     use super::*;
     use crate::adapter::io::InboxAdapter;
-    use commanding_api::io::{CommandingService, testing};
+    use mulac_commanding_api::io::{CommandingService, testing};
     use poem::{Route, test::TestClient};
     use poem_openapi::{OpenApi, OpenApiService};
     use serde_json::{Value, json};
@@ -109,7 +109,7 @@ mod tests {
     }
 
     fn client(service: CommandingService) -> TestClient<Route> {
-        let (inbox, _) = inbox_api::io::testing::recording_service();
+        let (inbox, _) = mulac_inbox_api::io::testing::recording_service();
         let api = OpenApiService::new(
             TestApi {
                 inbox: InboxAdapter::new(inbox),

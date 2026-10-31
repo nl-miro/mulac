@@ -1,7 +1,7 @@
 //! Axum command batch route with an application-owned Utoipa annotation.
 //!
 //! The application owns the command consumer. This example uses a test double
-//! from `commanding_api`'s `testing` feature; a real service passes
+//! from `mulac_commanding_api`'s `testing` feature; a real service passes
 //! `PersistentKernelHandle::command_consumer()` to `CommandingService::new`.
 //!
 //! ```sh
@@ -10,7 +10,6 @@
 use axum::extract::State;
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use commanding_api::io::testing;
 use mulac_axum::io::{
     CommandingAdapter,
     CommandingHttpError,
@@ -18,6 +17,7 @@ use mulac_axum::io::{
     RunCommands,
     //
 };
+use mulac_commanding_api::io::testing;
 use utoipa::OpenApi;
 
 /// Execute one batch of due commands; resulting events remain queued.

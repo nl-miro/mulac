@@ -6,7 +6,6 @@
 use axum::Router;
 use axum::extract::State;
 use axum::routing::post;
-use inbox_api::io::InboxService;
 use mulac_axum::io::{
     InboxAdapter,
     InboxHttpError,
@@ -16,6 +15,7 @@ use mulac_axum::io::{
     SubmitInbox,
     //
 };
+use mulac_inbox_api::io::InboxService;
 
 async fn submit_inbox(
     State(inbox): State<InboxAdapter>,

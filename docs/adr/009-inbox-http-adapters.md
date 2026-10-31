@@ -21,7 +21,7 @@ Split inbox HTTP support into three crates in the `libs` workspace:
 
 | Crate             | Responsibility                                                                                  |
 |-------------------|-------------------------------------------------------------------------------------------------|
-| `inbox_api`       | Framework-free contract, validation, `InboxService`, optional Tokio wrapper, PostgreSQL assembly |
+| `mulac_inbox_api`       | Framework-free contract, validation, `InboxService`, optional Tokio wrapper, PostgreSQL assembly |
 | `mulac_poem`      | Poem/OpenAPI request and response types, `InboxAdapter`, error conversion                       |
 | `mulac_axum`      | Axum extractors, `InboxAdapter`, `IntoResponse` conversions, optional Utoipa schemas            |
 

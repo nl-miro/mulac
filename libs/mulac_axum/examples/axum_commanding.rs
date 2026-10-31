@@ -1,7 +1,7 @@
 //! Axum service exposing the command batch route under `/api`, without OpenAPI.
 //!
 //! The application owns the command consumer. This example uses a test double
-//! from `commanding_api`'s `testing` feature; a real service passes
+//! from `mulac_commanding_api`'s `testing` feature; a real service passes
 //! `PersistentKernelHandle::command_consumer()` to `CommandingService::new`.
 //!
 //! ```sh
@@ -10,7 +10,6 @@
 use axum::Router;
 use axum::extract::State;
 use axum::routing::post;
-use commanding_api::io::testing;
 use mulac_axum::io::{
     CommandingAdapter,
     CommandingHttpError,
@@ -18,6 +17,7 @@ use mulac_axum::io::{
     RunCommands,
     //
 };
+use mulac_commanding_api::io::testing;
 
 async fn run_commands(
     State(commands): State<CommandingAdapter>,

@@ -44,9 +44,9 @@ test-apps:
 	$(call run-in-dirs,$(APP_DIRS),test --all-features)
 
 CI_DIRS := libs kernel
-NEW_LIBS := inbox_api commanding_api eventing_api outbox_api mulac_poem mulac_axum
+NEW_LIBS := mulac_inbox_api mulac_commanding_api mulac_eventing_api mulac_outbox_api mulac_poem mulac_axum
 LIBS_MANIFEST := --manifest-path libs/Cargo.toml
-# Opt-in adapter features; feature `<name>` enables the optional `<name>_api` crate.
+# Opt-in adapter features; feature `<name>` enables the optional `mulac_<name>_api` crate.
 ADAPTER_FEATURES := commanding eventing outbox
 ADAPTERS := mulac_poem mulac_axum
 
@@ -66,22 +66,22 @@ ci:
 		cargo clippy --no-deps -p $$crate --all-targets --no-default-features $(LIBS_MANIFEST) -- -D warnings; \
 	done; \
 	echo "== dependency boundaries =="; \
-	if cargo tree -p inbox_api --no-default-features --features tokio -e normal $(LIBS_MANIFEST) | grep -q diesel; then \
-		echo "inbox_api without diesel must not depend on Diesel"; exit 1; fi; \
+	if cargo tree -p mulac_inbox_api --no-default-features --features tokio -e normal $(LIBS_MANIFEST) | grep -q diesel; then \
+		echo "mulac_inbox_api without diesel must not depend on Diesel"; exit 1; fi; \
 	if cargo tree -p mulac_poem --all-features -e normal $(LIBS_MANIFEST) | grep -qE ' (axum|utoipa) '; then \
 		echo "mulac_poem must not depend on Axum"; exit 1; fi; \
 	if cargo tree -p mulac_axum --all-features -e normal $(LIBS_MANIFEST) | grep -qE ' poem'; then \
 		echo "mulac_axum must not depend on Poem"; exit 1; fi; \
 	if cargo tree -p mulac_axum -e normal $(LIBS_MANIFEST) | grep -q ' utoipa '; then \
 		echo "mulac_axum must not require utoipa"; exit 1; fi; \
-	if cargo tree -p outbox_api --all-features -e normal $(LIBS_MANIFEST) | grep -q ' lapin '; then \
-		echo "outbox_api must not depend on lapin"; exit 1; fi; \
+	if cargo tree -p mulac_outbox_api --all-features -e normal $(LIBS_MANIFEST) | grep -q ' lapin '; then \
+		echo "mulac_outbox_api must not depend on lapin"; exit 1; fi; \
 	for adapter in $(ADAPTERS); do \
 		if cargo tree -p $$adapter --all-features -e normal $(LIBS_MANIFEST) | grep -q ' lapin '; then \
 			echo "$$adapter must not depend on lapin"; exit 1; fi; \
 	done; \
 	for feature in $(ADAPTER_FEATURES); do \
-		api=$${feature}_api; \
+		api=mulac_$${feature}_api; \
 		echo "== adapter feature $$feature =="; \
 		if cargo tree -p $$api --no-default-features --features tokio -e normal $(LIBS_MANIFEST) | grep -q diesel; then \
 			echo "$$api must not depend on Diesel"; exit 1; fi; \

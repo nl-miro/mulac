@@ -1,4 +1,4 @@
-# inbox_api
+# mulac_inbox_api
 
 Framework-free inbox HTTP contract and operations shared by the
 [`mulac_poem`](../mulac_poem) and [`mulac_axum`](../mulac_axum) adapters.

@@ -13,7 +13,7 @@ use crate::types::io::{
     SubmitInboxResponse,
     //
 };
-use inbox_api::io::{
+use mulac_inbox_api::io::{
     AsyncInboxService,
     InboxApiError,
     //
@@ -93,7 +93,7 @@ fn err_inbox_failed(error: InboxApiError) -> Error {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use inbox_api::io::{InboxService, testing};
+    use mulac_inbox_api::io::{InboxService, testing};
     use poem::{Route, test::TestClient};
     use poem_openapi::{OpenApi, OpenApiService};
     use serde_json::{Value, json};

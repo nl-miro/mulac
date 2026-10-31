@@ -115,7 +115,7 @@ not count as published unless the broker routed and confirmed it.
 - Connecting and publishing are bounded by a timeout, 10 seconds by default
   (`ConfirmedAmqpPublisher::DEFAULT_TIMEOUT`, `with_timeout`).
 - `publish` never creates a runtime. It needs a current Tokio runtime handle
-  and must run on that runtime's blocking pool, as `outbox_api`'s
+  and must run on that runtime's blocking pool, as `mulac_outbox_api`'s
   `AsyncOutboxService` does.
 - Errors are fixed strings without broker diagnostics:
 
@@ -348,7 +348,7 @@ Applies to retriable `failed()` transitions caused by transport publication fail
 
 ## HTTP Batch Endpoint
 
-`POST /outbox/run` is provided by [`libs/outbox_api`](../libs/outbox_api) and
+`POST /outbox/run` is provided by [`libs/mulac_outbox_api`](../libs/mulac_outbox_api) and
 exposed through the `outbox` feature of `mulac_poem` and `mulac_axum`
 ([ADR-010](adr/010-queue-http-apis.md)). It publishes one batch through
 `OutboxConsumer::publish_batch` with `ReservableOutboxSpec::new(limit)`:

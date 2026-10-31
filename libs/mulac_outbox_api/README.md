@@ -1,4 +1,4 @@
-# outbox_api
+# mulac_outbox_api
 
 Framework-free HTTP contract and operation for publishing one batch of due
 outbox entries with the [`outbox`](../outbox) crate, shared by the
@@ -41,7 +41,7 @@ let service = AsyncOutboxService::from(service);
 let service = AsyncOutboxService::unconfigured();
 ```
 
-`from_postgres` exists, unlike in `commanding_api` and `eventing_api`, because
+`from_postgres` exists, unlike in `mulac_commanding_api` and `mulac_eventing_api`, because
 no kernel assembles an outbox consumer. The publisher, its broker
 configuration and topology stay with the application.
 
@@ -67,6 +67,6 @@ delivery stays at least once.
   storage.
 - A blocking task failure displays `queue processing task failed`
   (`Internal`); the cause stays in `source()`.
-- The run types are copies of `inbox_api`'s. `testing::valid_run_requests`,
+- The run types are copies of `mulac_inbox_api`'s. `testing::valid_run_requests`,
   `invalid_run_requests` and `run_request_error_messages` are the shared table
   every `*_api` crate and adapter runs, so the copies cannot drift silently.

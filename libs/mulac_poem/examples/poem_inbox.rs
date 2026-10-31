@@ -3,7 +3,7 @@
 //! ```sh
 //! DATABASE_URL=postgres://... cargo run -p mulac_poem --example poem_inbox
 //! ```
-use inbox_api::io::InboxService;
+use mulac_inbox_api::io::InboxService;
 use mulac_poem::io::{
     InboxAdapter,
     InboxSubmission,

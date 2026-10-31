@@ -1,7 +1,7 @@
 //! Axum event batch route with an application-owned Utoipa annotation.
 //!
 //! The application owns the event consumer. This example uses a test double
-//! from `eventing_api`'s `testing` feature; a real service passes
+//! from `mulac_eventing_api`'s `testing` feature; a real service passes
 //! `PersistentKernelHandle::event_consumer()` to `EventingService::new`.
 //!
 //! ```sh
@@ -10,7 +10,6 @@
 use axum::extract::State;
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use eventing_api::io::testing;
 use mulac_axum::io::{
     EventingAdapter,
     EventingHttpError,
@@ -18,6 +17,7 @@ use mulac_axum::io::{
     RunEvents,
     //
 };
+use mulac_eventing_api::io::testing;
 use utoipa::OpenApi;
 
 /// Dispatch one batch of due events to the registered subscribers.

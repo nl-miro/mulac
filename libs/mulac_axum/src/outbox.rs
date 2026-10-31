@@ -18,7 +18,7 @@ use axum::extract::rejection::JsonRejection;
 use axum::extract::{FromRequest, Request};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use outbox_api::io::{
+use mulac_outbox_api::io::{
     AsyncOutboxService,
     OutboxApiError,
     OutboxApiErrorKind,
@@ -154,7 +154,7 @@ mod tests {
     use axum::http::{Request, header};
     use axum::routing::post;
     use http_body_util::BodyExt;
-    use outbox_api::io::testing;
+    use mulac_outbox_api::io::testing;
     use serde_json::{Value, json};
     use tower::ServiceExt;
 

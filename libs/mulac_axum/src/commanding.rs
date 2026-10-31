@@ -18,7 +18,7 @@ use axum::extract::rejection::JsonRejection;
 use axum::extract::{FromRequest, Request};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use commanding_api::io::{
+use mulac_commanding_api::io::{
     AsyncCommandingService,
     CommandingApiError,
     RunCommandsRequest,
@@ -150,8 +150,8 @@ mod tests {
     use axum::extract::{DefaultBodyLimit, State};
     use axum::http::{Request, header};
     use axum::routing::post;
-    use commanding_api::io::{CommandingService, testing};
     use http_body_util::BodyExt;
+    use mulac_commanding_api::io::{CommandingService, testing};
     use serde_json::{Value, json};
     use tower::ServiceExt;
 

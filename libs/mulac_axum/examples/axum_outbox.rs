@@ -1,7 +1,7 @@
 //! Axum service exposing the outbox batch route under `/api`, without OpenAPI.
 //!
 //! The application owns the publisher. This example uses a test double
-//! from `outbox_api`'s `testing` feature; a real service passes its pool and
+//! from `mulac_outbox_api`'s `testing` feature; a real service passes its pool and
 //! publisher to `OutboxService::from_postgres`, or uses
 //! `OutboxAdapter::unconfigured()` to answer `503` while delivery is off.
 //!
@@ -18,7 +18,7 @@ use mulac_axum::io::{
     RunOutbox,
     //
 };
-use outbox_api::io::testing;
+use mulac_outbox_api::io::testing;
 
 async fn run_outbox(
     State(outbox): State<OutboxAdapter>,

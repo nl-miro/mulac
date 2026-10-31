@@ -5,29 +5,29 @@ edition.workspace = true
 
 [features]
 default = ["diesel"]
-diesel = ["inbox_api/diesel", "outbox_api?/diesel"]
-commanding = ["dep:commanding_api"]
-eventing = ["dep:eventing_api"]
-outbox = ["dep:outbox_api"]
+diesel = ["mulac_inbox_api/diesel", "mulac_outbox_api?/diesel"]
+commanding = ["dep:mulac_commanding_api"]
+eventing = ["dep:mulac_eventing_api"]
+outbox = ["dep:mulac_outbox_api"]
 utoipa = ["dep:utoipa"]
 
 [dependencies]
 axum = { version = "0.8", default-features = false, features = ["json"] }
-commanding_api = { workspace = true, features = ["tokio"], optional = true }
-eventing_api = { workspace = true, features = ["tokio"], optional = true }
-inbox_api = { workspace = true, features = ["tokio"] }
-outbox_api = { workspace = true, features = ["tokio"], optional = true }
+mulac_commanding_api = { workspace = true, features = ["tokio"], optional = true }
+mulac_eventing_api = { workspace = true, features = ["tokio"], optional = true }
+mulac_inbox_api = { workspace = true, features = ["tokio"] }
+mulac_outbox_api = { workspace = true, features = ["tokio"], optional = true }
 serde_json.workspace = true
 utoipa = { version = "6", optional = true }
 
 [dev-dependencies]
 axum = { version = "0.8", features = ["json", "tokio"] }
-commanding_api = { workspace = true, features = ["testing", "tokio"] }
-eventing_api = { workspace = true, features = ["testing", "tokio"] }
+mulac_commanding_api = { workspace = true, features = ["testing", "tokio"] }
+mulac_eventing_api = { workspace = true, features = ["testing", "tokio"] }
 http-body-util = "0.1"
 inbox = { path = "../inbox", package = "mulac-inbox" }
-inbox_api = { workspace = true, features = ["testing", "tokio"] }
-outbox_api = { workspace = true, features = ["testing", "tokio"] }
+mulac_inbox_api = { workspace = true, features = ["testing", "tokio"] }
+mulac_outbox_api = { workspace = true, features = ["testing", "tokio"] }
 tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread"] }
 tower = { version = "0.5", features = ["util"] }
 

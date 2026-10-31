@@ -1,7 +1,7 @@
 //! Axum service exposing the event batch route under `/api`, without OpenAPI.
 //!
 //! The application owns the event consumer. This example uses a test double
-//! from `eventing_api`'s `testing` feature; a real service passes
+//! from `mulac_eventing_api`'s `testing` feature; a real service passes
 //! `PersistentKernelHandle::event_consumer()` to `EventingService::new`.
 //!
 //! ```sh
@@ -10,7 +10,6 @@
 use axum::Router;
 use axum::extract::State;
 use axum::routing::post;
-use eventing_api::io::testing;
 use mulac_axum::io::{
     EventingAdapter,
     EventingHttpError,
@@ -18,6 +17,7 @@ use mulac_axum::io::{
     RunEvents,
     //
 };
+use mulac_eventing_api::io::testing;
 
 async fn run_events(
     State(events): State<EventingAdapter>,
