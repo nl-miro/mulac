@@ -1,4 +1,4 @@
-.PHONY: all fmt check test test-libs test-apps
+.PHONY: all fmt check test test-libs test-apps prune-target
 
 CARGO_DIRS := $(shell find . -name Cargo.toml -not -path '*/target/*' -exec dirname {} \; | sort)
 LIB_DIRS   := $(filter-out ./test_apps/%,$(CARGO_DIRS))
@@ -113,6 +113,17 @@ pack_and_publish:
 
 test-publishing:
 	python3 -m unittest discover -s scripts -p 'test_*.py'
+
+# Keep only the newest KEEP builds per package in every target/ dir.
+# `make prune-target KEEP=3`, or `make prune-target DRY_RUN=1` to only list what would go.
+KEEP ?= 2
+prune-target:
+	@find . -path ./.git -prune -o -type d -regex '.*/target/[^/]*/\(deps\|\.fingerprint\|build\|incremental\)' -prune -print | \
+	while read -r d; do \
+		find "$$d" -mindepth 1 -maxdepth 1 -printf '%T@\t%p\n' | sort -rn | \
+		awk -F'\t' -v N=$(KEEP) '{p=$$2; f=p; sub(/.*\//,"",f); b=f; sub(/\..*/,"",b); h=b; sub(/.*-/,"",h); n=b; sub(/-[^-]*$$/,"",n); if (f ~ /\.(rlib|rmeta|so|a|dylib)$$/) sub(/^lib/,"",n); k=n SUBSEP h; if (!(k in s)) s[k]=++c[n]; if (s[k]>N) print p}'; \
+	done | \
+	if [ -n "$(DRY_RUN)" ]; then cat; else xargs -r -d '\n' rm -rf; fi
 
 test-apps-up:
 	@$(MAKE) -C test_apps up
