@@ -3,22 +3,22 @@
 //! HTTP adapters such as `mulac_poem` and `mulac_axum` parse request bodies
 //! into JSON values and delegate validation and execution here. The publisher
 //! is owned by the application; this crate never depends on a broker client.
-pub mod io {
-    pub use crate::contract::io::{
+pub mod prelude {
+    pub use crate::contract::prelude::{
         RunOutboxRequest,
         RunOutboxResponse,
         //
     };
-    pub use crate::error::io::{
+    pub use crate::error::prelude::{
         OutboxApiError,
         OutboxApiErrorKind,
         //
     };
     #[cfg(feature = "tokio")]
-    pub use crate::runtime::io::AsyncOutboxService;
-    pub use crate::service::io::OutboxService;
+    pub use crate::runtime::prelude::AsyncOutboxService;
+    pub use crate::service::prelude::OutboxService;
     #[cfg(feature = "testing")]
-    pub use crate::testing::io as testing;
+    pub use crate::testing::prelude as testing;
 }
 
 mod contract;

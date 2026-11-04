@@ -23,7 +23,7 @@ mod models {
 
 mod infra_diesel {
     use super::models::{OutboxList, OutboxMessageDto};
-    use crate::assembly::io::{AppError, DbPool};
+    use crate::assembly::prelude::{AppError, DbPool};
     use chrono::{DateTime, Utc};
     use diesel::prelude::*;
     use serde_json::Value;
@@ -82,7 +82,7 @@ mod http {
     use super::models::OutboxList;
     use crate::{
         AppState,
-        assembly::io::{ApiError, run_blocking},
+        assembly::prelude::{ApiError, run_blocking},
         //
     };
     use poem::web::Data;
@@ -101,7 +101,7 @@ mod http {
     }
 }
 
-pub mod io {
+pub mod prelude {
     pub use super::http::Api;
     pub use super::models::OutboxMessageDto;
 }

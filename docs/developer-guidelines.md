@@ -9,15 +9,15 @@ These guidelines describe the preferred coding and organization style for this r
 Combine bindings from the same top-level module into a single `use` statement:
 
 ```rust
-use crate::application::io::{InboxError, InboxMessageEnvelope, InboxProcessPort};
+use crate::application::prelude::{InboxError, InboxMessageEnvelope, InboxProcessPort};
 ```
 
 Prefer this over separate lines:
 
 ```rust
-use crate::application::io::InboxError;
-use crate::application::io::InboxMessageEnvelope;
-use crate::application::io::InboxProcessPort;
+use crate::application::prelude::InboxError;
+use crate::application::prelude::InboxMessageEnvelope;
+use crate::application::prelude::InboxProcessPort;
 ```
 
 ### Force multiline formatting for large import groups
@@ -25,7 +25,7 @@ use crate::application::io::InboxProcessPort;
 When a `use` group has more than 3 bindings, add a trailing `//` after the last element to prevent rustfmt from collapsing it to a single line:
 
 ```rust
-pub use crate::application::io::{
+pub use crate::application::prelude::{
     InboxError,
     InboxMessageEnvelope,
     InboxMessageMetadata,
@@ -163,15 +163,15 @@ infra_amqp/
 
 Feature modules should express use cases and ports, not database or broker implementation details.
 
-### Keep public API behind `io.rs`
+### Keep public API behind `prelude.rs`
 
 External callers should import from the root facade:
 
 ```rust
-use inbox::io::{InboxRecorder, InboxRecorderRepository};
+use inbox::prelude::{InboxRecorder, InboxRecorderRepository};
 ```
 
-Inside the crate, prefer direct internal module paths instead of importing from `crate::io`.
+Inside the crate, prefer direct internal module paths instead of importing from `crate::prelude`.
 
 ## Inbox-specific rules
 

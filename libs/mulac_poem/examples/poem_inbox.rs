@@ -3,8 +3,8 @@
 //! ```sh
 //! DATABASE_URL=postgres://... cargo run -p mulac_poem --example poem_inbox
 //! ```
-use mulac_inbox_api::io::InboxService;
-use mulac_poem::io::{
+use mulac_inbox_api::prelude::InboxService;
+use mulac_poem::prelude::{
     InboxAdapter,
     InboxSubmission,
     RunRequest,
@@ -37,7 +37,7 @@ impl InboxApi {
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
     let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL is required");
-    let pool = inbox::io::build_pool(&database_url).map_err(std::io::Error::other)?;
+    let pool = inbox::prelude::build_pool(&database_url).map_err(std::io::Error::other)?;
     let adapter = InboxAdapter::new(InboxService::from_postgres(pool));
     let api = OpenApiService::new(InboxApi { adapter }, "Inbox", "1").server("/api");
     let app = Route::new()

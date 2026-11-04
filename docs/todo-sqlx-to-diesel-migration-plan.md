@@ -10,7 +10,7 @@ this branch (`chore/drop-sqlx-from-todo`) is to remove that lone sqlx island so 
 workspace shares one persistence stack.
 
 Key finding that makes this tractable: the todo app **already builds a diesel pool**. Inside
-`start_mulac` (`src/assembly/application.rs:170`) it calls `kernel::io::build_pool(database_url)`
+`start_mulac` (`src/assembly/application.rs:170`) it calls `kernel::prelude::build_pool(database_url)`
 to get a `DbPool` for the kernel's `start_persistent`, *in addition to* the sqlx `PgPool` it
 uses for its own queries. So diesel is already a (transitive) dependency and the kernel
 already demands a diesel pool. The migration is really: **collapse the app's sqlx pool onto
@@ -34,7 +34,7 @@ work lands as **5 atomic commits, each compiling with green tests**.
 - **inbox/outbox modules in `src/lib.rs`**: `record_received` (INSERT … ON CONFLICT DO
   NOTHING), `mark_processed`, `mark_failed`, outbox `list`.
 - **Handlers**: each `*Handler::execute` wraps its async infra call in
-  `kernel::io::block_on_blocking(async move { ... .await })`.
+  `kernel::prelude::block_on_blocking(async move { ... .await })`.
 - **HTTP handlers**: async, call infra directly with `.await` on `&state.pool`.
 - **domain.rs**: `TodoStatus` derives `sqlx::Type` with `#[sqlx(type_name = "text", ...)]`.
 - **Migrations** (`migrations/`): flat numbered files `0001_init.sql` (todos, inbox_messages,
@@ -54,7 +54,7 @@ work lands as **5 atomic commits, each compiling with green tests**.
   `inbox_messages`, `outbox_messages` (kernel tables `command_entries`/`event_entries` are the
   kernel's concern; the app never queries them outside tests, and tests read them via raw SQL).
 - `src/assembly/infra_diesel.rs` (renamed from `infra_sqlx_pg.rs`): re-export
-  `kernel::io::{DbPool, build_pool}`; `MIGRATIONS`/`run_migrations`; sync diesel `fetch_todo`,
+  `kernel::prelude::{DbPool, build_pool}`; `MIGRATIONS`/`run_migrations`; sync diesel `fetch_todo`,
   `record_event_payload`, `OutboxSubscriber`; `entity::TodoRow` deriving
   `diesel::Queryable` + `diesel::Selectable`.
 - All infra functions become **synchronous**, take `&DbPool`, do `let mut conn = pool.get()?;`.
@@ -121,9 +121,9 @@ maps to 404. `serde_json::Value ↔ Jsonb` is handled automatically by the `serd
   timestamps.
 - [ ] In `infra_sqlx_pg.rs`: add `pub const MIGRATIONS: EmbeddedMigrations =
   embed_migrations!("migrations");` and `pub fn run_migrations(database_url: &str) ->
-  anyhow::Result<()>` that builds a short-lived `kernel::io::build_pool` connection and calls
+  anyhow::Result<()>` that builds a short-lived `kernel::prelude::build_pool` connection and calls
   `conn.run_pending_migrations(MIGRATIONS)`. Remove the sqlx `migrate()` fn.
-- [ ] Update re-exports in `src/lib.rs` `io` (`migrate` → `run_migrations`).
+- [ ] Update re-exports in `src/lib.rs` `prelude` (`migrate` → `run_migrations`).
 - [ ] `bin/todoapp.rs`: replace `migrate(&pool).await?` with `run_migrations(&database_url)?` in
   both the `migrate` and `serve` arms (app/AppState still uses the sqlx `connect()` pool).
 - [ ] `tests/utils.rs`: replace `migrate(&pool).await.unwrap()` with
@@ -166,12 +166,12 @@ Scope: the remaining read/inbox/outbox infra + the AppState pool type + bin/test
   In each async HTTP handler, wrap the blocking calls — `state.mulac.dispatch_command(...)`,
   `fetch_todo`, `record_received`/`mark_*`, outbox `list` — in `run_blocking(move || …).await`.
 - [ ] `src/lib.rs`: change `AppState.pool` from `sqlx::PgPool` to
-  `kernel::io::DbPool` (re-exported as `DbPool`); update `AppState::new`.
+  `kernel::prelude::DbPool` (re-exported as `DbPool`); update `AppState::new`.
 - [ ] `start_mulac(pool: DbPool)`: drop the `database_url` param and the internal `build_pool`;
   pass the received pool to handlers/subscribers and to `start_persistent(pool, 1)`.
 - [ ] `bin/todoapp.rs` (`serve` arm): `let pool = build_pool(&database_url)?;`
   `run_migrations(&database_url)?;` `let kernel = start_mulac(pool.clone())…;`
-  `AppState::new(pool, kernel.state())`. Drop the sqlx `connect()` call. Update `io` re-exports
+  `AppState::new(pool, kernel.state())`. Drop the sqlx `connect()` call. Update `prelude` re-exports
   (`connect` removed; export `build_pool`).
 - [ ] `tests/utils.rs`: `start_test_app()` returns `(String, DbPool, OwnedMutexGuard<()>)`;
   build the pool with `build_pool` (OnceLock-shared like twitter); switch row structs to

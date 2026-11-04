@@ -4,7 +4,7 @@ use diesel::prelude::*;
 use poem::{EndpointExt, Route, get, handler, middleware::AddData};
 use poem_openapi::OpenApiService;
 use reqwest::Client;
-use test_app_todo::io::{
+use test_app_todo::prelude::{
     AppState, CompleteApi, CreateApi, DbPool, DeleteApi, DueDatesApi, GetApi, InboxApi, ListApi,
     OutboxApi, ReopenApi, UpdateApi, build_pool, run_migrations, start_mulac,
 };

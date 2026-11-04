@@ -1,7 +1,7 @@
-use commanding::io::ApplicationEvent;
+use commanding::prelude::ApplicationEvent;
 use diesel::{PgConnection, r2d2::ConnectionManager};
-use eventing::io::{EventError, EventSubscriberPort, NewEventEnvelope, NewEventMetadata};
-use mulac_kernel::io::{
+use eventing::prelude::{EventError, EventSubscriberPort, NewEventEnvelope, NewEventMetadata};
+use mulac_kernel::prelude::{
     CommandError, CommandGateway, CommandHandlerPort, DbPool, InboundMessageEnvelope, InboxError,
     InboxStorePort, KernelConfig, KernelError, NewCommand, NewCommandEnvelope, NewCommandMetadata,
     NewInboxMessageEnvelope, boot,

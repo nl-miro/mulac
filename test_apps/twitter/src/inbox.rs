@@ -1,5 +1,5 @@
 mod models {
-    use crate::assembly::io::{
+    use crate::assembly::prelude::{
         AppError,
         Clock,
         DbPool,
@@ -120,51 +120,57 @@ mod models {
         pub command: TwitterCommand,
     }
 
-    pub fn to_app_command(command: TwitterCommand) -> crate::assembly::io::AppCommand {
-        use crate::assembly::io::AppCommand;
+    pub fn to_app_command(command: TwitterCommand) -> crate::assembly::prelude::AppCommand {
+        use crate::assembly::prelude::AppCommand;
         #[allow(unused_imports)]
         use kernel::ApplicationCommand as _;
         match command {
-            TwitterCommand::PostTweet(c) => AppCommand::PostTweet(crate::tweet_post::io::Command {
-                tweet_id: c.tweet_id,
-                author_id: c.author_id,
-                content: c.content,
-            }),
+            TwitterCommand::PostTweet(c) => {
+                AppCommand::PostTweet(crate::tweet_post::prelude::Command {
+                    tweet_id: c.tweet_id,
+                    author_id: c.author_id,
+                    content: c.content,
+                })
+            }
             TwitterCommand::DeleteTweet(c) => {
-                AppCommand::DeleteTweet(crate::tweet_delete::io::Command {
+                AppCommand::DeleteTweet(crate::tweet_delete::prelude::Command {
                     tweet_id: c.tweet_id,
                     author_id: c.author_id,
                 })
             }
-            TwitterCommand::Retweet(c) => AppCommand::Retweet(crate::tweet_retweet::io::Command {
-                retweet_id: c.retweet_id,
-                original_tweet_id: c.original_tweet_id,
-                author_id: c.author_id,
-            }),
+            TwitterCommand::Retweet(c) => {
+                AppCommand::Retweet(crate::tweet_retweet::prelude::Command {
+                    retweet_id: c.retweet_id,
+                    original_tweet_id: c.original_tweet_id,
+                    author_id: c.author_id,
+                })
+            }
             TwitterCommand::FollowUser(c) => {
-                AppCommand::FollowUser(crate::user_follow::io::Command {
+                AppCommand::FollowUser(crate::user_follow::prelude::Command {
                     follower_id: c.follower_id,
                     following_id: c.following_id,
                 })
             }
             TwitterCommand::UnfollowUser(c) => {
-                AppCommand::UnfollowUser(crate::user_unfollow::io::Command {
+                AppCommand::UnfollowUser(crate::user_unfollow::prelude::Command {
                     follower_id: c.follower_id,
                     following_id: c.following_id,
                 })
             }
-            TwitterCommand::LikeTweet(c) => AppCommand::LikeTweet(crate::tweet_like::io::Command {
-                user_id: c.user_id,
-                tweet_id: c.tweet_id,
-            }),
+            TwitterCommand::LikeTweet(c) => {
+                AppCommand::LikeTweet(crate::tweet_like::prelude::Command {
+                    user_id: c.user_id,
+                    tweet_id: c.tweet_id,
+                })
+            }
             TwitterCommand::UnlikeTweet(c) => {
-                AppCommand::UnlikeTweet(crate::tweet_unlike::io::Command {
+                AppCommand::UnlikeTweet(crate::tweet_unlike::prelude::Command {
                     user_id: c.user_id,
                     tweet_id: c.tweet_id,
                 })
             }
             TwitterCommand::SendDirectMessage(c) => {
-                AppCommand::SendDirectMessage(crate::direct_message_send::io::Command {
+                AppCommand::SendDirectMessage(crate::direct_message_send::prelude::Command {
                     message_id: c.message_id,
                     sender_id: c.sender_id,
                     recipient_id: c.recipient_id,
@@ -214,7 +220,7 @@ mod models {
 }
 
 mod infra_diesel {
-    use crate::assembly::io::{AppError, Clock, DbPool};
+    use crate::assembly::prelude::{AppError, Clock, DbPool};
     use diesel::prelude::*;
     use uuid::Uuid;
 
@@ -270,7 +276,7 @@ mod http {
     use super::models::{CommandEnvelope, materialize_entity, to_app_command};
     use crate::{
         AppState,
-        assembly::io::{
+        assembly::prelude::{
             ApiError,
             AppError,
             InboundResponse,
@@ -281,7 +287,7 @@ mod http {
         },
         //
     };
-    use kernel::io::NewCommandMetadata;
+    use kernel::prelude::NewCommandMetadata;
     use poem::web::Data;
     use poem_openapi::{OpenApi, payload::Json};
 
@@ -361,6 +367,6 @@ mod http {
     }
 }
 
-pub mod io {
+pub mod prelude {
     pub use super::http::Api;
 }

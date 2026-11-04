@@ -1,14 +1,14 @@
-pub mod io {
+pub mod prelude {
     pub use super::OutboxService;
 }
 
-use crate::contract::io::{
+use crate::contract::prelude::{
     RunOutboxRequest,
     RunOutboxResponse,
     //
 };
-use crate::error::io::OutboxApiError;
-use outbox::io::{
+use crate::error::prelude::OutboxApiError;
+use outbox::prelude::{
     OutboxConsumer,
     ReservableOutboxSpec,
     //
@@ -33,10 +33,10 @@ impl OutboxService {
     /// Publish from PostgreSQL through an application-owned publisher.
     #[cfg(feature = "diesel")]
     pub fn from_postgres(
-        pool: outbox::io::DbPool,
-        publisher: Arc<dyn outbox::io::OutboxPublisherPort>,
+        pool: outbox::prelude::DbPool,
+        publisher: Arc<dyn outbox::prelude::OutboxPublisherPort>,
     ) -> Self {
-        let repository = outbox::io::consumer_repository(pool);
+        let repository = outbox::prelude::consumer_repository(pool);
         Self::new(Arc::new(OutboxConsumer::new(repository, publisher)))
     }
 
@@ -55,9 +55,12 @@ impl OutboxService {
 
 #[cfg(all(test, feature = "testing"))]
 mod tests {
-    use crate::io::{OutboxApiError, RunOutboxRequest, testing};
+    use crate::prelude::{OutboxApiError, RunOutboxRequest, testing};
 
-    fn run(service: crate::io::OutboxService, limit: usize) -> crate::io::RunOutboxResponse {
+    fn run(
+        service: crate::prelude::OutboxService,
+        limit: usize,
+    ) -> crate::prelude::RunOutboxResponse {
         service.run(RunOutboxRequest { limit }).unwrap()
     }
 

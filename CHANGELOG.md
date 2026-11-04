@@ -75,7 +75,7 @@ command and event dispatchers.
   the hexagonal-architecture layout.
 - **`mulac_diesel` library**: shared Diesel-based persistence helpers.
 - **`kernel` crate**: top-level composition crate exposing registries,
-  workers, and helpers through a single `io` module.
+  workers, and helpers through a single `prelude` module.
 - **Test applications**: `todo` and `twitter` example apps demonstrating
   end-to-end integration, with shared HTTP helpers and assertion macros.
 - **Docker infrastructure**: consolidated local development setup.
@@ -95,7 +95,7 @@ command and event dispatchers.
 
 ### Conventions
 
-- Every feature module exposes a single `pub mod io` as its only public
+- Every feature module exposes a single `pub mod prelude` as its only public
   interface; internal sub-modules (`commanding`, `eventing`, `http`,
   `infra_sqlx_pg`, ...) remain private.
 - Commits follow the [Conventional Commits](https://www.conventionalcommits.org/)

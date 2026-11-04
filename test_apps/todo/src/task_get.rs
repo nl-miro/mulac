@@ -1,5 +1,5 @@
 mod infra_diesel {
-    use crate::assembly::io::{AppError, DbPool, TodoDto, fetch_todo};
+    use crate::assembly::prelude::{AppError, DbPool, TodoDto, fetch_todo};
     use uuid::Uuid;
 
     pub fn get(pool: &DbPool, id: Uuid) -> Result<TodoDto, AppError> {
@@ -10,7 +10,7 @@ mod infra_diesel {
 mod http {
     use crate::{
         AppState,
-        assembly::io::{ApiError, TodoDto, run_blocking},
+        assembly::prelude::{ApiError, TodoDto, run_blocking},
         //
     };
     use poem::web::Data;
@@ -35,6 +35,6 @@ mod http {
     }
 }
 
-pub mod io {
+pub mod prelude {
     pub use super::http::Api;
 }

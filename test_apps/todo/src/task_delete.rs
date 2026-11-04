@@ -2,7 +2,7 @@ pub const DELETE_TODO_COMMAND: &str = "DeleteTodo";
 pub const TODO_DELETED_EVENT: &str = "TodoDeleted";
 
 mod models {
-    use crate::assembly::io::TodoDto;
+    use crate::assembly::prelude::TodoDto;
     use kernel::ApplicationEvent;
     use poem_openapi::Object;
     use serde::{Deserialize, Serialize};
@@ -33,7 +33,7 @@ mod models {
 
 mod handler {
     use super::models::{DeleteTodoCommand, TodoDeleted};
-    use crate::assembly::io::{DbPool, TodoEvent};
+    use crate::assembly::prelude::{DbPool, TodoEvent};
     use kernel::{CommandError, CommandHandlerPort};
 
     pub struct DeleteTodoHandler {
@@ -58,7 +58,7 @@ mod handler {
 
 mod infra_diesel {
     use super::models::DeleteTodoCommand;
-    use crate::assembly::io::{AppError, DbPool, TodoDto, TodoRow};
+    use crate::assembly::prelude::{AppError, DbPool, TodoDto, TodoRow};
     use crate::schema::todos;
     use diesel::prelude::*;
 
@@ -80,7 +80,7 @@ mod http {
     use super::models::DeleteTodoCommand;
     use crate::{
         AppState,
-        assembly::io::{
+        assembly::prelude::{
             ApiError, AppCommand, AppError, MulacState, NewCommandEnvelope,
             interpret_dispatch_error,
         },
@@ -128,7 +128,7 @@ mod http {
     }
 }
 
-pub mod io {
+pub mod prelude {
     pub use super::DELETE_TODO_COMMAND;
     pub use super::TODO_DELETED_EVENT;
     pub use super::handler::DeleteTodoHandler;

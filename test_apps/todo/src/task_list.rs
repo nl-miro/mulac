@@ -1,4 +1,4 @@
-use crate::io::TodoStatus;
+use crate::prelude::TodoStatus;
 use poem_openapi::Enum;
 use serde::{Deserialize, Serialize};
 
@@ -24,7 +24,7 @@ impl FilterStatus {
 }
 
 mod infra_diesel {
-    use crate::assembly::io::{AppError, DbPool, TodoDto, TodoList, TodoRow};
+    use crate::assembly::prelude::{AppError, DbPool, TodoDto, TodoList, TodoRow};
     use crate::schema::todos;
     use crate::task_list::FilterStatus;
     use diesel::prelude::*;
@@ -53,7 +53,7 @@ mod infra_diesel {
 
 mod http {
     use crate::AppState;
-    use crate::assembly::io::{ApiError, TodoList, run_blocking};
+    use crate::assembly::prelude::{ApiError, TodoList, run_blocking};
     use crate::task_list::FilterStatus;
     use poem::web::Data;
     use poem_openapi::{OpenApi, param::Query, payload::Json};
@@ -76,7 +76,7 @@ mod http {
     }
 }
 
-pub mod io {
+pub mod prelude {
     pub use super::FilterStatus;
     pub use super::http::Api;
 }

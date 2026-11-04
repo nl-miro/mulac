@@ -33,7 +33,7 @@ rather than alias them (§9.5).
 `test_app_todo` is the canonical app-level reference in this repository. It
 demonstrates:
 
-- flat feature modules with exactly one public `io` facade per feature
+- flat feature modules with exactly one public `prelude` facade per feature
 - private feature internals (`models`, `handler`, `infra_*`, `http`)
 - a private `assembly` module for app state, errors, command/event wiring,
   workers, migrations, and binary startup
@@ -71,7 +71,7 @@ Complete when Twitter has:
 
 - Todo-style `assembly` structure
 - flat feature files named `<entity>_<verb>.rs`
-- exactly one public `io` facade per feature
+- exactly one public `prelude` facade per feature
 - root-private `inbox` and `outbox` modules
 - app-owned `inbox_messages` and `outbox_messages` tables
 - two-phased command/event wiring owned by `test_app_twitter` (no
@@ -103,7 +103,7 @@ If not implemented, both must be explicitly listed as deferred in
 
 2. **Mirror Todo's architecture.** `src/assembly/{application,domain,infra_diesel}.rs`
    and `src/assembly/bin/twitterapp.rs`. Feature modules have private
-   `models`/`handler`/`infra_diesel`/`http` submodules and one `pub mod io`.
+   `models`/`handler`/`infra_diesel`/`http` submodules and one `pub mod prelude`.
 
 3. **Do not use `kernel::boot()` for final app wiring.** Twitter owns its
    command handler registry, event subscriber registry, two-phased gateways,
@@ -225,7 +225,7 @@ If not implemented, both must be explicitly listed as deferred in
 | Gateway              | two-phased command/event persistence                  | `kernel::boot()` (src/main.rs)                                               | 4      |
 | Consumers + workers  | owned by `MulacState`, spawned at boot                | none in production                                                           | 4      |
 | Outbox subscriber    | app-owned, writes `outbox_messages` keyed by event_id | kernel builder `outbox_subscriber()` only                                    | 4      |
-| Feature layout       | flat files, private internals, one `pub mod io`       | nested `pub` aggregator modules                                              | 5      |
+| Feature layout       | flat files, private internals, one `pub mod prelude`       | nested `pub` aggregator modules                                              | 5      |
 | Inbox HTTP API       | `POST /api/messages/commands`                         | none                                                                         | 6      |
 | Outbox HTTP API      | `GET /api/messages/outbox`                            | none                                                                         | 6      |
 | Tests                | split files + `tests/utils.rs`                        | one `tests/post_tweet.rs` with inline helpers                                | 7      |
@@ -249,10 +249,10 @@ test_app_twitter/
     2025-01-01-000002_app_tables/                  # existing, unchanged
     2026-05-23-000001_app_messages/                # new
   src/
-    lib.rs                                         # mod decls, TwitterEvent, AppState, inbox, outbox, pub mod io
+    lib.rs                                         # mod decls, TwitterEvent, AppState, inbox, outbox, pub mod prelude
     schema.rs                                      # regenerated after new migration
     assembly/
-      mod.rs                                       # pub mod io facade
+      mod.rs                                       # pub mod prelude facade
       application.rs                               # AppError, AppCommand, MulacState, MulacHandle, workers
       domain.rs                                    # Clock, shared DTOs/validation, InboundEntity
       infra_diesel.rs                              # DbPool, build_pool, MIGRATIONS, run_migrations, OutboxSubscriber
@@ -328,7 +328,7 @@ migrations/2026-05-23-000002_mention_notifications/
 ## 7. Module contract
 
 Every feature file follows the Todo convention and exposes exactly one
-public module: `pub mod io`.
+public module: `pub mod prelude`.
 
 ```rust
 pub const COMMAND_NAME: &str = "...";
@@ -353,7 +353,7 @@ mod http {
     // TryFrom<Request> for NewCommandEnvelope.
 }
 
-pub mod io {
+pub mod prelude {
     pub use super::{COMMAND_NAME, EVENT_NAME};
     pub use super::handler::Handler;
     pub use super::http::Api;
@@ -363,11 +363,11 @@ pub mod io {
 
 Rules:
 
-- Callers import through `feature::io::*`. Internal submodules stay private.
+- Callers import through `feature::prelude::*`. Internal submodules stay private.
 - No `pub` aggregator modules (`tweets`, `users`, `likes`, `messages`,
   `timeline`, `notifications`, `db`, `state`, `commands`, `events`) remain
   at crate root.
-- Root `src/lib.rs` exposes one app-level `pub mod io`.
+- Root `src/lib.rs` exposes one app-level `pub mod prelude`.
 
 Root shape (single source of truth — §10 and §12 reference this, do not
 redefine):
@@ -389,32 +389,32 @@ mod timeline_fan_out;
 #[oai(discriminator_name = "type")]
 #[serde(tag = "type", content = "payload")]
 pub enum TwitterEvent {
-    TweetPosted(tweet_post::io::Event),
-    TweetDeleted(tweet_delete::io::Event),
-    TweetRetweeted(tweet_retweet::io::Event),
-    UserFollowed(user_follow::io::Event),
-    UserUnfollowed(user_unfollow::io::Event),
-    TweetLiked(tweet_like::io::Event),
-    TweetUnliked(tweet_unlike::io::Event),
-    DirectMessageSent(direct_message_send::io::Event),
-    // optional: UserMentioned(mention_notification::io::Event),
+    TweetPosted(tweet_post::prelude::Event),
+    TweetDeleted(tweet_delete::prelude::Event),
+    TweetRetweeted(tweet_retweet::prelude::Event),
+    UserFollowed(user_follow::prelude::Event),
+    UserUnfollowed(user_unfollow::prelude::Event),
+    TweetLiked(tweet_like::prelude::Event),
+    TweetUnliked(tweet_unlike::prelude::Event),
+    DirectMessageSent(direct_message_send::prelude::Event),
+    // optional: UserMentioned(mention_notification::prelude::Event),
 }
 
 #[derive(Clone)]
 pub struct AppState {
-    pub pool: assembly::io::DbPool,
-    pub mulac: assembly::io::MulacState,
+    pub pool: assembly::prelude::DbPool,
+    pub mulac: assembly::prelude::MulacState,
 }
 
 mod inbox;
 mod outbox;
 
-pub mod io {
+pub mod prelude {
     pub use super::{AppState, TwitterEvent};
-    pub use super::assembly::io::*;
-    pub use super::inbox::io::Api as InboxApi;
-    pub use super::outbox::io::Api as OutboxApi;
-    pub use super::tweet_post::io::Api as TweetPostApi;
+    pub use super::assembly::prelude::*;
+    pub use super::inbox::prelude::Api as InboxApi;
+    pub use super::outbox::prelude::Api as OutboxApi;
+    pub use super::tweet_post::prelude::Api as TweetPostApi;
     // ... one Api re-export per feature ...
 }
 ```
@@ -606,15 +606,15 @@ pub trait Command: kernel::ApplicationCommand {
 
 #[derive(Debug, Clone)]
 pub enum AppCommand {
-    PostTweet(tweet_post::io::Command),
-    DeleteTweet(tweet_delete::io::Command),
-    Retweet(tweet_retweet::io::Command),
-    FollowUser(user_follow::io::Command),
-    UnfollowUser(user_unfollow::io::Command),
-    LikeTweet(tweet_like::io::Command),
-    UnlikeTweet(tweet_unlike::io::Command),
-    SendDirectMessage(direct_message_send::io::Command),
-    FanOutTweet(timeline_fan_out::io::Command),
+    PostTweet(tweet_post::prelude::Command),
+    DeleteTweet(tweet_delete::prelude::Command),
+    Retweet(tweet_retweet::prelude::Command),
+    FollowUser(user_follow::prelude::Command),
+    UnfollowUser(user_unfollow::prelude::Command),
+    LikeTweet(tweet_like::prelude::Command),
+    UnlikeTweet(tweet_unlike::prelude::Command),
+    SendDirectMessage(direct_message_send::prelude::Command),
+    FanOutTweet(timeline_fan_out::prelude::Command),
 }
 
 // REQUIRED: matches Todo. Without this, kernel storage serializes the outer
@@ -920,7 +920,7 @@ Use one decoding rule consistently across the app:
   deserialize to `serde_json::Value` because they do not inspect
   event-specific fields.
 
-For example, `timeline_fan_out::io::Subscriber` decodes `TwitterEvent`, then
+For example, `timeline_fan_out::prelude::Subscriber` decodes `TwitterEvent`, then
 matches:
 
 ```rust
@@ -1392,7 +1392,7 @@ For each feature:
 
 1. Move to the flat source file.
 2. Restructure into private `models`, `handler`, `infra_diesel`, `http`.
-3. Expose only `pub mod io`.
+3. Expose only `pub mod prelude`.
 4. Add command/event name constants.
 5. Extract raw Diesel queries into `infra_diesel`.
 6. Wire the feature into `start_mulac()` and the OpenAPI service.
@@ -1405,7 +1405,7 @@ raw pool.
 
 Acceptance:
 
-- no imports bypass `feature::io::*`
+- no imports bypass `feature::prelude::*`
 - no old public feature aggregator modules remain
 - full tests pass after each converted feature or after a clearly bounded
   batch
@@ -1727,8 +1727,8 @@ Core reorganization complete when:
 - [ ] Crate renamed to `test_app_twitter` (Phase 0).
 - [ ] `src/` has Todo-like `assembly` structure and `serve`/`migrate` bin.
 - [ ] Diesel kept for app data and migrations; `2025-01-01-*` untouched.
-- [ ] Root `src/lib.rs` exposes only `pub mod io` plus root types.
-- [ ] Every feature file exposes only `pub mod io`.
+- [ ] Root `src/lib.rs` exposes only `pub mod prelude` plus root types.
+- [ ] Every feature file exposes only `pub mod prelude`.
 - [ ] No caller imports from internal feature submodules.
 - [ ] `AppState { pool, mulac }` used everywhere; no `pub use kernel::AppState`.
 - [ ] No `kernel::boot()` in production wiring.

@@ -2,7 +2,7 @@ pub const UPDATE_DUE_DATE_COMMAND: &str = "UpdateDueDate";
 pub const TODO_DUE_DATE_CHANGED_EVENT: &str = "TodoDueDateChanged";
 
 mod models {
-    use crate::assembly::io::TodoDto;
+    use crate::assembly::prelude::TodoDto;
     use chrono::{DateTime, Utc};
     use kernel::ApplicationEvent;
     use poem_openapi::Object;
@@ -35,7 +35,7 @@ mod models {
 
 mod handler {
     use super::models::{TodoDueDateChanged, UpdateDueDateCommand};
-    use crate::assembly::io::{DbPool, TodoEvent};
+    use crate::assembly::prelude::{DbPool, TodoEvent};
     use kernel::{CommandError, CommandHandlerPort};
 
     pub struct UpdateDueDateHandler {
@@ -62,7 +62,7 @@ mod handler {
 }
 
 mod infra_diesel {
-    use crate::assembly::io::{AppError, Clock, DbPool, TodoDto, TodoRow};
+    use crate::assembly::prelude::{AppError, Clock, DbPool, TodoDto, TodoRow};
     use crate::schema::todos;
     use chrono::{DateTime, Utc};
     use diesel::prelude::*;
@@ -88,7 +88,7 @@ mod http {
     use super::models::UpdateDueDateCommand;
     use crate::{
         AppState,
-        assembly::io::{
+        assembly::prelude::{
             ApiError, AppCommand, MulacState, NewCommandEnvelope, TodoDto, fetch_todo,
             interpret_dispatch_error, run_blocking,
         },
@@ -148,7 +148,7 @@ mod http {
     }
 }
 
-pub mod io {
+pub mod prelude {
     pub use super::TODO_DUE_DATE_CHANGED_EVENT;
     pub use super::UPDATE_DUE_DATE_COMMAND;
     pub use super::handler::UpdateDueDateHandler;

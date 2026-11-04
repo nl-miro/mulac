@@ -1,4 +1,4 @@
-pub mod io {
+pub mod prelude {
     pub use super::ports::EventSweepPort;
     pub use super::spec::StaleEventSpec;
     pub use super::sweeper::EventSweeper;
@@ -6,7 +6,7 @@ pub mod io {
 
 mod spec {
     #[cfg(feature = "diesel")]
-    use crate::assembly::io::Criterion;
+    use crate::assembly::prelude::Criterion;
     use chrono::Duration;
     #[cfg(feature = "diesel")]
     use chrono::Utc;
@@ -72,7 +72,7 @@ mod spec {
 
 mod ports {
     use super::spec::StaleEventSpec;
-    use crate::assembly::io::EventError;
+    use crate::assembly::prelude::EventError;
 
     pub trait EventSweepPort: Send + Sync {
         fn sweep(&self, spec: &StaleEventSpec) -> Result<u64, EventError>;
@@ -82,7 +82,7 @@ mod ports {
 mod sweeper {
     use super::ports::EventSweepPort;
     use super::spec::StaleEventSpec;
-    use crate::assembly::io::EventError;
+    use crate::assembly::prelude::EventError;
     use std::sync::Arc;
 
     #[derive(Clone)]

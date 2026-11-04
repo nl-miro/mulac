@@ -10,14 +10,14 @@
 use axum::extract::State;
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use mulac_axum::io::{
+use mulac_axum::prelude::{
     CommandingAdapter,
     CommandingHttpError,
     CommandsRunResponse,
     RunCommands,
     //
 };
-use mulac_commanding_api::io::testing;
+use mulac_commanding_api::prelude::testing;
 use utoipa::OpenApi;
 
 /// Execute one batch of due commands; resulting events remain queued.

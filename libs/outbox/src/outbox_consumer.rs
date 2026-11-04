@@ -3,12 +3,12 @@
 //! This module coordinates reservation of persisted outbox entries, publication
 //! through a transport adapter, and lifecycle updates on the backing store.
 
-pub mod io {
+pub mod prelude {
     pub use super::consumer::OutboxConsumer;
     pub use super::repository::OutboxConsumerRepository;
     pub use super::reservable::ReservableOutboxSpec;
     #[cfg(feature = "diesel")]
-    use crate::assembly::infra_diesel::io::{DbPool, OutboxConsumerStorage};
+    use crate::assembly::infra_diesel::prelude::{DbPool, OutboxConsumerStorage};
     #[cfg(feature = "diesel")]
     use std::sync::Arc;
     #[cfg(feature = "diesel")]
@@ -73,7 +73,7 @@ mod reservable {
 }
 
 mod conversions {
-    use crate::assembly::io::{
+    use crate::assembly::prelude::{
         OutboundMessageEnvelope,
         OutboxEntryEnvelope,
         OutboxError,
@@ -98,7 +98,7 @@ mod conversions {
 
 mod repository {
     use super::reservable::ReservableOutboxSpec;
-    use crate::assembly::io::{
+    use crate::assembly::prelude::{
         OutboxEntryEnvelope,
         OutboxError,
         OutboxProcessPort,
@@ -158,7 +158,7 @@ mod repository {
 mod consumer {
     use super::repository::OutboxConsumerRepository;
     use super::reservable::ReservableOutboxSpec;
-    use crate::assembly::io::{
+    use crate::assembly::prelude::{
         OutboundMessageEnvelope,
         OutboxError,
         OutboxPublisherPort,
@@ -244,13 +244,13 @@ mod consumer {
 
 #[cfg(test)]
 mod tests {
-    use super::io::{
+    use super::prelude::{
         OutboxConsumer,
         OutboxConsumerRepository,
         ReservableOutboxSpec,
         //
     };
-    use crate::assembly::io::{
+    use crate::assembly::prelude::{
         OutboundMessageEnvelope,
         OutboxEntry,
         OutboxEntryEnvelope,

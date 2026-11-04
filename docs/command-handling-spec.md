@@ -24,10 +24,10 @@ domain  ←  application  ←  features  ←  infra adapters
 - **features** (`record_commands.rs`, `command_consumer.rs`, `stale_command_sweep.rs`): use-case orchestration — depends on ports only
 - **infra adapters** (`assembly/infra_diesel.rs`): concrete I/O — depends on feature and application layers
 
-External callers import exclusively from `lib.rs` via the `io` re-export facade.
+External callers import exclusively from `lib.rs` via the `prelude` re-export facade.
 
 ```
-lib.rs (io facade)
+lib.rs (prelude facade)
   ├─ gateway                CommandGateway
   ├─ dispatcher             CommandDispatcher
   ├─ record_commands        CommandRecorder, CommandRecorderRepository

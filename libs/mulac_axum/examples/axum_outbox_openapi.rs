@@ -11,14 +11,14 @@
 use axum::extract::State;
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use mulac_axum::io::{
+use mulac_axum::prelude::{
     OutboxAdapter,
     OutboxHttpError,
     OutboxRunResponse,
     RunOutbox,
     //
 };
-use mulac_outbox_api::io::testing;
+use mulac_outbox_api::prelude::testing;
 use utoipa::OpenApi;
 
 /// Publish one batch; returns 503 when delivery is not configured.

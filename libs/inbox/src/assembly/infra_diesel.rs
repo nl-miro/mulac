@@ -1,11 +1,11 @@
-pub mod io {
+pub mod prelude {
     pub use mulac_diesel::{DbPool, build_pool};
 
     pub use super::storage::{InboxConsumerStorage, InboxStoreStorage};
 }
 
 pub(crate) mod models {
-    use crate::assembly::application::io::InboxMessageMetadata;
+    use crate::assembly::application::prelude::InboxMessageMetadata;
     use crate::assembly::domain::ExtraInfo;
     use diesel::deserialize::{FromSql, Result as DeserializeResult};
     use diesel::pg::{Pg, PgValue};
@@ -99,9 +99,9 @@ pub(crate) mod models {
 mod conversions {
     use super::entity::{InboxEntry, NewInboxEntry};
     use super::models::MetadataJsonb;
-    use crate::assembly::application::io::{InboxError, InboxMessageEnvelope};
+    use crate::assembly::application::prelude::{InboxError, InboxMessageEnvelope};
     use crate::assembly::domain::{InboxMessage, InboxStatus};
-    use crate::record_messages::io::NewInboxMessageEnvelope;
+    use crate::record_messages::prelude::NewInboxMessageEnvelope;
     use chrono::Utc;
 
     impl From<NewInboxMessageEnvelope> for NewInboxEntry {
@@ -165,7 +165,7 @@ pub(crate) mod schema {
 
 pub(crate) mod entity {
     use super::models::{ExtraInfoJsonb, MetadataJsonb};
-    use crate::assembly::application::io::InboxMessageMetadata;
+    use crate::assembly::application::prelude::InboxMessageMetadata;
     use crate::assembly::domain::ExtraInfo;
     use chrono::{DateTime, Utc};
     use diesel::{Insertable, Queryable, QueryableByName, Selectable};

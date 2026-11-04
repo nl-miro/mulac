@@ -1,4 +1,4 @@
-pub mod io {
+pub mod prelude {
     pub use super::ports::CommandSweepPort;
     pub use super::spec::StaleCommandSpec;
     pub use super::sweeper::CommandSweeper;
@@ -6,7 +6,7 @@ pub mod io {
 
 mod spec {
     #[cfg(feature = "diesel")]
-    use crate::assembly::io::Criterion;
+    use crate::assembly::prelude::Criterion;
     use chrono::Duration;
     #[cfg(feature = "diesel")]
     use chrono::Utc;
@@ -72,7 +72,7 @@ mod spec {
 
 mod ports {
     use super::spec::StaleCommandSpec;
-    use crate::assembly::io::CommandError;
+    use crate::assembly::prelude::CommandError;
 
     pub trait CommandSweepPort: Send + Sync {
         fn sweep(&self, spec: &StaleCommandSpec) -> Result<u64, CommandError>;
@@ -82,7 +82,7 @@ mod ports {
 mod sweeper {
     use super::ports::CommandSweepPort;
     use super::spec::StaleCommandSpec;
-    use crate::assembly::io::CommandError;
+    use crate::assembly::prelude::CommandError;
     use std::sync::Arc;
 
     #[derive(Clone)]
@@ -103,8 +103,8 @@ mod sweeper {
 
 #[cfg(feature = "diesel")]
 mod infra_diesel_pg {
-    use super::io::{CommandSweepPort, StaleCommandSpec};
-    use crate::assembly::io::{
+    use super::prelude::{CommandSweepPort, StaleCommandSpec};
+    use crate::assembly::prelude::{
         CommandConsumerStorage,
         CommandError,
         CommandStatus,

@@ -9,7 +9,7 @@ use poem::{
 };
 use poem_openapi::OpenApiService;
 use std::env;
-use test_app_twitter::io::{
+use test_app_twitter::prelude::{
     AppState,
     DEFAULT_DATABASE_URL,
     DirectMessageSendApi,
@@ -26,7 +26,7 @@ use test_app_twitter::io::{
     run_event_worker,
     start_mulac, //
 };
-use test_app_twitter::io::{build_pool, run_migrations};
+use test_app_twitter::prelude::{build_pool, run_migrations};
 use tracing_subscriber::EnvFilter;
 
 #[handler]

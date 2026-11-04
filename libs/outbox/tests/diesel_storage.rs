@@ -10,7 +10,7 @@ use diesel::deserialize::{FromSql, Result as DeserializeResult};
 use diesel::pg::{Pg, PgValue};
 use diesel::prelude::*;
 use diesel::sql_types::{BigInt, Int4, Jsonb, Nullable, Text, Timestamptz, Uuid as SqlUuid};
-use mulac_outbox::io::*;
+use mulac_outbox::prelude::*;
 use serde_json::from_slice;
 use uuid::Uuid;
 

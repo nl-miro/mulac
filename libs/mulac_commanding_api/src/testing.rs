@@ -3,7 +3,7 @@
 //! Doubles implement the existing `mulac-commanding` ports, so no database is
 //! required. Every `*_api` crate exposes the same run-request table, so drift
 //! between their copied run types fails a test.
-pub mod io {
+pub mod prelude {
     pub use super::{
         HANDLER_FAILURE,
         PROCESS_FAILURE,
@@ -21,8 +21,8 @@ pub mod io {
     };
 }
 
-use crate::service::io::CommandingService;
-use commanding::io::{
+use crate::service::prelude::CommandingService;
+use commanding::prelude::{
     Command,
     CommandConsumer,
     CommandConsumerRepository,
@@ -36,7 +36,7 @@ use commanding::io::{
     ReservableCommandSpec,
     //
 };
-use eventing::io::{
+use eventing::prelude::{
     EventDispatchPort,
     EventError,
     NewEventEnvelope,

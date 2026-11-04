@@ -1,7 +1,7 @@
 //! Inbox components
-pub mod io {
+pub mod prelude {
     #[cfg(feature = "amqp")]
-    pub use crate::amqp_consumption::io::{
+    pub use crate::amqp_consumption::prelude::{
         AmqpClientError,
         AmqpTransport,
         AmqpWorker,
@@ -11,7 +11,7 @@ pub mod io {
         connection,
         //
     };
-    pub use crate::assembly::io::{
+    pub use crate::assembly::prelude::{
         AcknowledgeHandle,
         ExtraInfo,
         InboundMessageEnvelope,
@@ -25,14 +25,14 @@ pub mod io {
         //
     };
     #[cfg(feature = "diesel")]
-    pub use crate::assembly::io::{
+    pub use crate::assembly::prelude::{
         DbPool,
         InboxConsumerStorage,
         InboxStoreStorage,
         build_pool,
         //
     };
-    pub use crate::inbox_consumer::io::{
+    pub use crate::inbox_consumer::prelude::{
         InboxConsumer,
         InboxConsumerRepository,
         InboxReservePort,
@@ -40,15 +40,15 @@ pub mod io {
         //
     };
     #[cfg(feature = "diesel")]
-    pub use crate::record_messages::io::repository;
-    pub use crate::record_messages::io::{
+    pub use crate::record_messages::prelude::repository;
+    pub use crate::record_messages::prelude::{
         InboxRecorder,
         InboxRecorderRepository,
         InboxStorePort,
         NewInboxMessageEnvelope,
         //
     };
-    pub use crate::stale_reservation_sweep::io::{
+    pub use crate::stale_reservation_sweep::prelude::{
         InboxSweepPort,
         ReservationSweeper,
         StaleReservationSpec,

@@ -1,23 +1,23 @@
 //! Poem and poem-openapi adapter for the shared Mulac HTTP APIs.
 //!
-//! Applications declare the endpoints and delegate to [`io::InboxAdapter`] or,
+//! Applications declare the endpoints and delegate to [`prelude::InboxAdapter`] or,
 //! with the `commanding`, `eventing` and `outbox` features,
-//! `io::CommandingAdapter`, `io::EventingAdapter` and `io::OutboxAdapter`;
+//! `prelude::CommandingAdapter`, `prelude::EventingAdapter` and `prelude::OutboxAdapter`;
 //! parsing, validation and execution live in `mulac_inbox_api`, `mulac_commanding_api`,
 //! `mulac_eventing_api` and `mulac_outbox_api`.
-pub mod io {
-    pub use crate::adapter::io::{
+pub mod prelude {
+    pub use crate::adapter::prelude::{
         InboxAdapter,
         InboxSubmission,
         //
     };
     #[cfg(feature = "commanding")]
-    pub use crate::commanding::io::CommandingAdapter;
+    pub use crate::commanding::prelude::CommandingAdapter;
     #[cfg(feature = "eventing")]
-    pub use crate::eventing::io::EventingAdapter;
+    pub use crate::eventing::prelude::EventingAdapter;
     #[cfg(feature = "outbox")]
-    pub use crate::outbox::io::OutboxAdapter;
-    pub use crate::types::io::{
+    pub use crate::outbox::prelude::OutboxAdapter;
+    pub use crate::types::prelude::{
         RunRequest,
         RunResponse,
         SubmitInboxRequest,

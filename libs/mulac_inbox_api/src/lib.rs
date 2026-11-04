@@ -2,20 +2,20 @@
 //!
 //! HTTP adapters such as `mulac_poem` and `mulac_axum` parse request bodies
 //! into JSON values and delegate parsing, validation and execution here.
-pub mod io {
-    pub use crate::contract::io::{
+pub mod prelude {
+    pub use crate::contract::prelude::{
         RunRequest,
         RunResponse,
         SubmitInboxRequest,
         SubmitInboxResponse,
         //
     };
-    pub use crate::error::io::InboxApiError;
+    pub use crate::error::prelude::InboxApiError;
     #[cfg(feature = "tokio")]
-    pub use crate::runtime::io::AsyncInboxService;
-    pub use crate::service::io::InboxService;
+    pub use crate::runtime::prelude::AsyncInboxService;
+    pub use crate::service::prelude::InboxService;
     #[cfg(feature = "testing")]
-    pub use crate::testing::io as testing;
+    pub use crate::testing::prelude as testing;
 }
 
 mod contract;

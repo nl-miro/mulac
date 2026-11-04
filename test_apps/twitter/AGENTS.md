@@ -14,7 +14,7 @@ src/
   schema.rs                 — Diesel-generated table definitions (do not hand-edit)
   db.rs                     — re-exports from assembly::infra_diesel (kept for external compat)
   assembly/
-    mod.rs                  — pub mod io facade
+    mod.rs                  — pub mod prelude facade
     application.rs          — AppError, AppCommand, MulacState, MulacHandle, start_mulac, workers
     domain.rs               — Clock, shared DTOs (TweetDto, FollowDto, etc.), InboundEntity
     infra_diesel.rs         — DbPool, migrations, OutboxSubscriber, shared fetch helpers
@@ -65,10 +65,10 @@ mod handler    { CommandHandlerPort impl }
 mod infra_diesel { raw Diesel queries }
 mod http       { poem-openapi Api + request types }
 
-pub mod io { pub use super::{COMMAND_NAME, EVENT_NAME}; pub use ...; }
+pub mod prelude { pub use super::{COMMAND_NAME, EVENT_NAME}; pub use ...; }
 ```
 
-Callers import through `feature::io::*`. Internal submodules are private.
+Callers import through `feature::prelude::*`. Internal submodules are private.
 
 ---
 

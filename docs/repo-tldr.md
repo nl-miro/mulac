@@ -7,7 +7,7 @@ This document is the **fast entrypoint** for humans and LLMs. Read this first wh
 - [x] Read this file first for repo shape and current design decisions
 - [x] Start from the **specific feature crate** you are changing (`inbox`, `commanding`, `eventing`, `outbox`)
 - [x] Prefer **diff-first / file-scoped** work over whole-codebase exploration
-- [x] Import public APIs through `feature::io::*`, not internal modules
+- [x] Import public APIs through `feature::prelude::*`, not internal modules
 - [x] Treat `extra_info.errors` as the stable persisted error-history contract
 
 ---
@@ -65,14 +65,14 @@ For feature work, first check:
 
 ## 3. Module shape rules
 
-**TL;DR** — Each feature crate exposes **one public interface**: `pub mod io`.
+**TL;DR** — Each feature crate exposes **one public interface**: `pub mod prelude`.
 
 **Detail**
 
 Repository rule from `AGENTS.md`:
 
 - internal submodules stay private
-- callers import through `feature::io::*`
+- callers import through `feature::prelude::*`
 - do not build new external usages on internal module paths
 
 Common structure inside crates:
@@ -209,7 +209,7 @@ When narrowing scope, outbox integration coverage is especially useful for persi
 
 **Detail**
 
-- public API goes through `feature::io::*`
+- public API goes through `feature::prelude::*`
 - reservation ownership is the main safety invariant
 - attempts increment on reserve
 - `extra_info.errors` is the stable error-history field

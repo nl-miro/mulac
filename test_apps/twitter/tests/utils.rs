@@ -1,6 +1,6 @@
 use diesel::prelude::*;
 use diesel::r2d2::{ConnectionManager, Pool};
-use kernel::io::{
+use kernel::prelude::{
     NewCommand,
     NewCommandEnvelope,
     NewCommandMetadata,
@@ -10,7 +10,7 @@ use poem::{EndpointExt, Route, get, handler, middleware::AddData};
 use poem_openapi::OpenApiService;
 use reqwest::Client;
 use std::sync::{Arc, Mutex, OnceLock};
-pub use test_app_twitter::io::{
+pub use test_app_twitter::prelude::{
     AppState,
     DEFAULT_DATABASE_URL,
     DirectMessageSendApi,
@@ -27,7 +27,7 @@ pub use test_app_twitter::io::{
     run_event_worker,
     start_mulac, //
 };
-pub use test_app_twitter::io::{build_pool, run_migrations};
+pub use test_app_twitter::prelude::{build_pool, run_migrations};
 use tokio::sync::{Mutex as AsyncMutex, OwnedMutexGuard};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;

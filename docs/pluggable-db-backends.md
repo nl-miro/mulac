@@ -62,7 +62,7 @@ Reference templates: `libs/commanding/src/assembly/infra_diesel.rs`, `libs/comma
 - `libs/Cargo.toml` `[workspace.dependencies]`: add `sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio-rustls","postgres","uuid","chrono","json","derive"] }` (match `todo`'s sqlx so unification doesn't fork builds); ensure `tokio` has `rt-multi-thread`.
 - Each lib's `[features]`: keep `default = ["diesel"]`; add `sqlx-pg = ["dep:sqlx", "dep:tokio"]`; add `sqlx`/`tokio` as optional deps (inbox/outbox already have optional `tokio` for amqp — extend the union with `rt-multi-thread`).
 - **Generalize shared `#[cfg(feature = "diesel")]` gates** that the sqlx path also needs, to `#[cfg(any(feature = "diesel", feature = "sqlx-pg"))]`: the `Criterion` enum in each `domain.rs`; `ReservableCommandSpec::criteria()` + its imports/tests in `command_consumer.rs`; `StaleCommandSpec::criteria()` in `stale_command_sweep.rs`; the equivalent spec/criteria in eventing/inbox/outbox; the `pub(crate) use ...Criterion` re-exports in each `assembly/mod.rs`. The Diesel `schema::table!` module stays `diesel`-only (the sqlx adapter uses raw SQL table names). Audit every `#[cfg(feature="diesel")]`: storage/entity/schema → stays `diesel`; shared spec/criteria/domain → `any(...)`.
-- Each lib's `lib.rs` `io` block: add `#[cfg(feature="sqlx-pg")] pub use ...::{...SqlxStorage}`; leave existing diesel-only entity/storage re-exports gated on `diesel`.
+- Each lib's `lib.rs` `prelude` block: add `#[cfg(feature="sqlx-pg")] pub use ...::{...SqlxStorage}`; leave existing diesel-only entity/storage re-exports gated on `diesel`.
 
 ### 3. Kernel decoupling (`kernel/src/lib.rs`, `kernel/Cargo.toml`)
 
@@ -72,7 +72,7 @@ Reference templates: `libs/commanding/src/assembly/infra_diesel.rs`, `libs/comma
   - `#[cfg(feature="sqlx-pg")] pub fn start_persistent_sqlx(self, pool: sqlx::PgPool, drain_rounds)`
 - Keep `start_persistent` as a `#[cfg(feature="diesel")] #[deprecated(note="use start_persistent_diesel")]` alias forwarding to the diesel one — no break for `twitter` or external callers.
 - `kernel/Cargo.toml` `[features]`: `default = ["diesel"]`; `diesel = ["dep:mulac_diesel","commanding/diesel","eventing/diesel","inbox/diesel","outbox/diesel"]`; `sqlx-pg = ["dep:sqlx","commanding/sqlx-pg","eventing/sqlx-pg","inbox/sqlx-pg","outbox/sqlx-pg"]`. Switch the lib deps to `default-features=false` (features now forwarded), make `mulac_diesel` optional, add optional `sqlx`.
-- `io` re-exports: gate `mulac_diesel::{DbPool,build_pool}` and the Diesel storage structs on `diesel`; add the `Sqlx` storage structs gated on `sqlx-pg`; keep the backend-agnostic types (consumers, repositories, dispatcher, gateway, recorder, specs) ungated. `block_on_blocking` stays as-is.
+- `prelude` re-exports: gate `mulac_diesel::{DbPool,build_pool}` and the Diesel storage structs on `diesel`; add the `Sqlx` storage structs gated on `sqlx-pg`; keep the backend-agnostic types (consumers, repositories, dispatcher, gateway, recorder, specs) ungated. `block_on_blocking` stays as-is.
 
 ### 4. Ship canonical infra-table DDL for sqlx
 
@@ -80,7 +80,7 @@ mulac ships no infra migrations today (apps own DDL). Add `kernel/migrations/` w
 
 ### 5. Convert `todo` to a single sqlx pool (the demonstration)
 
-- `test_apps/todo/src/assembly/application.rs:158-229` `start_mulac`: drop the `database_url` param and the `kernel::io::build_pool` call (170-171); change the final `.start_persistent(db_pool, 1)` → `.start_persistent_sqlx(pool, 1)`; signature becomes `pub async fn start_mulac(pool: sqlx::PgPool) -> Result<MulacHandle, KernelError>`.
+- `test_apps/todo/src/assembly/application.rs:158-229` `start_mulac`: drop the `database_url` param and the `kernel::prelude::build_pool` call (170-171); change the final `.start_persistent(db_pool, 1)` → `.start_persistent_sqlx(pool, 1)`; signature becomes `pub async fn start_mulac(pool: sqlx::PgPool) -> Result<MulacHandle, KernelError>`.
 - `test_apps/todo/src/assembly/bin/todoapp.rs:61`: `start_mulac(pool.clone(), &database_url)` → `start_mulac(pool.clone())`; add `kernel::migrate_infra(&pool).await?` after the existing `migrate(&pool)`.
 - `test_apps/todo/Cargo.toml`: `kernel = { ..., default-features = false, features = ["sqlx-pg"], package = "mulac-kernel" }` — todo drops the Diesel/r2d2 build entirely. Now one pool backs domain + queues, so the outbox write can share a transaction with command/event persistence (a follow-up can wrap them in one `tx`).
 - Keep `twitter` on `start_persistent_diesel` so both backends stay exercised.
@@ -91,7 +91,7 @@ mulac ships no infra migrations today (apps own DDL). Add `kernel/migrations/` w
 - **No compile-time sqlx macros** — runtime `query`/`query_as` only; only `#[derive(FromRow)]` is compile-time (needs no DB), keeping the `margo` publish pipeline offline-safe.
 - **Feature unification** builds both backends in a full workspace build — safe due to distinct struct names. CI must build three configs (see Verification).
 - **jsonb parity** is the key compatibility risk — covered by the cross-backend test below.
-- **Publishing (margo registry):** bump 0.3.0 → 0.4.0 (public `io` surface + `start_persistent` deprecation are API changes); publish bottom-up — `mulac_diesel` → commanding → eventing/inbox (inbox depends on commanding) → outbox → `mulac-kernel`.
+- **Publishing (margo registry):** bump 0.3.0 → 0.4.0 (public `prelude` surface + `start_persistent` deprecation are API changes); publish bottom-up — `mulac_diesel` → commanding → eventing/inbox (inbox depends on commanding) → outbox → `mulac-kernel`.
 
 ## Verification
 

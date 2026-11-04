@@ -1,14 +1,14 @@
-pub mod io {
+pub mod prelude {
     pub use super::CommandingService;
 }
 
-use crate::contract::io::{
+use crate::contract::prelude::{
     RunCommandsRequest,
     RunCommandsResponse,
     //
 };
-use crate::error::io::CommandingApiError;
-use commanding::io::{
+use crate::error::prelude::CommandingApiError;
+use commanding::prelude::{
     CommandConsumer,
     ReservableCommandSpec,
     //
@@ -48,9 +48,12 @@ impl CommandingService {
 
 #[cfg(all(test, feature = "testing"))]
 mod tests {
-    use crate::io::{CommandingApiError, RunCommandsRequest, testing};
+    use crate::prelude::{CommandingApiError, RunCommandsRequest, testing};
 
-    fn run(service: crate::io::CommandingService, limit: usize) -> crate::io::RunCommandsResponse {
+    fn run(
+        service: crate::prelude::CommandingService,
+        limit: usize,
+    ) -> crate::prelude::RunCommandsResponse {
         service.run(RunCommandsRequest { limit }).unwrap()
     }
 

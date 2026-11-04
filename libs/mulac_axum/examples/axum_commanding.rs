@@ -10,14 +10,14 @@
 use axum::Router;
 use axum::extract::State;
 use axum::routing::post;
-use mulac_axum::io::{
+use mulac_axum::prelude::{
     CommandingAdapter,
     CommandingHttpError,
     CommandsRunResponse,
     RunCommands,
     //
 };
-use mulac_commanding_api::io::testing;
+use mulac_commanding_api::prelude::testing;
 
 async fn run_commands(
     State(commands): State<CommandingAdapter>,

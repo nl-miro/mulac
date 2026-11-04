@@ -6,18 +6,18 @@ mod model;
 mod record_events;
 mod stale_event_sweep;
 
-pub mod io {
+pub mod prelude {
     // Gateway
-    pub use crate::gateway::io::EventGateway;
+    pub use crate::gateway::prelude::EventGateway;
 
     // Dispatcher
-    pub use crate::dispatcher::io::{EventDispatcher, EventSubscriberPort};
+    pub use crate::dispatcher::prelude::{EventDispatcher, EventSubscriberPort};
 
     // Record
-    pub use crate::record_events::io::{EventRecorder, EventRecorderRepository};
+    pub use crate::record_events::prelude::{EventRecorder, EventRecorderRepository};
 
     // Consumer
-    pub use crate::event_consumer::io::{
+    pub use crate::event_consumer::prelude::{
         EventConsumer,
         EventConsumerRepository,
         EventReservePort,
@@ -26,7 +26,7 @@ pub mod io {
     };
 
     // Sweep
-    pub use crate::stale_event_sweep::io::{
+    pub use crate::stale_event_sweep::prelude::{
         EventSweepPort,
         EventSweeper,
         StaleEventSpec,
@@ -34,7 +34,7 @@ pub mod io {
     };
 
     // Application types and ports — eventing
-    pub use crate::assembly::io::{
+    pub use crate::assembly::prelude::{
         EventDispatchPort,
         EventEnvelope,
         EventError,
@@ -47,11 +47,11 @@ pub mod io {
         //
     };
 
-    pub use super::assembly::io::{NewEventEnvelope, NewEventMetadata};
+    pub use super::assembly::prelude::{NewEventEnvelope, NewEventMetadata};
 
     // Diesel infra — eventing (feature-gated)
     #[cfg(feature = "diesel")]
-    pub use crate::assembly::io::{
+    pub use crate::assembly::prelude::{
         EventConsumerStorage,
         EventEntry,
         EventStoreStorage,

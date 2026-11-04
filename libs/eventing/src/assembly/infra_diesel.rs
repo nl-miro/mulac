@@ -1,4 +1,4 @@
-pub mod io {
+pub mod prelude {
     pub use super::entity::{EventEntry, NewEventEntry};
     pub use super::storage::{EventConsumerStorage, EventStoreStorage};
 }
@@ -91,7 +91,7 @@ pub(crate) mod models {
 mod conversions {
     use super::entity::{EventEntry, NewEventEntry};
     use super::models::MetadataJsonb;
-    use crate::assembly::application::io::{
+    use crate::assembly::application::prelude::{
         EventEnvelope, EventError, EventMetadata, NewEventEnvelope, NewEventMetadata,
     };
     use chrono::Utc;
@@ -255,7 +255,7 @@ mod store_impl {
     use super::entity::NewEventEntry;
     use super::schema::event_entries;
     use super::storage::EventStoreStorage;
-    use crate::assembly::application::io::{
+    use crate::assembly::application::prelude::{
         EventError,
         EventStorePort,
         NewEventEnvelope,
@@ -287,7 +287,7 @@ mod store_impl {
 mod consumer_impl {
     use super::entity::EventEntry;
     use super::storage::EventConsumerStorage;
-    use crate::assembly::application::io::{
+    use crate::assembly::application::prelude::{
         EventEnvelope,
         EventError,
         EventProcessPort,
@@ -295,8 +295,8 @@ mod consumer_impl {
     };
     use crate::assembly::domain::append_error;
     use crate::assembly::domain::{Criterion, EventStatus};
-    use crate::event_consumer::io::{EventReservePort, ReservableEventSpec};
-    use crate::stale_event_sweep::io::{EventSweepPort, StaleEventSpec};
+    use crate::event_consumer::prelude::{EventReservePort, ReservableEventSpec};
+    use crate::stale_event_sweep::prelude::{EventSweepPort, StaleEventSpec};
     use chrono::{DateTime, Duration, Utc};
     use diesel::prelude::*;
     use diesel::sql_types::{Array, BigInt, Int4, Uuid as SqlUuid};

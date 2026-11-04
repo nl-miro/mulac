@@ -1,4 +1,4 @@
-pub mod io {
+pub mod prelude {
     pub use super::models::{
         Command,
         CommandEnvelope,
@@ -81,7 +81,7 @@ mod models {
         #[error("conversion error: {0}")]
         Conversion(String),
         #[error("eventing error: {0}")]
-        Eventing(#[from] eventing::io::EventError),
+        Eventing(#[from] eventing::prelude::EventError),
     }
 }
 

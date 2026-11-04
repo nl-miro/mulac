@@ -2,7 +2,7 @@ pub const REOPEN_TODO_COMMAND: &str = "ReopenTodo";
 pub const TODO_REOPENED_EVENT: &str = "TodoReopened";
 
 mod models {
-    use crate::assembly::io::TodoDto;
+    use crate::assembly::prelude::TodoDto;
     use kernel::ApplicationEvent;
     use poem_openapi::Object;
     use serde::{Deserialize, Serialize};
@@ -33,7 +33,7 @@ mod models {
 
 mod handler {
     use super::models::{ReopenTodoCommand, TodoReopened};
-    use crate::assembly::io::{DbPool, TodoEvent};
+    use crate::assembly::prelude::{DbPool, TodoEvent};
     use kernel::{CommandError, CommandHandlerPort};
 
     pub struct ReopenTodoHandler {
@@ -57,7 +57,7 @@ mod handler {
 }
 
 mod infra_diesel {
-    use crate::assembly::io::{AppError, Clock, DbPool, TodoDto, TodoRow, TodoStatus};
+    use crate::assembly::prelude::{AppError, Clock, DbPool, TodoDto, TodoRow, TodoStatus};
     use crate::schema::todos;
     use diesel::prelude::*;
     use uuid::Uuid;
@@ -81,7 +81,7 @@ mod http {
     use super::models::ReopenTodoCommand;
     use crate::{
         AppState,
-        assembly::io::{
+        assembly::prelude::{
             ApiError, AppCommand, MulacState, NewCommandEnvelope, TodoDto, fetch_todo,
             interpret_dispatch_error, run_blocking,
         },
@@ -126,7 +126,7 @@ mod http {
     }
 }
 
-pub mod io {
+pub mod prelude {
     pub use super::REOPEN_TODO_COMMAND;
     pub use super::TODO_REOPENED_EVENT;
     pub use super::handler::ReopenTodoHandler;

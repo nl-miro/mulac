@@ -36,8 +36,8 @@ mod models {
 
 mod handler {
     use super::models::{Command, Event};
-    use crate::assembly::io::DbPool;
-    use kernel::io::{CommandError, CommandHandlerPort};
+    use crate::assembly::prelude::DbPool;
+    use kernel::prelude::{CommandError, CommandHandlerPort};
 
     pub struct Handler {
         pool: DbPool,
@@ -107,7 +107,7 @@ mod infra_diesel {}
 mod http {
     use crate::{
         AppState,
-        assembly::io::{
+        assembly::prelude::{
             ApiError,
             AppCommand,
             NewCommandEnvelope,
@@ -119,7 +119,7 @@ mod http {
         },
         //
     };
-    use kernel::io::NewCommandMetadata;
+    use kernel::prelude::NewCommandMetadata;
     use poem::web::Data;
     use poem_openapi::{Object, OpenApi, payload::Json};
     use serde::Deserialize;
@@ -166,7 +166,7 @@ mod http {
             .await?;
             let tweet = run_blocking(move || {
                 fetch_tweet(&pool, retweet_id)
-                    .map_err(|e| crate::assembly::io::AppError::Storage(e))
+                    .map_err(|e| crate::assembly::prelude::AppError::Storage(e))
             })
             .await?;
             Ok(Json(tweet))
@@ -174,7 +174,7 @@ mod http {
     }
 }
 
-pub mod io {
+pub mod prelude {
     pub use super::handler::Handler;
     pub use super::http::Api;
     pub use super::models::{Command, Event};

@@ -1,4 +1,4 @@
-pub mod io {
+pub mod prelude {
     pub use super::InboxApiError;
     pub(crate) use super::{
         err_correlation_id_not_uuid,
@@ -20,7 +20,7 @@ pub mod io {
     };
 }
 
-use inbox::io::InboxError;
+use inbox::prelude::InboxError;
 
 type Cause = Box<dyn std::error::Error + Send + Sync>;
 

@@ -1,14 +1,14 @@
-pub mod io {
+pub mod prelude {
     pub use super::EventingService;
 }
 
-use crate::contract::io::{
+use crate::contract::prelude::{
     RunEventsRequest,
     RunEventsResponse,
     //
 };
-use crate::error::io::EventingApiError;
-use eventing::io::{
+use crate::error::prelude::EventingApiError;
+use eventing::prelude::{
     EventConsumer,
     ReservableEventSpec,
     //
@@ -45,9 +45,12 @@ impl EventingService {
 
 #[cfg(all(test, feature = "testing"))]
 mod tests {
-    use crate::io::{EventingApiError, RunEventsRequest, testing};
+    use crate::prelude::{EventingApiError, RunEventsRequest, testing};
 
-    fn run(service: crate::io::EventingService, limit: usize) -> crate::io::RunEventsResponse {
+    fn run(
+        service: crate::prelude::EventingService,
+        limit: usize,
+    ) -> crate::prelude::RunEventsResponse {
         service.run(RunEventsRequest { limit }).unwrap()
     }
 

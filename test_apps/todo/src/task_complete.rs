@@ -2,7 +2,7 @@ pub const COMPLETE_TODO_COMMAND: &str = "CompleteTodo";
 pub const TODO_COMPLETED_EVENT: &str = "TodoCompleted";
 
 mod models {
-    use crate::assembly::io::TodoDto;
+    use crate::assembly::prelude::TodoDto;
     use kernel::ApplicationEvent;
     use poem_openapi::Object;
     use serde::{Deserialize, Serialize};
@@ -33,7 +33,7 @@ mod models {
 
 mod handler {
     use super::models::{CompleteTodoCommand, TodoCompleted};
-    use crate::assembly::io::{DbPool, TodoEvent};
+    use crate::assembly::prelude::{DbPool, TodoEvent};
     use kernel::{CommandError, CommandHandlerPort};
 
     pub struct CompleteTodoHandler {
@@ -57,7 +57,7 @@ mod handler {
 }
 
 mod infra_diesel {
-    use crate::assembly::io::{AppError, Clock, DbPool, TodoDto, TodoRow, TodoStatus};
+    use crate::assembly::prelude::{AppError, Clock, DbPool, TodoDto, TodoRow, TodoStatus};
     use crate::schema::todos;
     use diesel::prelude::*;
     use uuid::Uuid;
@@ -81,7 +81,7 @@ mod http {
     use super::models::CompleteTodoCommand;
     use crate::{
         AppState,
-        assembly::io::{
+        assembly::prelude::{
             ApiError, AppCommand, MulacState, NewCommandEnvelope, TodoDto, fetch_todo,
             interpret_dispatch_error, run_blocking,
         },
@@ -126,7 +126,7 @@ mod http {
     }
 }
 
-pub mod io {
+pub mod prelude {
     pub use super::COMPLETE_TODO_COMMAND;
     pub use super::TODO_COMPLETED_EVENT;
     pub use super::handler::CompleteTodoHandler;

@@ -21,7 +21,7 @@ outbox entries with the [`outbox`](../outbox) crate, shared by the
 |-----------|---------|------------------------------------------------------------|
 | `diesel`  | yes     | `OutboxService::from_postgres` and Diesel in `mulac-outbox` |
 | `tokio`   | no      | `AsyncOutboxService`                                       |
-| `testing` | no      | `io::testing`: shared run-request fixtures and port-based doubles |
+| `testing` | no      | `prelude::testing`: shared run-request fixtures and port-based doubles |
 
 Without `diesel` the dependency tree contains no database driver. The crate
 never depends on a broker client, and does not enable `mulac-outbox/amqp`.

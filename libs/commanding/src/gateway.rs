@@ -1,11 +1,11 @@
-pub mod io {
+pub mod prelude {
     pub use super::gateway::CommandGateway;
 }
 
 mod gateway {
-    use crate::assembly::io::{CommandError, NewCommandEnvelope};
+    use crate::assembly::prelude::{CommandError, NewCommandEnvelope};
     use crate::dispatcher::CommandDispatcher;
-    use crate::record_commands::io::CommandRecorder;
+    use crate::record_commands::prelude::CommandRecorder;
     use std::sync::Arc;
 
     pub enum CommandGateway {

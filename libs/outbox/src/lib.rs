@@ -1,24 +1,24 @@
-pub mod io {
-    pub use crate::assembly::io::*;
-    pub use crate::outbox_consumer::io::{
+pub mod prelude {
+    pub use crate::assembly::prelude::*;
+    pub use crate::outbox_consumer::prelude::{
         OutboxConsumer,
         OutboxConsumerRepository,
         ReservableOutboxSpec,
         //
     };
-    pub use crate::record_events::io::{
+    pub use crate::record_events::prelude::{
         OutboxRecorder,
         OutboxRecorderRepository,
         //
     };
-    pub use crate::stale_reservation_sweep::io::{
+    pub use crate::stale_reservation_sweep::prelude::{
         ReservationSweeper,
         StaleReservationSpec,
         //
     };
 
     #[cfg(feature = "diesel")]
-    pub use crate::assembly::infra_diesel::io::{
+    pub use crate::assembly::infra_diesel::prelude::{
         DbPool,
         OutboxConsumerStorage,
         OutboxStoreStorage,
@@ -26,16 +26,16 @@ pub mod io {
         //
     };
     #[cfg(feature = "diesel")]
-    pub use crate::outbox_consumer::io::repository as consumer_repository;
+    pub use crate::outbox_consumer::prelude::repository as consumer_repository;
     #[cfg(feature = "diesel")]
-    pub use crate::record_events::io::repository as recorder_repository;
+    pub use crate::record_events::prelude::repository as recorder_repository;
     #[cfg(feature = "diesel")]
-    pub use crate::stale_reservation_sweep::io::sweeper as reservation_sweeper;
+    pub use crate::stale_reservation_sweep::prelude::sweeper as reservation_sweeper;
 
     #[cfg(feature = "amqp")]
-    pub use crate::amqp_publisher::io::{AmqpPublishConfig, AmqpPublisher};
+    pub use crate::amqp_publisher::prelude::{AmqpPublishConfig, AmqpPublisher};
     #[cfg(feature = "amqp")]
-    pub use crate::confirmed_amqp_publisher::io::ConfirmedAmqpPublisher;
+    pub use crate::confirmed_amqp_publisher::prelude::ConfirmedAmqpPublisher;
 }
 
 #[cfg(feature = "amqp")]

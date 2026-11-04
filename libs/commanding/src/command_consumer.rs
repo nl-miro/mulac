@@ -1,4 +1,4 @@
-pub mod io {
+pub mod prelude {
     pub use super::consumer::CommandConsumer;
     pub use super::ports::CommandReservePort;
     pub use super::repository::CommandConsumerRepository;
@@ -7,7 +7,7 @@ pub mod io {
 
 mod reservable {
     #[cfg(feature = "diesel")]
-    use crate::assembly::io::{CommandStatus, Criterion};
+    use crate::assembly::prelude::{CommandStatus, Criterion};
 
     /// Parameters for selecting command entries eligible for consumption.
     pub struct ReservableCommandSpec {
@@ -102,7 +102,7 @@ mod reservable {
 
 mod ports {
     use super::reservable::ReservableCommandSpec;
-    use crate::assembly::io::{CommandEnvelope, CommandError};
+    use crate::assembly::prelude::{CommandEnvelope, CommandError};
 
     pub trait CommandReservePort: Send + Sync {
         fn reserve(
@@ -115,7 +115,7 @@ mod ports {
 mod repository {
     use super::ports::CommandReservePort;
     use super::reservable::ReservableCommandSpec;
-    use crate::assembly::io::{
+    use crate::assembly::prelude::{
         CommandEnvelope,
         CommandError,
         CommandProcessPort,
@@ -163,7 +163,7 @@ mod repository {
 }
 
 mod conversions {
-    use crate::assembly::io::{
+    use crate::assembly::prelude::{
         CommandEnvelope,
         CommandMetadata,
         NewCommand,
@@ -199,7 +199,7 @@ mod conversions {
 mod consumer {
     use super::repository::CommandConsumerRepository;
     use super::reservable::ReservableCommandSpec;
-    use crate::assembly::io::{CommandEnvelope, CommandError};
+    use crate::assembly::prelude::{CommandEnvelope, CommandError};
     use crate::dispatcher::CommandDispatcher;
     use std::sync::Arc;
 
@@ -268,9 +268,9 @@ mod consumer {
 
 #[cfg(feature = "diesel")]
 mod infra_diesel_pg {
-    use super::io::{CommandReservePort, ReservableCommandSpec};
+    use super::prelude::{CommandReservePort, ReservableCommandSpec};
     use crate::assembly::domain::append_error;
-    use crate::assembly::io::{
+    use crate::assembly::prelude::{
         CommandConsumerStorage,
         CommandEntry,
         CommandEnvelope,

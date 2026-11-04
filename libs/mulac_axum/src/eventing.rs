@@ -1,4 +1,4 @@
-pub mod io {
+pub mod prelude {
     pub use super::{
         EventingAdapter,
         EventingHttpError,
@@ -8,7 +8,7 @@ pub mod io {
     };
 }
 
-use crate::body::io::{
+use crate::body::prelude::{
     json_body,
     rejection_response,
     //
@@ -18,7 +18,7 @@ use axum::extract::rejection::JsonRejection;
 use axum::extract::{FromRequest, Request};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use mulac_eventing_api::io::{
+use mulac_eventing_api::prelude::{
     AsyncEventingService,
     EventingApiError,
     RunEventsRequest,
@@ -146,7 +146,7 @@ mod tests {
     use axum::http::{Request, header};
     use axum::routing::post;
     use http_body_util::BodyExt;
-    use mulac_eventing_api::io::{EventingService, testing};
+    use mulac_eventing_api::prelude::{EventingService, testing};
     use serde_json::{Value, json};
     use tower::ServiceExt;
 

@@ -1,4 +1,4 @@
-pub mod io {
+pub mod prelude {
     pub use super::storage::{OutboxConsumerStorage, OutboxStoreStorage};
     pub use mulac_diesel::{DbPool, build_pool};
 }
@@ -93,7 +93,7 @@ mod models {
 }
 
 mod conversions {
-    use crate::assembly::application::io::{OutboxEntryEnvelope, OutboxError};
+    use crate::assembly::application::prelude::{OutboxEntryEnvelope, OutboxError};
     use crate::assembly::domain::{
         NewOutboxEntry as DomainNewOutboxEntry,
         OutboxEntry as DomainOutboxEntry,
@@ -357,7 +357,7 @@ pub(crate) mod entity {
 mod storage {
     use super::entity::{NewOutboxEntryRecord, OutboxEntryRecord};
     use super::schema::outbox_entries;
-    use crate::assembly::application::io::{
+    use crate::assembly::application::prelude::{
         OutboxEntryEnvelope,
         OutboxError,
         OutboxProcessPort,
@@ -367,8 +367,8 @@ mod storage {
         //
     };
     use crate::assembly::domain::{NewOutboxEntry, OutboxStatus, append_error};
-    use crate::outbox_consumer::io::ReservableOutboxSpec;
-    use crate::stale_reservation_sweep::io::StaleReservationSpec;
+    use crate::outbox_consumer::prelude::ReservableOutboxSpec;
+    use crate::stale_reservation_sweep::prelude::StaleReservationSpec;
     use chrono::{DateTime, Duration, Utc};
     use diesel::prelude::*;
     use diesel::sql_types::{Array, BigInt, Int4, Uuid as SqlUuid};
@@ -715,7 +715,7 @@ mod storage {
 mod tests {
     use super::entity::{NewOutboxEntryRecord, OutboxEntryRecord};
     use super::models::MetadataJsonb;
-    use crate::assembly::application::io::OutboxEntryEnvelope;
+    use crate::assembly::application::prelude::OutboxEntryEnvelope;
     use crate::assembly::domain::{
         ExtraInfo,
         NewOutboxEntry,

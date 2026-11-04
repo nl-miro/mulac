@@ -4,7 +4,7 @@ pub mod domain;
 #[cfg(feature = "diesel")]
 pub mod infra_diesel;
 
-pub mod io {
-    pub use super::application::io::*;
+pub mod prelude {
+    pub use super::application::prelude::*;
     pub use super::domain::*;
 }

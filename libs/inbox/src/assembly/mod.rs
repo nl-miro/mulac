@@ -3,8 +3,8 @@ pub(crate) mod domain;
 #[cfg(feature = "diesel")]
 pub(crate) mod infra_diesel;
 
-pub mod io {
-    pub use super::application::io::{
+pub mod prelude {
+    pub use super::application::prelude::{
         AcknowledgeHandle,
         InboundMessageEnvelope,
         InboxError,
@@ -22,7 +22,7 @@ pub mod io {
     #[cfg(feature = "diesel")]
     pub(crate) use super::infra_diesel::entity::{InboxEntry, NewInboxEntry};
     #[cfg(feature = "diesel")]
-    pub use super::infra_diesel::io::{
+    pub use super::infra_diesel::prelude::{
         DbPool,
         InboxConsumerStorage,
         InboxStoreStorage,

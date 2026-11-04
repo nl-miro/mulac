@@ -4,18 +4,18 @@
 //! into JSON values and delegate validation and execution here. The command
 //! consumer, with its dispatcher and handlers, is built by the application or
 //! the kernel.
-pub mod io {
-    pub use crate::contract::io::{
+pub mod prelude {
+    pub use crate::contract::prelude::{
         RunCommandsRequest,
         RunCommandsResponse,
         //
     };
-    pub use crate::error::io::CommandingApiError;
+    pub use crate::error::prelude::CommandingApiError;
     #[cfg(feature = "tokio")]
-    pub use crate::runtime::io::AsyncCommandingService;
-    pub use crate::service::io::CommandingService;
+    pub use crate::runtime::prelude::AsyncCommandingService;
+    pub use crate::service::prelude::CommandingService;
     #[cfg(feature = "testing")]
-    pub use crate::testing::io as testing;
+    pub use crate::testing::prelude as testing;
 }
 
 mod contract;

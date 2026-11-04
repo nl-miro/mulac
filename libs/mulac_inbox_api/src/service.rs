@@ -1,16 +1,16 @@
-pub mod io {
+pub mod prelude {
     pub use super::InboxService;
 }
 
-use crate::contract::io::{
+use crate::contract::prelude::{
     RunRequest,
     RunResponse,
     SubmitInboxRequest,
     SubmitInboxResponse,
     //
 };
-use crate::error::io::{InboxApiError, err_storage_failed};
-use inbox::io::{
+use crate::error::prelude::{InboxApiError, err_storage_failed};
+use inbox::prelude::{
     InboxConsumer,
     InboxRecorder,
     NewInboxMessageEnvelope,
@@ -38,15 +38,15 @@ impl InboxService {
     /// The inbox consumer only records commands; running the inbox never
     /// executes them.
     #[cfg(feature = "diesel")]
-    pub fn from_postgres(pool: inbox::io::DbPool) -> Self {
-        use commanding::io::{
+    pub fn from_postgres(pool: inbox::prelude::DbPool) -> Self {
+        use commanding::prelude::{
             CommandGateway,
             CommandRecorder,
             CommandRecorderRepository,
             CommandStoreStorage,
             //
         };
-        use inbox::io::{
+        use inbox::prelude::{
             InboxConsumerRepository,
             InboxConsumerStorage,
             InboxRecorderRepository,
@@ -99,7 +99,7 @@ impl InboxService {
 
 #[cfg(all(test, feature = "testing"))]
 mod tests {
-    use crate::io::{InboxApiError, RunRequest, SubmitInboxRequest, testing};
+    use crate::prelude::{InboxApiError, RunRequest, SubmitInboxRequest, testing};
     use serde_json::json;
 
     fn request(body: serde_json::Value) -> SubmitInboxRequest {

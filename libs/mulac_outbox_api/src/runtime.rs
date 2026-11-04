@@ -1,19 +1,19 @@
-pub mod io {
+pub mod prelude {
     pub use super::AsyncOutboxService;
 }
 
-use crate::contract::io::{
+use crate::contract::prelude::{
     RunOutboxRequest,
     RunOutboxResponse,
     //
 };
-use crate::error::io::{
+use crate::error::prelude::{
     OutboxApiError,
     err_publisher_not_configured,
     err_run_task_failed,
     //
 };
-use crate::service::io::OutboxService;
+use crate::service::prelude::OutboxService;
 use std::sync::Arc;
 
 /// Runs [`OutboxService`] on Tokio's blocking thread pool, or reports that
@@ -66,8 +66,8 @@ impl From<OutboxService> for AsyncOutboxService {
 #[cfg(all(test, feature = "testing"))]
 mod tests {
     use super::*;
-    use crate::io::{OutboxApiErrorKind, testing};
-    use outbox::io::{
+    use crate::prelude::{OutboxApiErrorKind, testing};
+    use outbox::prelude::{
         OutboundMessageEnvelope,
         OutboxError,
         OutboxPublisherPort,

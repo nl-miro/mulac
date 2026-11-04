@@ -6,7 +6,7 @@
 use axum::extract::State;
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use mulac_axum::io::{
+use mulac_axum::prelude::{
     InboxAdapter,
     InboxHttpError,
     InboxRunResponse,
@@ -15,7 +15,7 @@ use mulac_axum::io::{
     SubmitInbox,
     //
 };
-use mulac_inbox_api::io::InboxService;
+use mulac_inbox_api::prelude::InboxService;
 use utoipa::OpenApi;
 
 /// Store one message without processing it. Unknown routing keys are accepted.
@@ -57,7 +57,7 @@ struct ApiDoc;
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
     let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL is required");
-    let pool = inbox::io::build_pool(&database_url).map_err(std::io::Error::other)?;
+    let pool = inbox::prelude::build_pool(&database_url).map_err(std::io::Error::other)?;
     let inbox_adapter = InboxAdapter::new(InboxService::from_postgres(pool));
 
     let inbox_routes = Router::new()

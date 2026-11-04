@@ -1,4 +1,4 @@
-pub mod io {
+pub mod prelude {
     pub use super::{
         InboxHttpError,
         RunInbox,
@@ -7,7 +7,7 @@ pub mod io {
     };
 }
 
-use crate::body::io::{
+use crate::body::prelude::{
     json_body,
     rejection_response,
     //
@@ -16,7 +16,7 @@ use axum::extract::rejection::JsonRejection;
 use axum::extract::{FromRequest, Request};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use mulac_inbox_api::io::{
+use mulac_inbox_api::prelude::{
     InboxApiError,
     RunRequest,
     SubmitInboxRequest,

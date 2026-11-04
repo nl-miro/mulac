@@ -2,7 +2,7 @@
 //!
 //! Doubles implement the existing `mulac-inbox` and `mulac-commanding` ports,
 //! so no database is required.
-pub mod io {
+pub mod prelude {
     pub use super::{
         RESERVATION_FAILURE,
         RecordingStore,
@@ -18,8 +18,8 @@ pub mod io {
     };
 }
 
-use crate::service::io::InboxService;
-use commanding::io::{
+use crate::service::prelude::InboxService;
+use commanding::prelude::{
     CommandError,
     CommandGateway,
     CommandRecorder,
@@ -28,7 +28,7 @@ use commanding::io::{
     NewCommandEnvelope,
     //
 };
-use inbox::io::{
+use inbox::prelude::{
     InboxConsumer,
     InboxConsumerRepository,
     InboxError,

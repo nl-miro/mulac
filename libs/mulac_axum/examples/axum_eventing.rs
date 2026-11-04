@@ -10,14 +10,14 @@
 use axum::Router;
 use axum::extract::State;
 use axum::routing::post;
-use mulac_axum::io::{
+use mulac_axum::prelude::{
     EventingAdapter,
     EventingHttpError,
     EventsRunResponse,
     RunEvents,
     //
 };
-use mulac_eventing_api::io::testing;
+use mulac_eventing_api::prelude::testing;
 
 async fn run_events(
     State(events): State<EventingAdapter>,

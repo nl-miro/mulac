@@ -6,7 +6,7 @@ A Twitter-like reference application that exercises the Mulac command/event fram
 
 `test_app_twitter` mirrors `test_app_todo` in architecture but uses Diesel instead of SQLx for all database operations. It demonstrates:
 
-- Flat feature modules, each with exactly one `pub mod io` facade
+- Flat feature modules, each with exactly one `pub mod prelude` facade
 - App-owned `AppState { pool, mulac }` with two-phased command/event gateways
 - App-owned `inbox_messages` and `outbox_messages` tables separate from kernel `*_entries` tables
 - Idempotent outbox with PK reuse (`outbox_messages.id == source event_id`)
@@ -25,7 +25,7 @@ test_app_twitter/
     2025-01-01-000002_app_tables/     — domain tables
     2026-05-23-000001_app_messages/   — app inbox/outbox tables
   src/
-    lib.rs                            — TwitterEvent, AppState, pub mod io
+    lib.rs                            — TwitterEvent, AppState, pub mod prelude
     schema.rs                         — Diesel schema (auto-generated)
     assembly/
       application.rs                  — errors, AppCommand, MulacState, start_mulac

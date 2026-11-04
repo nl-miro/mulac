@@ -1,5 +1,5 @@
-use commanding::io::{CommandConsumer, ReservableCommandSpec};
-use eventing::io::{EventConsumer, ReservableEventSpec};
+use commanding::prelude::{CommandConsumer, ReservableCommandSpec};
+use eventing::prelude::{EventConsumer, ReservableEventSpec};
 use std::{sync::Arc, time::Duration};
 use tokio_util::sync::CancellationToken;
 

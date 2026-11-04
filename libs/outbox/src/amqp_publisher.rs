@@ -1,8 +1,8 @@
-pub mod io {
+pub mod prelude {
     pub use super::{AmqpPublishConfig, AmqpPublisher};
 }
 
-use crate::assembly::io::{
+use crate::assembly::prelude::{
     OutboundMessageEnvelope,
     OutboxEntryMetadata,
     OutboxError,

@@ -11,14 +11,14 @@
 use axum::Router;
 use axum::extract::State;
 use axum::routing::post;
-use mulac_axum::io::{
+use mulac_axum::prelude::{
     OutboxAdapter,
     OutboxHttpError,
     OutboxRunResponse,
     RunOutbox,
     //
 };
-use mulac_outbox_api::io::testing;
+use mulac_outbox_api::prelude::testing;
 
 async fn run_outbox(
     State(outbox): State<OutboxAdapter>,

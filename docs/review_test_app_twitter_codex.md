@@ -28,5 +28,5 @@ The app is mostly clean, but there are a few important issues: one response cont
 
 4. **Low — facade boundary is still too wide**
    - `test_apps/twitter/src/lib.rs:1-126`
-   - The crate still exposes `pub mod schema` and root-public types instead of forcing consumers through the `io` facade.
-   - **Suggested fix:** privatize internals where possible and re-export only through `io`.
+   - The crate still exposes `pub mod schema` and root-public types instead of forcing consumers through the `prelude` facade.
+   - **Suggested fix:** privatize internals where possible and re-export only through `prelude`.

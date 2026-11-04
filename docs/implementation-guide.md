@@ -15,7 +15,7 @@ Every component crate follows this layout:
 ├── Cargo.toml
 ├── SPEC.md               ← technical specification (filled before implementation)
 └── src/
-    ├── lib.rs            ← public io facade only, no logic
+    ├── lib.rs            ← public prelude facade only, no logic
     ├── assembly/
     │   ├── mod.rs
     │   ├── domain.rs     ← core models, status enums, value objects
@@ -114,10 +114,10 @@ pub fn repository(database_url: String) -> Result<CommandRecorderRepository, Str
 
 ### lib.rs
 
-Re-export everything that external callers need through a single `io` module. Nothing else.
+Re-export everything that external callers need through a single `prelude` module. Nothing else.
 
 ```rust
-pub mod io {
+pub mod prelude {
     pub use crate::record_messages::{CommandRecorder, CommandRecorderRepository};
     pub use crate::command_consumer::{CommandConsumer, CommandConsumerRepository, ReservableCommandSpec};
     pub use crate::stale_reservation_sweep::{ReservationSweeper, StaleReservationSpec};
@@ -208,7 +208,7 @@ diesel = { version = "...", features = ["postgres", "chrono", "uuid", "serde_jso
 - [ ] Write `assembly/application.rs`: port traits, envelope types, error enum
 - [ ] Write use-case modules with Spec, Repository, Component, and constructor
 - [ ] Write `assembly/infra_<name>.rs` behind feature flag
-- [ ] Wire up `lib.rs` with `io` re-exports
+- [ ] Wire up `lib.rs` with `prelude` re-exports
 - [ ] Add reservation tests: concurrent workers must not claim the same entry
 - [ ] Add retry tests: failed entries schedule at correct future time
 - [ ] Add stale sweep tests: sweep does not increment attempt counter
@@ -219,7 +219,7 @@ diesel = { version = "...", features = ["postgres", "chrono", "uuid", "serde_jso
 ## What not to do
 
 - Do not put SQL in use-case modules. SQL belongs in `infra_*` modules only.
-- Do not import from `crate::io` inside the crate. Use direct module paths internally; `io` is for external callers.
+- Do not import from `crate::prelude` inside the crate. Use direct module paths internally; `prelude` is for external callers.
 - Do not share a single repository across multiple use cases. Each use case gets its own.
 - Do not create a generic `<Component>Repository<S>` as the public API. Use `Arc<dyn Trait>` and keep the repository concrete. See [ADR-008](adr/008-arc-dyn-trait-dependencies.md).
 - Do not add status codes sequentially. Leave gaps. See [ADR-002](adr/002-status-code-gaps.md).

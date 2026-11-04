@@ -12,7 +12,7 @@ pub(crate) mod tweet_unlike;
 pub(crate) mod user_follow;
 pub(crate) mod user_unfollow;
 
-use assembly::io::{DbPool, MulacState};
+use assembly::prelude::{DbPool, MulacState};
 use kernel::ApplicationEvent;
 use poem_openapi::Union;
 use serde::{Deserialize, Serialize};
@@ -21,14 +21,14 @@ use serde::{Deserialize, Serialize};
 #[oai(discriminator_name = "type")]
 #[serde(tag = "type", content = "payload")]
 pub enum TwitterEvent {
-    TweetPosted(tweet_post::io::Event),
-    TweetDeleted(tweet_delete::io::Event),
-    TweetRetweeted(tweet_retweet::io::Event),
-    UserFollowed(user_follow::io::Event),
-    UserUnfollowed(user_unfollow::io::Event),
-    TweetLiked(tweet_like::io::Event),
-    TweetUnliked(tweet_unlike::io::Event),
-    DirectMessageSent(direct_message_send::io::Event),
+    TweetPosted(tweet_post::prelude::Event),
+    TweetDeleted(tweet_delete::prelude::Event),
+    TweetRetweeted(tweet_retweet::prelude::Event),
+    UserFollowed(user_follow::prelude::Event),
+    UserUnfollowed(user_unfollow::prelude::Event),
+    TweetLiked(tweet_like::prelude::Event),
+    TweetUnliked(tweet_unlike::prelude::Event),
+    DirectMessageSent(direct_message_send::prelude::Event),
 }
 
 impl ApplicationEvent for TwitterEvent {
@@ -58,8 +58,8 @@ impl AppState {
     }
 }
 
-pub mod io {
-    pub use super::assembly::io::{
+pub mod prelude {
+    pub use super::assembly::prelude::{
         ApiError,
         AppCommand,
         AppError,
@@ -80,45 +80,45 @@ pub mod io {
         validate_content,
         //
     };
-    pub use super::direct_message_send::io::{
+    pub use super::direct_message_send::prelude::{
         Api as DirectMessageSendApi,
         Handler as SendDirectMessageHandler,
         //
     };
-    pub use super::inbox::io::Api as InboxApi;
-    pub use super::outbox::io::{Api as OutboxApi, OutboxMessageDto};
-    pub use super::timeline_fan_out::io::Handler as FanOutTweetHandler;
-    pub use super::tweet_delete::io::{
+    pub use super::inbox::prelude::Api as InboxApi;
+    pub use super::outbox::prelude::{Api as OutboxApi, OutboxMessageDto};
+    pub use super::timeline_fan_out::prelude::Handler as FanOutTweetHandler;
+    pub use super::tweet_delete::prelude::{
         Api as TweetDeleteApi,
         Handler as DeleteTweetHandler,
         //
     };
-    pub use super::tweet_like::io::{
+    pub use super::tweet_like::prelude::{
         Api as TweetLikeApi,
         Handler as LikeTweetHandler,
         //
     };
-    pub use super::tweet_post::io::{
+    pub use super::tweet_post::prelude::{
         Api as TweetPostApi,
         Handler as PostTweetHandler,
         //
     };
-    pub use super::tweet_retweet::io::{
+    pub use super::tweet_retweet::prelude::{
         Api as TweetRetweetApi,
         Handler as RetweetHandler,
         //
     };
-    pub use super::tweet_unlike::io::{
+    pub use super::tweet_unlike::prelude::{
         Api as TweetUnlikeApi,
         Handler as UnlikeTweetHandler,
         //
     };
-    pub use super::user_follow::io::{
+    pub use super::user_follow::prelude::{
         Api as FollowUserApi,
         Handler as FollowUserHandler,
         //
     };
-    pub use super::user_unfollow::io::{
+    pub use super::user_unfollow::prelude::{
         Api as UnfollowUserApi,
         Handler as UnfollowUserHandler,
         //

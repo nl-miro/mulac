@@ -1,18 +1,18 @@
-pub mod io {
+pub mod prelude {
     pub use super::AsyncCommandingService;
 }
 
-use crate::contract::io::{
+use crate::contract::prelude::{
     RunCommandsRequest,
     RunCommandsResponse,
     //
 };
-use crate::error::io::{
+use crate::error::prelude::{
     CommandingApiError,
     err_run_task_failed,
     //
 };
-use crate::service::io::CommandingService;
+use crate::service::prelude::CommandingService;
 use std::sync::Arc;
 
 /// Runs [`CommandingService`] on Tokio's blocking thread pool.
@@ -50,7 +50,7 @@ impl From<CommandingService> for AsyncCommandingService {
 #[cfg(all(test, feature = "testing"))]
 mod tests {
     use super::*;
-    use crate::io::testing;
+    use crate::prelude::testing;
     use std::error::Error;
 
     #[tokio::test]

@@ -4,9 +4,9 @@ mod domain;
 #[cfg(feature = "diesel")]
 mod infra_diesel;
 
-pub mod io {
+pub mod prelude {
 
-    pub use super::application::io::{
+    pub use super::application::prelude::{
         EventDispatchPort,
         EventEnvelope,
         EventError,
@@ -21,12 +21,12 @@ pub mod io {
     pub(crate) use super::domain::Criterion;
 
     #[cfg(feature = "diesel")]
-    pub use super::infra_diesel::io::{
+    pub use super::infra_diesel::prelude::{
         EventConsumerStorage,
         EventEntry,
         EventStoreStorage,
         NewEventEntry, //
     };
 
-    pub use super::application::io::{NewEventEnvelope, NewEventMetadata};
+    pub use super::application::prelude::{NewEventEnvelope, NewEventMetadata};
 }

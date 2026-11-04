@@ -1,4 +1,4 @@
-pub mod io {
+pub mod prelude {
     pub use super::{
         RunRequest,
         RunResponse,
@@ -8,7 +8,7 @@ pub mod io {
     };
 }
 
-use mulac_inbox_api::io as api;
+use mulac_inbox_api::prelude as api;
 use poem_openapi::registry::{MetaSchemaRef, Registry};
 use poem_openapi::types::{ParseError, ParseFromJSON, ParseResult, ToJSON, Type};
 use serde_json::Value;
@@ -76,23 +76,23 @@ macro_rules! openapi_wrapper {
     };
 }
 
-/// Poem request body for `mulac_inbox_api::io::SubmitInboxRequest`.
+/// Poem request body for `mulac_inbox_api::prelude::SubmitInboxRequest`.
 ///
 /// Parsing checks field types only; `InboxAdapter::submit` validates values so
 /// their messages are returned verbatim.
 #[derive(Debug, Clone)]
 pub struct SubmitInboxRequest(pub api::SubmitInboxRequest);
 
-/// Poem response body for `mulac_inbox_api::io::SubmitInboxResponse`.
+/// Poem response body for `mulac_inbox_api::prelude::SubmitInboxResponse`.
 #[derive(Debug, Clone)]
 pub struct SubmitInboxResponse(pub api::SubmitInboxResponse);
 
-/// Poem request body for `mulac_inbox_api::io::RunRequest`. Parsing validates
+/// Poem request body for `mulac_inbox_api::prelude::RunRequest`. Parsing validates
 /// the limit, so any queue endpoint can reuse it.
 #[derive(Debug, Clone, Copy)]
 pub struct RunRequest(pub api::RunRequest);
 
-/// Poem response body for `mulac_inbox_api::io::RunResponse`.
+/// Poem response body for `mulac_inbox_api::prelude::RunResponse`.
 #[derive(Debug, Clone)]
 pub struct RunResponse(pub api::RunResponse);
 
