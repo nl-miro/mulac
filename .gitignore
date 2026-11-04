@@ -2,3 +2,5 @@ target/
 Cargo.lock
 .idea/
 __pycache__/
+# used for generating svg images from mermaid diagrams
+.mermaid-export-tmp/
