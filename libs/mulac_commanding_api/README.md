@@ -19,7 +19,7 @@ commands with the [`commanding`](../commanding) crate, shared by the
 | Feature   | Default | Enables                                                    |
 |-----------|---------|------------------------------------------------------------|
 | `tokio`   | no      | `AsyncCommandingService`                                   |
-| `testing` | no      | `io::testing`: shared run-request fixtures and port-based doubles |
+| `testing` | no      | `prelude::testing`: shared run-request fixtures and port-based doubles |
 
 The crate has no `diesel` feature and its dependency tree contains no database
 driver; storage comes with the consumer.

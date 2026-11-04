@@ -8,7 +8,7 @@ The plan implements [outbox-spec.md](outbox-spec.md) while following the crate c
 
 ## Target End State
 
-The `outbox` crate exposes a single `io` facade with:
+The `outbox` crate exposes a single `prelude` facade with:
 
 - Domain models: `OutboxEntry`, `NewOutboxEntry`, `OutboxStatus`
 - Application models: `NewOutboxEnvelope`, `NewOutboxMetadata`, `OutboxEntryEnvelope`, `OutboxEntryMetadata`, `OutboundMessageEnvelope`
@@ -24,14 +24,14 @@ Apply these rules to every step:
 
 1. Keep SQL and concrete I/O in `assembly/infra_diesel.rs` or transport adapter modules only.
 2. Keep use-case modules dependent on ports, not concrete adapters.
-3. Do not import through `crate::io` inside the crate; use direct module paths internally.
+3. Do not import through `crate::prelude` inside the crate; use direct module paths internally.
 4. Use UUID v7 for generated reservation IDs.
 5. Do not generate `event_id` inside the outbox; `NewOutboxMetadata.event_id` is caller-supplied and becomes `OutboxEntry.id`.
 6. Treat duplicate `event_id` storage as idempotent success; do not update existing rows on conflict.
 7. A reserved entry may be completed, failed, or dead only with the matching `reservation_id`.
 8. Retry delay is `attempts × 30 seconds`, capped at 2 minutes.
 9. Stale sweep must not increment `attempts`.
-10. Public API additions must be re-exported through `lib.rs::io` only.
+10. Public API additions must be re-exported through `lib.rs::prelude` only.
 
 ## Suggested Atomic Commit Sequence
 
@@ -315,7 +315,7 @@ make test
 feat(outbox): add stale reservation sweep
 ```
 
-### 8. Wire the public `io` facade
+### 8. Wire the public `prelude` facade
 
 **Goal:** Expose the crate API consistently and hide internal modules.
 
@@ -325,7 +325,7 @@ feat(outbox): add stale reservation sweep
 
 **Changes:**
 
-- Re-export all public models, ports, and use-case types from `pub mod io`.
+- Re-export all public models, ports, and use-case types from `pub mod prelude`.
 - Feature-gate adapter re-exports:
   - `OutboxStoreStorage`, `OutboxConsumerStorage`, `DbPool`, `build_pool` behind `diesel`
   - `AmqpPublisher`, `AmqpPublishConfig` behind `amqp`
@@ -340,7 +340,7 @@ make check
 **Commit message:**
 
 ```text
-feat(outbox): expose io facade
+feat(outbox): expose prelude facade
 ```
 
 ### 9. Implement Diesel schema and storage entities
@@ -659,7 +659,7 @@ feat(outbox): add repository constructors
 
 ### 17. Add public API smoke tests
 
-**Goal:** Ensure external callers can use only the `io` facade.
+**Goal:** Ensure external callers can use only the `prelude` facade.
 
 **Files:**
 
@@ -667,7 +667,7 @@ feat(outbox): add repository constructors
 
 **Changes:**
 
-- Write tests that import from `outbox::io::*` only.
+- Write tests that import from `outbox::prelude::*` only.
 - Construct metadata/envelopes.
 - Use fake ports to instantiate `OutboxRecorder`, `OutboxConsumer`, and `ReservationSweeper` if constructors permit.
 - Confirm no internal module import is required for normal use.
@@ -681,7 +681,7 @@ make test
 **Commit message:**
 
 ```text
-test(outbox): cover public io facade
+test(outbox): cover public prelude facade
 ```
 
 ### 18. Add lifecycle integration tests
@@ -781,7 +781,7 @@ If implementation must be staged for an early usable release, stop after these s
 3. record-events use case
 4. consumer orchestration with fake publisher tests
 5. stale sweep use case
-6. public `io` facade
+6. public `prelude` facade
 7. Diesel recording/reservation/process/sweep
 
 This slice supports durable outbox semantics with a caller-provided publisher port, even before the AMQP adapter exists.
@@ -801,7 +801,7 @@ This slice supports durable outbox semantics with a caller-provided publisher po
 ## Definition of Done
 
 - `docs/outbox-spec.md` and implementation agree on names, IDs, ports, and schema.
-- All public types needed by callers are available via `outbox::io`.
+- All public types needed by callers are available via `outbox::prelude`.
 - `make check` passes.
 - `make test` passes.
 - Duplicate `event_id` recording is idempotent.

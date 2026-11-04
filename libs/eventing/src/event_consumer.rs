@@ -1,4 +1,4 @@
-pub mod io {
+pub mod prelude {
     pub use super::consumer::EventConsumer;
     pub use super::ports::EventReservePort;
     pub use super::repository::EventConsumerRepository;
@@ -7,7 +7,7 @@ pub mod io {
 
 mod reservable {
     #[cfg(feature = "diesel")]
-    use crate::assembly::io::{Criterion, EventStatus};
+    use crate::assembly::prelude::{Criterion, EventStatus};
 
     /// Parameters for selecting event entries eligible for consumption.
     pub struct ReservableEventSpec {
@@ -99,7 +99,7 @@ mod reservable {
 
 mod ports {
     use super::reservable::ReservableEventSpec;
-    use crate::assembly::io::{EventEnvelope, EventError};
+    use crate::assembly::prelude::{EventEnvelope, EventError};
 
     pub trait EventReservePort: Send + Sync {
         fn reserve(&self, spec: &ReservableEventSpec) -> Result<Vec<EventEnvelope>, EventError>;
@@ -109,7 +109,7 @@ mod ports {
 mod repository {
     use super::ports::EventReservePort;
     use super::reservable::ReservableEventSpec;
-    use crate::assembly::io::{
+    use crate::assembly::prelude::{
         EventEnvelope,
         EventError,
         EventProcessPort,
@@ -154,7 +154,7 @@ mod repository {
 }
 
 mod conversions {
-    use crate::assembly::io::{
+    use crate::assembly::prelude::{
         EventEnvelope,
         EventMetadata,
         NewEventEnvelope,
@@ -188,8 +188,8 @@ mod conversions {
 mod consumer {
     use super::repository::EventConsumerRepository;
     use super::reservable::ReservableEventSpec;
-    use crate::assembly::io::{EventEnvelope, EventError};
-    use crate::io::EventDispatcher;
+    use crate::assembly::prelude::{EventEnvelope, EventError};
+    use crate::prelude::EventDispatcher;
     use std::sync::Arc;
 
     pub struct EventConsumer {

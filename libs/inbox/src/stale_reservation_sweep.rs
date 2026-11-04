@@ -1,4 +1,4 @@
-pub mod io {
+pub mod prelude {
     pub use super::ports::InboxSweepPort;
     pub use super::spec::StaleReservationSpec;
     pub use super::sweeper::ReservationSweeper;
@@ -34,15 +34,15 @@ mod spec {
         /// Messages with `attempts >= max_attempts` are transitioned to [`Dead`]
         /// rather than [`Failed`] when swept.
         ///
-        /// [`Dead`]: crate::assembly::io::InboxStatus::Dead
-        /// [`Failed`]: crate::assembly::io::InboxStatus::Failed
+        /// [`Dead`]: crate::assembly::prelude::InboxStatus::Dead
+        /// [`Failed`]: crate::assembly::prelude::InboxStatus::Failed
         pub max_attempts: i32,
     }
 
     impl StaleReservationSpec {
         /// Default number of processing attempts before a message is marked [`Dead`].
         ///
-        /// [`Dead`]: crate::assembly::io::InboxStatus::Dead
+        /// [`Dead`]: crate::assembly::prelude::InboxStatus::Dead
         pub const DEFAULT_MAX_ATTEMPTS: i32 = 6;
 
         /// Create a spec with the given timeout and [`DEFAULT_MAX_ATTEMPTS`].
@@ -101,7 +101,7 @@ mod spec {
 
 mod ports {
     use super::spec::StaleReservationSpec;
-    use crate::assembly::io::InboxError;
+    use crate::assembly::prelude::InboxError;
 
     /// Output port for releasing stale reservations back into the processable pool.
     pub trait InboxSweepPort: Send + Sync {
@@ -118,7 +118,7 @@ mod ports {
 mod sweeper {
     use super::ports::InboxSweepPort;
     use super::spec::StaleReservationSpec;
-    use crate::assembly::io::InboxError;
+    use crate::assembly::prelude::InboxError;
     use std::sync::Arc;
 
     /// Releases messages that have been stuck in `Reserved` status longer than a
@@ -151,10 +151,10 @@ mod sweeper {
 #[cfg(feature = "diesel")]
 mod infra_diesel_pg {
     use super::criterion::SweepCriterion;
-    use super::io::{InboxSweepPort, StaleReservationSpec};
-    use crate::assembly::io::InboxConsumerStorage;
-    use crate::assembly::io::InboxError;
-    use crate::assembly::io::InboxStatus;
+    use super::prelude::{InboxSweepPort, StaleReservationSpec};
+    use crate::assembly::prelude::InboxConsumerStorage;
+    use crate::assembly::prelude::InboxError;
+    use crate::assembly::prelude::InboxStatus;
     use chrono::{DateTime, Utc};
     use diesel::prelude::*;
     use diesel::sql_types::{BigInt, Int4, Timestamptz};

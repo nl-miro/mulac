@@ -1,4 +1,4 @@
-pub mod io {
+pub mod prelude {
     pub use super::CommandingApiError;
     #[cfg(feature = "tokio")]
     pub(crate) use super::err_run_task_failed;

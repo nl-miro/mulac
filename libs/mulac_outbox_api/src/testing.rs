@@ -3,7 +3,7 @@
 //! Doubles implement the existing `mulac-outbox` ports, so no database or
 //! broker is required. Every `*_api` crate exposes the same run-request table,
 //! so drift between their copied run types fails a test.
-pub mod io {
+pub mod prelude {
     pub use super::{
         CONVERSION_FAILURE,
         Outcomes,
@@ -28,9 +28,9 @@ pub mod io {
     };
 }
 
-use crate::service::io::OutboxService;
+use crate::service::prelude::OutboxService;
 use chrono::Utc;
-use outbox::io::{
+use outbox::prelude::{
     OutboundMessageEnvelope,
     OutboxConsumer,
     OutboxConsumerRepository,

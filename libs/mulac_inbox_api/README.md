@@ -20,7 +20,7 @@ See [ADR-009](../../docs/adr/009-inbox-http-adapters.md).
 |-----------|---------|-------------------------------------------------------------|
 | `diesel`  | yes     | `InboxService::from_postgres` and Diesel in inbox/commanding |
 | `tokio`   | no      | `AsyncInboxService`                                         |
-| `testing` | no      | `io::testing`: shared fixtures and port-based test doubles  |
+| `testing` | no      | `prelude::testing`: shared fixtures and port-based test doubles  |
 
 Without `diesel` the dependency tree contains no database driver.
 

@@ -1,4 +1,4 @@
-pub mod io {
+pub mod prelude {
     pub use super::entity::{CommandEntry, NewCommandEntry};
     pub use super::storage::{CommandConsumerStorage, CommandStoreStorage};
 }
@@ -91,7 +91,7 @@ pub(crate) mod models {
 mod conversions {
     use super::entity::{CommandEntry, NewCommandEntry};
     use super::models::MetadataJsonb;
-    use crate::assembly::application::io::{
+    use crate::assembly::application::prelude::{
         Command,
         CommandEnvelope,
         CommandError,

@@ -1,4 +1,4 @@
-pub mod io {
+pub mod prelude {
     pub use super::{
         OutboxApiError,
         OutboxApiErrorKind,

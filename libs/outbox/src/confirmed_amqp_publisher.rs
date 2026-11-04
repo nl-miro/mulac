@@ -2,13 +2,13 @@
 //! persistent delivery, a bounded wait and a reused connection that is
 //! dropped after any failure.
 
-pub mod io {
+pub mod prelude {
     pub use super::ConfirmedAmqpPublisher;
 }
 
 use std::time::Duration;
 
-use crate::assembly::io::{OutboundMessageEnvelope, OutboxError, OutboxPublisherPort};
+use crate::assembly::prelude::{OutboundMessageEnvelope, OutboxError, OutboxPublisherPort};
 use lapin::options::{BasicPublishOptions, ConfirmSelectOptions};
 use lapin::types::{AMQPValue, FieldTable, LongString};
 use lapin::{BasicProperties, Channel, Confirmation, Connection, ConnectionProperties};
@@ -195,7 +195,7 @@ fn err_unconfirmed() -> OutboxError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::assembly::io::OutboxEntryMetadata;
+    use crate::assembly::prelude::OutboxEntryMetadata;
     use lapin::message::{BasicReturnMessage, Delivery};
     use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};

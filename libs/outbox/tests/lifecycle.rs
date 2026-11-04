@@ -7,7 +7,7 @@ use chrono::{Duration, Utc};
 use diesel::connection::SimpleConnection;
 use diesel::prelude::*;
 use diesel::sql_types::{Int4, Nullable, Timestamptz, Uuid as SqlUuid};
-use mulac_outbox::io::*;
+use mulac_outbox::prelude::*;
 use uuid::Uuid;
 
 static DB_LOCK: OnceLock<Mutex<()>> = OnceLock::new();

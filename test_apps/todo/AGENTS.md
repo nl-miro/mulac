@@ -27,7 +27,7 @@ src/
     domain.rs           — TodoDto, TodoStatus, Clock
     infra_sqlx_pg.rs    — connect(), migrate() via sqlx::migrate!, fetch_todo(),
                           record_event_payload(), OutboxSubscriber, TodoRow entity
-    mod.rs              — public io module with facade exports
+    mod.rs              — public prelude module with facade exports
     bin/todoapp.rs      — entry point: "serve" sub-command, wires HTTP + workers
   task_create.rs        — CreateTodoCommand, CreateTodoHandler, TodoCreated event, POST /todos
   task_complete.rs      — CompleteTodoCommand, CompleteTodoHandler, TodoCompleted event,
@@ -63,7 +63,7 @@ tests/
 
 ## Feature module convention
 
-Every feature file (task_*.rs) exposes **only** `pub mod io` — all internal sub-modules are private:
+Every feature file (task_*.rs) exposes **only** `pub mod prelude` — all internal sub-modules are private:
 
 ```
 pub const COMMAND_NAME: &str = "...";
@@ -74,7 +74,7 @@ mod handler { ... }      // CommandHandlerPort impl
 mod infra_sqlx_pg { ... } // raw sqlx queries
 mod http { ... }         // poem-openapi OpenApi impl + request/response structs
 
-pub mod io {
+pub mod prelude {
     pub use super::COMMAND_NAME;
     pub use super::EVENT_NAME;
     pub use super::models::{Command, Event};
@@ -83,7 +83,7 @@ pub mod io {
 }
 ```
 
-Callers always import via `feature::io::*`, never internal sub-modules.
+Callers always import via `feature::prelude::*`, never internal sub-modules.
 
 ---
 

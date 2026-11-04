@@ -1,10 +1,10 @@
-pub mod io {
+pub mod prelude {
     pub use super::recorder::CommandRecorder;
     pub use super::repository::CommandRecorderRepository;
 }
 
 mod repository {
-    use crate::assembly::io::{
+    use crate::assembly::prelude::{
         CommandError,
         CommandStorePort,
         NewCommandEnvelope,
@@ -29,7 +29,7 @@ mod repository {
 
 mod recorder {
     use super::repository::CommandRecorderRepository;
-    use crate::assembly::io::{CommandError, NewCommandEnvelope};
+    use crate::assembly::prelude::{CommandError, NewCommandEnvelope};
     use std::sync::Arc;
 
     pub struct CommandRecorder {
@@ -49,7 +49,7 @@ mod recorder {
 
 #[cfg(feature = "diesel")]
 mod infra_diesel_pg {
-    use crate::assembly::io::{
+    use crate::assembly::prelude::{
         CommandError,
         CommandStorePort,
         CommandStoreStorage,

@@ -4,7 +4,7 @@ use diesel_migrations::{EmbeddedMigrations, MigrationHarness, embed_migrations};
 use kernel::{EventError, EventSubscriberPort, NewEventEnvelope};
 use uuid::Uuid;
 
-pub use kernel::io::{DbPool, build_pool};
+pub use kernel::prelude::{DbPool, build_pool};
 
 pub mod entity {
     use chrono::{DateTime, Utc};

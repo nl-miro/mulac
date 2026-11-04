@@ -1,10 +1,10 @@
-pub mod io {
+pub mod prelude {
     pub use super::recorder::EventRecorder;
     pub use super::repository::EventRecorderRepository;
 }
 
 mod repository {
-    use crate::assembly::io::{
+    use crate::assembly::prelude::{
         EventError,
         EventStorePort,
         NewEventEnvelope,
@@ -29,8 +29,8 @@ mod repository {
 
 mod recorder {
     use super::repository::EventRecorderRepository;
-    use crate::assembly::io::EventError;
-    use crate::assembly::io::NewEventEnvelope;
+    use crate::assembly::prelude::EventError;
+    use crate::assembly::prelude::NewEventEnvelope;
     use std::sync::Arc;
 
     pub struct EventRecorder {

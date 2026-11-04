@@ -6,14 +6,14 @@
 //! ```sh
 //! DATABASE_URL=postgres://... cargo run -p mulac_poem --features outbox --example poem_outbox
 //! ```
-use mulac_outbox_api::io::OutboxService;
-use mulac_poem::io::{
+use mulac_outbox_api::prelude::OutboxService;
+use mulac_poem::prelude::{
     OutboxAdapter,
     RunRequest,
     RunResponse,
     //
 };
-use outbox::io::{
+use outbox::prelude::{
     OutboundMessageEnvelope,
     OutboxError,
     OutboxPublisherPort,
@@ -49,7 +49,7 @@ impl OutboxApi {
 async fn main() -> std::io::Result<()> {
     let adapter = match std::env::var("DATABASE_URL") {
         Ok(database_url) => {
-            let pool = outbox::io::build_pool(&database_url).map_err(std::io::Error::other)?;
+            let pool = outbox::prelude::build_pool(&database_url).map_err(std::io::Error::other)?;
             OutboxAdapter::new(OutboxService::from_postgres(
                 pool,
                 Arc::new(LoggingPublisher),

@@ -1,18 +1,18 @@
-pub mod io {
+pub mod prelude {
     pub use super::AsyncEventingService;
 }
 
-use crate::contract::io::{
+use crate::contract::prelude::{
     RunEventsRequest,
     RunEventsResponse,
     //
 };
-use crate::error::io::{
+use crate::error::prelude::{
     EventingApiError,
     err_run_task_failed,
     //
 };
-use crate::service::io::EventingService;
+use crate::service::prelude::EventingService;
 use std::sync::Arc;
 
 /// Runs [`EventingService`] on Tokio's blocking thread pool.
@@ -50,7 +50,7 @@ impl From<EventingService> for AsyncEventingService {
 #[cfg(all(test, feature = "testing"))]
 mod tests {
     use super::*;
-    use crate::io::testing;
+    use crate::prelude::testing;
     use std::error::Error;
 
     #[tokio::test]

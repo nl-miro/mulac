@@ -18,42 +18,44 @@ use serde::{Deserialize, Serialize};
 #[oai(discriminator_name = "type")]
 #[serde(tag = "type", content = "payload")]
 pub enum TodoEvent {
-    TodoCreated(task_create::io::TodoCreated),
-    TodoCompleted(task_complete::io::TodoCompleted),
-    TodoReopened(task_reopen::io::TodoReopened),
-    TodoUpdated(task_update::io::TodoUpdated),
-    TodoDueDateChanged(task_schedule_due_dates::io::TodoDueDateChanged),
-    TodoDeleted(task_delete::io::TodoDeleted),
+    TodoCreated(task_create::prelude::TodoCreated),
+    TodoCompleted(task_complete::prelude::TodoCompleted),
+    TodoReopened(task_reopen::prelude::TodoReopened),
+    TodoUpdated(task_update::prelude::TodoUpdated),
+    TodoDueDateChanged(task_schedule_due_dates::prelude::TodoDueDateChanged),
+    TodoDeleted(task_delete::prelude::TodoDeleted),
 }
 
 impl ApplicationEvent for TodoEvent {
     fn event_type(&self) -> &'static str {
         match self {
-            Self::TodoCreated(_) => task_create::io::TODO_CREATED_EVENT,
-            Self::TodoCompleted(_) => task_complete::io::TODO_COMPLETED_EVENT,
-            Self::TodoReopened(_) => task_reopen::io::TODO_REOPENED_EVENT,
-            Self::TodoUpdated(_) => task_update::io::TODO_UPDATED_EVENT,
-            Self::TodoDueDateChanged(_) => task_schedule_due_dates::io::TODO_DUE_DATE_CHANGED_EVENT,
-            Self::TodoDeleted(_) => task_delete::io::TODO_DELETED_EVENT,
+            Self::TodoCreated(_) => task_create::prelude::TODO_CREATED_EVENT,
+            Self::TodoCompleted(_) => task_complete::prelude::TODO_COMPLETED_EVENT,
+            Self::TodoReopened(_) => task_reopen::prelude::TODO_REOPENED_EVENT,
+            Self::TodoUpdated(_) => task_update::prelude::TODO_UPDATED_EVENT,
+            Self::TodoDueDateChanged(_) => {
+                task_schedule_due_dates::prelude::TODO_DUE_DATE_CHANGED_EVENT
+            }
+            Self::TodoDeleted(_) => task_delete::prelude::TODO_DELETED_EVENT,
         }
     }
 }
 
 #[derive(Clone)]
 pub struct AppState {
-    pub pool: assembly::io::DbPool,
-    pub mulac: assembly::io::MulacState,
+    pub pool: assembly::prelude::DbPool,
+    pub mulac: assembly::prelude::MulacState,
 }
 
 impl AppState {
-    pub fn new(pool: assembly::io::DbPool, mulac: assembly::io::MulacState) -> Self {
+    pub fn new(pool: assembly::prelude::DbPool, mulac: assembly::prelude::MulacState) -> Self {
         Self { pool, mulac }
     }
 }
 
 mod inbox {
     mod models {
-        use crate::assembly::io::TodoDto;
+        use crate::assembly::prelude::TodoDto;
         use crate::{
             task_complete,
             task_create,
@@ -71,23 +73,25 @@ mod inbox {
         #[oai(discriminator_name = "type")]
         #[serde(tag = "type", content = "payload")]
         pub enum TodoCommand {
-            CreateTodo(task_create::io::CreateTodoCommand),
-            CompleteTodo(task_complete::io::CompleteTodoCommand),
-            ReopenTodo(task_reopen::io::ReopenTodoCommand),
-            UpdateTodo(task_update::io::UpdateTodoCommand),
-            DeleteTodo(task_delete::io::DeleteTodoCommand),
-            UpdateDueDate(task_schedule_due_dates::io::UpdateDueDateCommand),
+            CreateTodo(task_create::prelude::CreateTodoCommand),
+            CompleteTodo(task_complete::prelude::CompleteTodoCommand),
+            ReopenTodo(task_reopen::prelude::ReopenTodoCommand),
+            UpdateTodo(task_update::prelude::UpdateTodoCommand),
+            DeleteTodo(task_delete::prelude::DeleteTodoCommand),
+            UpdateDueDate(task_schedule_due_dates::prelude::UpdateDueDateCommand),
         }
 
         impl TodoCommand {
             pub fn message_type(&self) -> &'static str {
                 match self {
-                    Self::CreateTodo(_) => task_create::io::CREATE_TODO_COMMAND,
-                    Self::CompleteTodo(_) => task_complete::io::COMPLETE_TODO_COMMAND,
-                    Self::ReopenTodo(_) => task_reopen::io::REOPEN_TODO_COMMAND,
-                    Self::UpdateTodo(_) => task_update::io::UPDATE_TODO_COMMAND,
-                    Self::DeleteTodo(_) => task_delete::io::DELETE_TODO_COMMAND,
-                    Self::UpdateDueDate(_) => task_schedule_due_dates::io::UPDATE_DUE_DATE_COMMAND,
+                    Self::CreateTodo(_) => task_create::prelude::CREATE_TODO_COMMAND,
+                    Self::CompleteTodo(_) => task_complete::prelude::COMPLETE_TODO_COMMAND,
+                    Self::ReopenTodo(_) => task_reopen::prelude::REOPEN_TODO_COMMAND,
+                    Self::UpdateTodo(_) => task_update::prelude::UPDATE_TODO_COMMAND,
+                    Self::DeleteTodo(_) => task_delete::prelude::DELETE_TODO_COMMAND,
+                    Self::UpdateDueDate(_) => {
+                        task_schedule_due_dates::prelude::UPDATE_DUE_DATE_COMMAND
+                    }
                 }
             }
 
@@ -125,7 +129,7 @@ mod inbox {
     mod http {
         use super::models::{CommandEnvelope, InboundResponse, TodoCommand};
         use crate::AppState;
-        use crate::assembly::io::{
+        use crate::assembly::prelude::{
             ApiError,
             AppCommand,
             AppError,
@@ -240,7 +244,7 @@ mod inbox {
         ) -> Result<(), AppError> {
             mulac
                 .dispatch_command(NewCommandEnvelope { command, metadata })
-                .map_err(crate::assembly::io::interpret_dispatch_error)
+                .map_err(crate::assembly::prelude::interpret_dispatch_error)
         }
 
         pub struct Api;
@@ -279,7 +283,7 @@ mod inbox {
         }
     }
 
-    pub mod io {
+    pub mod prelude {
         pub use super::http::Api;
     }
 }
@@ -330,7 +334,7 @@ mod outbox {
 
     mod infra_diesel {
         use super::models::{OutboxMessageDto, OutboxRow};
-        use crate::assembly::io::{AppError, DbPool};
+        use crate::assembly::prelude::{AppError, DbPool};
         use crate::schema::outbox_messages;
         use diesel::prelude::*;
 
@@ -349,7 +353,7 @@ mod outbox {
         use super::models::OutboxMessageDto;
         use crate::{
             AppState,
-            assembly::io::{ApiError, run_blocking},
+            assembly::prelude::{ApiError, run_blocking},
         };
         use poem::web::Data;
         use poem_openapi::{OpenApi, payload::Json};
@@ -370,15 +374,15 @@ mod outbox {
         }
     }
 
-    pub mod io {
+    pub mod prelude {
         pub use super::http::Api;
         pub use super::models::OutboxMessageDto;
     }
 }
 
-pub mod io {
+pub mod prelude {
     pub use super::AppState;
-    pub use super::assembly::io::{
+    pub use super::assembly::prelude::{
         ApiError,
         AppCommand,
         AppError,
@@ -406,15 +410,15 @@ pub mod io {
         validate_title,
         //
     };
-    pub use super::inbox::io::Api as InboxApi;
-    pub use super::outbox::io::{Api as OutboxApi, OutboxMessageDto};
-    pub use super::task_complete::io::Api as CompleteApi;
-    pub use super::task_create::io::Api as CreateApi;
-    pub use super::task_delete::io::Api as DeleteApi;
-    pub use super::task_get::io::Api as GetApi;
-    pub use super::task_list::io::Api as ListApi;
-    pub use super::task_list::io::FilterStatus;
-    pub use super::task_reopen::io::Api as ReopenApi;
-    pub use super::task_schedule_due_dates::io::Api as DueDatesApi;
-    pub use super::task_update::io::Api as UpdateApi;
+    pub use super::inbox::prelude::Api as InboxApi;
+    pub use super::outbox::prelude::{Api as OutboxApi, OutboxMessageDto};
+    pub use super::task_complete::prelude::Api as CompleteApi;
+    pub use super::task_create::prelude::Api as CreateApi;
+    pub use super::task_delete::prelude::Api as DeleteApi;
+    pub use super::task_get::prelude::Api as GetApi;
+    pub use super::task_list::prelude::Api as ListApi;
+    pub use super::task_list::prelude::FilterStatus;
+    pub use super::task_reopen::prelude::Api as ReopenApi;
+    pub use super::task_schedule_due_dates::prelude::Api as DueDatesApi;
+    pub use super::task_update::prelude::Api as UpdateApi;
 }

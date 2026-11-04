@@ -26,10 +26,10 @@ domain  ←  application  ←  features  ←  infra adapters
 - **features** (`record_events.rs`, `event_consumer.rs`, `stale_event_sweep.rs`, `dispatcher.rs`, `gateway.rs`): use-case orchestration — depends on ports only
 - **infra adapters** (`eventing/assembly/infra_diesel.rs`): concrete I/O — depends on feature and application layers
 
-External callers import exclusively from `lib.rs` via the `io` re-export facade.
+External callers import exclusively from `lib.rs` via the `prelude` re-export facade.
 
 ```text
-lib.rs (io facade)
+lib.rs (prelude facade)
   ├─ gateway                EventGateway
   ├─ dispatcher             EventDispatcher, EventSubscriberPort
   ├─ record_events          EventRecorder, EventRecorderRepository
@@ -370,7 +370,7 @@ Applies to `failed()` transitions:
 ```rust
 use std::sync::Arc;
 use uuid::Uuid;
-use write_side::io::{EventDispatcher, EventGateway, NewEventEnvelope, NewEventMetadata};
+use write_side::prelude::{EventDispatcher, EventGateway, NewEventEnvelope, NewEventMetadata};
 
 let dispatcher = Arc::new(EventDispatcher::new(subscriber));
 let gateway = EventGateway::direct(dispatcher);
@@ -391,7 +391,7 @@ gateway.dispatch(NewEventEnvelope {
 
 ```rust
 use std::sync::Arc;
-use write_side::io::{
+use write_side::prelude::{
     EventConsumer, EventConsumerRepository, EventDispatcher, EventGateway, EventRecorder,
     EventRecorderRepository, EventStoreStorage, EventConsumerStorage, ReservableEventSpec,
 };

@@ -2,7 +2,7 @@ mod command_handler_registry;
 mod event_subscriber_registry;
 mod workers;
 
-pub mod io {
+pub mod prelude {
     pub use super::command_handler_registry::CommandHandlerRegistry;
     pub use super::event_subscriber_registry::EventSubscriberRegistry;
     pub use super::workers::{run_command_worker, run_event_worker};
@@ -10,7 +10,7 @@ pub mod io {
         KernelBuilder, KernelConfig, KernelError, block_on_blocking, boot, first_command_error,
         first_event_error,
     };
-    pub use commanding::io::{
+    pub use commanding::prelude::{
         CommandConsumer,
         CommandConsumerRepository,
         CommandConsumerStorage,
@@ -29,7 +29,7 @@ pub mod io {
     };
     pub use mulac_diesel::{DbPool, build_pool};
 
-    pub use eventing::io::{
+    pub use eventing::prelude::{
         EventConsumer,
         EventConsumerRepository,
         EventConsumerStorage,
@@ -40,7 +40,7 @@ pub mod io {
         EventStoreStorage,
         ReservableEventSpec, //
     };
-    pub use inbox::io::{
+    pub use inbox::prelude::{
         InboundMessageEnvelope,
         InboxConsumer,
         InboxConsumerRepository,
@@ -55,13 +55,13 @@ pub mod io {
 
 use crate::command_handler_registry::CommandHandlerRegistry;
 use crate::event_subscriber_registry::EventSubscriberRegistry;
-pub use commanding::io::{
+pub use commanding::prelude::{
     ApplicationEvent,
     CommandError,
     CommandHandlerPort,
     NewCommandMetadata, //
 };
-use commanding::io::{
+use commanding::prelude::{
     CommandConsumer,
     CommandConsumerRepository,
     CommandDispatcher,
@@ -71,7 +71,7 @@ use commanding::io::{
     NewCommandEnvelope as GatewayCommandEnvelope,
     wrap_handler, //
 };
-pub use eventing::io::{
+pub use eventing::prelude::{
     EventConsumer,
     EventConsumerRepository,
     EventDispatcher,
@@ -86,7 +86,7 @@ pub use eventing::io::{
     NewEventMetadata,
     ReservableEventSpec, //
 };
-pub use inbox::io::{
+pub use inbox::prelude::{
     InboundMessageEnvelope,
     InboxError,
     InboxMessageMetadata,
@@ -95,7 +95,7 @@ pub use inbox::io::{
     InboxStorePort,
     NewInboxMessageEnvelope, //
 };
-pub use outbox::io::{NewOutboxEnvelope, NewOutboxMetadata, OutboxError};
+pub use outbox::prelude::{NewOutboxEnvelope, NewOutboxMetadata, OutboxError};
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 
@@ -373,7 +373,7 @@ impl KernelBuilder {
     /// than silently ignored. Workers and inbox ingestion remain application-owned.
     pub fn start_persistent(
         self,
-        db_pool: io::DbPool,
+        db_pool: prelude::DbPool,
         drain_rounds: usize,
     ) -> Result<PersistentKernelHandle, KernelError> {
         self.validate()?;
@@ -384,9 +384,9 @@ impl KernelBuilder {
         let command_registry =
             Arc::new(CommandHandlerRegistry::from_handlers(self.command_handlers));
 
-        let command_store = Arc::new(io::CommandStoreStorage::new(db_pool.clone()));
-        let command_recorder = Arc::new(io::CommandRecorder::new(Arc::new(
-            io::CommandRecorderRepository::new(command_store),
+        let command_store = Arc::new(prelude::CommandStoreStorage::new(db_pool.clone()));
+        let command_recorder = Arc::new(prelude::CommandRecorder::new(Arc::new(
+            prelude::CommandRecorderRepository::new(command_store),
         )));
         let command_gateway = Arc::new(CommandGateway::two_phased(command_recorder));
 
@@ -414,15 +414,15 @@ impl KernelBuilder {
         let event_registry = Arc::new(EventSubscriberRegistry::from_subscribers(subscribers));
         let event_dispatcher = Arc::new(EventDispatcher::new(event_registry));
 
-        let event_store = Arc::new(io::EventStoreStorage::new(db_pool.clone()));
-        let event_recorder = Arc::new(io::EventRecorder::new(Arc::new(
-            io::EventRecorderRepository::new(event_store),
+        let event_store = Arc::new(prelude::EventStoreStorage::new(db_pool.clone()));
+        let event_recorder = Arc::new(prelude::EventRecorder::new(Arc::new(
+            prelude::EventRecorderRepository::new(event_store),
         )));
         let event_gateway = Arc::new(EventGateway::two_phased(event_recorder));
 
         let command_dispatcher = Arc::new(CommandDispatcher::new(command_registry, event_gateway));
 
-        let command_storage = Arc::new(io::CommandConsumerStorage::new(db_pool.clone()));
+        let command_storage = Arc::new(prelude::CommandConsumerStorage::new(db_pool.clone()));
         let command_consumer_repository =
             CommandConsumerRepository::new(command_storage.clone(), command_storage);
         let command_consumer = Arc::new(CommandConsumer::new(
@@ -430,7 +430,7 @@ impl KernelBuilder {
             command_dispatcher,
         ));
 
-        let event_storage = Arc::new(io::EventConsumerStorage::new(db_pool));
+        let event_storage = Arc::new(prelude::EventConsumerStorage::new(db_pool));
         let event_consumer_repository =
             EventConsumerRepository::new(event_storage.clone(), event_storage);
         let event_consumer = Arc::new(EventConsumer::new(
@@ -519,10 +519,10 @@ impl PersistentKernelState {
 
         for _ in 0..self.drain_rounds {
             self.command_consumer
-                .consume(&io::ReservableCommandSpec::new(64))
+                .consume(&prelude::ReservableCommandSpec::new(64))
                 .map_err(first_command_error)?;
             self.event_consumer
-                .consume(&io::ReservableEventSpec::new(64))
+                .consume(&prelude::ReservableEventSpec::new(64))
                 .map_err(first_event_error)?;
         }
 

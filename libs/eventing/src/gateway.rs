@@ -1,11 +1,11 @@
-pub mod io {
+pub mod prelude {
     pub use super::gateway::EventGateway;
 }
 
 mod gateway {
-    use crate::assembly::io::{EventDispatchPort, EventError, NewEventEnvelope};
-    use crate::dispatcher::io::EventDispatcher;
-    use crate::record_events::io::EventRecorder;
+    use crate::assembly::prelude::{EventDispatchPort, EventError, NewEventEnvelope};
+    use crate::dispatcher::prelude::EventDispatcher;
+    use crate::record_events::prelude::EventRecorder;
     use std::sync::Arc;
 
     pub enum EventGateway {

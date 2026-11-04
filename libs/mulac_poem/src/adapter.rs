@@ -1,4 +1,4 @@
-pub mod io {
+pub mod prelude {
     pub use super::{
         InboxAdapter,
         InboxSubmission,
@@ -6,14 +6,14 @@ pub mod io {
     };
 }
 
-use crate::types::io::{
+use crate::types::prelude::{
     RunRequest,
     RunResponse,
     SubmitInboxRequest,
     SubmitInboxResponse,
     //
 };
-use mulac_inbox_api::io::{
+use mulac_inbox_api::prelude::{
     AsyncInboxService,
     InboxApiError,
     //
@@ -93,7 +93,7 @@ fn err_inbox_failed(error: InboxApiError) -> Error {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mulac_inbox_api::io::{InboxService, testing};
+    use mulac_inbox_api::prelude::{InboxService, testing};
     use poem::{Route, test::TestClient};
     use poem_openapi::{OpenApi, OpenApiService};
     use serde_json::{Value, json};

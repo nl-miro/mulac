@@ -1,4 +1,4 @@
-use eventing::io::{EventError, EventSubscriberPort};
+use eventing::prelude::{EventError, EventSubscriberPort};
 use std::{collections::HashMap, sync::Arc};
 
 use crate::NewEventEnvelope;

@@ -26,7 +26,7 @@ Dependency arrows point inward only.
 
 Layers live as submodules under an `assembly/` directory (domain, application, infra adapters) and as top-level modules for feature use cases.
 
-Public API is exposed exclusively through a root `lib.rs` re-export module (`io`). External callers never import from internal layers directly.
+Public API is exposed exclusively through a root `lib.rs` re-export module (`prelude`). External callers never import from internal layers directly.
 
 ## Consequences
 

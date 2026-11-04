@@ -1,4 +1,4 @@
-pub mod io {
+pub mod prelude {
     pub use super::{
         InboxAdapter,
         InboxRunResponse,
@@ -7,7 +7,7 @@ pub mod io {
     };
 }
 
-use crate::extract::io::{
+use crate::extract::prelude::{
     InboxHttpError,
     RunInbox,
     SubmitInbox,
@@ -16,7 +16,7 @@ use crate::extract::io::{
 use axum::Json;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use mulac_inbox_api::io::{
+use mulac_inbox_api::prelude::{
     AsyncInboxService,
     RunResponse,
     SubmitInboxResponse,
@@ -90,7 +90,7 @@ mod tests {
     use axum::http::{Request, header};
     use axum::routing::post;
     use http_body_util::BodyExt;
-    use mulac_inbox_api::io::{InboxService, testing};
+    use mulac_inbox_api::prelude::{InboxService, testing};
     use serde_json::{Value, json};
     use tower::ServiceExt;
 

@@ -1,8 +1,8 @@
-pub mod io {
+pub mod prelude {
     pub use super::recorder::OutboxRecorder;
     pub use super::repository::OutboxRecorderRepository;
     #[cfg(feature = "diesel")]
-    use crate::assembly::infra_diesel::io::{DbPool, OutboxStoreStorage};
+    use crate::assembly::infra_diesel::prelude::{DbPool, OutboxStoreStorage};
     #[cfg(feature = "diesel")]
     use std::sync::Arc;
     #[cfg(feature = "diesel")]
@@ -13,7 +13,7 @@ pub mod io {
 }
 
 mod repository {
-    use crate::assembly::io::{NewOutboxEntry, OutboxError, OutboxStorePort};
+    use crate::assembly::prelude::{NewOutboxEntry, OutboxError, OutboxStorePort};
     use std::sync::Arc;
 
     pub struct OutboxRecorderRepository {
@@ -33,7 +33,7 @@ mod repository {
 
 mod recorder {
     use super::repository::OutboxRecorderRepository;
-    use crate::assembly::io::{NewOutboxEntry, NewOutboxEnvelope, OutboxError};
+    use crate::assembly::prelude::{NewOutboxEntry, NewOutboxEnvelope, OutboxError};
     use std::sync::Arc;
 
     pub struct OutboxRecorder {
@@ -70,7 +70,7 @@ mod recorder {
 }
 
 mod conversions {
-    use crate::assembly::io::{
+    use crate::assembly::prelude::{
         NewOutboxEntry,
         NewOutboxEnvelope,
         OutboxEntryMetadata,
@@ -95,8 +95,8 @@ mod conversions {
 
 #[cfg(test)]
 mod tests {
-    use super::io::{OutboxRecorder, OutboxRecorderRepository};
-    use crate::assembly::io::{
+    use super::prelude::{OutboxRecorder, OutboxRecorderRepository};
+    use crate::assembly::prelude::{
         NewOutboxEntry,
         NewOutboxEnvelope,
         NewOutboxMetadata,

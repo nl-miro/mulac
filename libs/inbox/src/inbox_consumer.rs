@@ -1,4 +1,4 @@
-pub mod io {
+pub mod prelude {
     pub use super::consumer::InboxConsumer;
     pub use super::ports::InboxReservePort;
     pub use super::repository::InboxConsumerRepository;
@@ -7,7 +7,7 @@ pub mod io {
 
 mod reservable {
     #[cfg(feature = "diesel")]
-    use crate::assembly::io::{Criterion, InboxStatus};
+    use crate::assembly::prelude::{Criterion, InboxStatus};
 
     /// Parameters for selecting inbox messages eligible for consumption.
     ///
@@ -26,7 +26,7 @@ mod reservable {
     impl ReservableInboxSpec {
         /// Default number of processing attempts before a message is marked [`Dead`].
         ///
-        /// [`Dead`]: crate::assembly::io::InboxStatus::Dead
+        /// [`Dead`]: crate::assembly::prelude::InboxStatus::Dead
         pub const DEFAULT_MAX_ATTEMPTS: i32 = 6;
 
         /// Create a spec with the given limit and [`DEFAULT_MAX_ATTEMPTS`].
@@ -119,7 +119,7 @@ mod reservable {
 
 mod ports {
     use super::reservable::ReservableInboxSpec;
-    use crate::assembly::io::{InboxError, InboxMessageEnvelope};
+    use crate::assembly::prelude::{InboxError, InboxMessageEnvelope};
 
     pub trait InboxReservePort: Send + Sync {
         fn reserve(
@@ -132,7 +132,7 @@ mod ports {
 mod repository {
     use super::ports::InboxReservePort;
     use super::reservable::ReservableInboxSpec;
-    use crate::assembly::io::{InboxError, InboxMessageEnvelope, InboxProcessPort};
+    use crate::assembly::prelude::{InboxError, InboxMessageEnvelope, InboxProcessPort};
     use std::sync::Arc;
     use uuid::Uuid;
 
@@ -186,8 +186,8 @@ mod repository {
 }
 
 mod conversions {
-    use crate::assembly::io::{InboxError, InboxMessageEnvelope};
-    use commanding::io::{NewCommand, NewCommandEnvelope, NewCommandMetadata};
+    use crate::assembly::prelude::{InboxError, InboxMessageEnvelope};
+    use commanding::prelude::{NewCommand, NewCommandEnvelope, NewCommandMetadata};
     use uuid::Uuid;
 
     impl TryFrom<InboxMessageEnvelope> for NewCommandEnvelope {
@@ -219,8 +219,8 @@ mod conversions {
 mod consumer {
     use super::repository::InboxConsumerRepository;
     use super::reservable::ReservableInboxSpec;
-    use crate::assembly::io::InboxError;
-    use commanding::io::{CommandGateway, NewCommandEnvelope};
+    use crate::assembly::prelude::InboxError;
+    use commanding::prelude::{CommandGateway, NewCommandEnvelope};
     use uuid::Uuid;
 
     pub struct InboxConsumer {
@@ -301,13 +301,13 @@ mod consumer {
 
 #[cfg(feature = "diesel")]
 mod infra_diesel_pg {
-    use super::io::{InboxReservePort, ReservableInboxSpec};
+    use super::prelude::{InboxReservePort, ReservableInboxSpec};
     use crate::assembly::domain::append_error;
-    use crate::assembly::io::InboxConsumerStorage;
-    use crate::assembly::io::InboxEntry;
-    use crate::assembly::io::inbox_entries;
-    use crate::assembly::io::{Criterion, InboxStatus};
-    use crate::assembly::io::{InboxError, InboxMessageEnvelope, InboxProcessPort};
+    use crate::assembly::prelude::InboxConsumerStorage;
+    use crate::assembly::prelude::InboxEntry;
+    use crate::assembly::prelude::inbox_entries;
+    use crate::assembly::prelude::{Criterion, InboxStatus};
+    use crate::assembly::prelude::{InboxError, InboxMessageEnvelope, InboxProcessPort};
     use chrono::{DateTime, Duration, Utc};
     use diesel::prelude::*;
     use diesel::sql_types::{Array, BigInt, Int4, Uuid as SqlUuid};

@@ -1,4 +1,4 @@
-use commanding::io::{CommandError, ErasedCommandHandler};
+use commanding::prelude::{CommandError, ErasedCommandHandler};
 use std::{collections::HashMap, sync::Arc};
 
 use crate::GatewayNewCommandEnvelope;

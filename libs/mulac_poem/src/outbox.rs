@@ -1,13 +1,13 @@
-pub mod io {
+pub mod prelude {
     pub use super::OutboxAdapter;
 }
 
-use crate::types::io::{
+use crate::types::prelude::{
     RunRequest,
     RunResponse,
     //
 };
-use mulac_outbox_api::io::{
+use mulac_outbox_api::prelude::{
     AsyncOutboxService,
     OutboxApiError,
     OutboxApiErrorKind,
@@ -72,7 +72,7 @@ impl From<RunRequest> for RunOutboxRequest {
 
 impl From<RunOutboxResponse> for RunResponse {
     fn from(response: RunOutboxResponse) -> Self {
-        Self(mulac_inbox_api::io::RunResponse {
+        Self(mulac_inbox_api::prelude::RunResponse {
             processed: response.processed,
             errors: response.errors,
         })
@@ -91,8 +91,8 @@ fn err_outbox_failed(error: OutboxApiError) -> Error {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::adapter::io::InboxAdapter;
-    use mulac_outbox_api::io::testing;
+    use crate::adapter::prelude::InboxAdapter;
+    use mulac_outbox_api::prelude::testing;
     use poem::{Route, test::TestClient};
     use poem_openapi::{OpenApi, OpenApiService};
     use serde_json::{Value, json};
@@ -116,7 +116,7 @@ mod tests {
     }
 
     fn client(outbox: OutboxAdapter) -> TestClient<Route> {
-        let (inbox, _) = mulac_inbox_api::io::testing::recording_service();
+        let (inbox, _) = mulac_inbox_api::prelude::testing::recording_service();
         let api = OpenApiService::new(
             TestApi {
                 inbox: InboxAdapter::new(inbox),

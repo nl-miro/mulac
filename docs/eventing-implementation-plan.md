@@ -146,7 +146,7 @@ Follow `write_side/src/commanding/assembly/infra_diesel.rs` exactly:
 
 ### Task 10 — Public API facade (`lib.rs`)
 
-- [ ] Extend `write_side/src/lib.rs` `pub mod io` to also re-export eventing:
+- [ ] Extend `write_side/src/lib.rs` `pub mod prelude` to also re-export eventing:
   - Gateway: `EventGateway`
   - Dispatcher: `EventDispatcher`
   - Record: `EventRecorder`, `EventRecorderRepository`

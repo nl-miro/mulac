@@ -19,8 +19,8 @@ mod models {
 
 mod handler {
     use super::models::Command;
-    use crate::assembly::io::DbPool;
-    use kernel::io::{CommandError, CommandHandlerPort};
+    use crate::assembly::prelude::DbPool;
+    use kernel::prelude::{CommandError, CommandHandlerPort};
 
     pub struct Handler {
         pool: DbPool,
@@ -68,7 +68,7 @@ mod handler {
 }
 
 mod eventing {
-    use kernel::io::{
+    use kernel::prelude::{
         CommandGateway,
         NewCommand,
         NewCommandEnvelope,
@@ -130,7 +130,7 @@ mod eventing {
     }
 }
 
-pub mod io {
+pub mod prelude {
     pub use super::eventing::Subscriber;
     pub use super::handler::Handler;
     pub use super::models::Command;

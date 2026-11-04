@@ -1,4 +1,4 @@
-pub mod io {
+pub mod prelude {
     pub use super::models::{
         EventEnvelope,
         EventError,
@@ -101,7 +101,7 @@ mod models {
 
 mod ports {
     use super::models::EventError;
-    use crate::io::NewEventEnvelope;
+    use crate::prelude::NewEventEnvelope;
     use uuid::Uuid;
 
     /// Port implemented by the event gateway to dispatch events produced by
@@ -130,7 +130,7 @@ mod ports {
 
 #[cfg(test)]
 mod sequence_tests {
-    use super::io::*;
+    use super::prelude::*;
     #[test]
     fn metadata_rejects_invalid_revisions_and_preserves_legacy_omission() {
         let mut value = serde_json::json!({"event_id":uuid::Uuid::now_v7(),"correlation_id":null,"causation_id":null,"source":null});

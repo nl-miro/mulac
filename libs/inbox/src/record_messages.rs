@@ -1,10 +1,10 @@
-pub mod io {
+pub mod prelude {
     pub use super::inbox_repository::InboxRecorderRepository;
     pub use super::models::NewInboxMessageEnvelope;
     pub use super::ports::InboxStorePort;
     pub use super::recorder::InboxRecorder;
     #[cfg(feature = "diesel")]
-    use crate::io::{DbPool, InboxStoreStorage};
+    use crate::prelude::{DbPool, InboxStoreStorage};
     #[cfg(feature = "diesel")]
     use std::sync::Arc;
 
@@ -61,7 +61,7 @@ mod models {
 
 mod conversions {
     use super::models::{NewInboxMessage, NewInboxMessageEnvelope, NewInboxMessageMetadata};
-    use crate::assembly::io::{InboundMessageEnvelope, InboxMessageMetadata};
+    use crate::assembly::prelude::{InboundMessageEnvelope, InboxMessageMetadata};
     use uuid::Uuid;
 
     impl From<NewInboxMessageMetadata> for InboxMessageMetadata {
@@ -103,7 +103,7 @@ mod conversions {
             NewInboxMessageEnvelope,
             NewInboxMessageMetadata, //
         };
-        use crate::assembly::io::{InboundMessageEnvelope, InboxMessageMetadata};
+        use crate::assembly::prelude::{InboundMessageEnvelope, InboxMessageMetadata};
         use uuid::Uuid;
 
         fn inbound(
@@ -182,7 +182,7 @@ mod conversions {
 
 mod ports {
     use super::models::NewInboxMessageEnvelope;
-    use crate::assembly::io::InboxError;
+    use crate::assembly::prelude::InboxError;
 
     pub trait InboxStorePort: Send + Sync {
         fn store(&self, msg: NewInboxMessageEnvelope) -> Result<(), InboxError>;
@@ -192,7 +192,7 @@ mod ports {
 mod inbox_repository {
     use super::models::NewInboxMessageEnvelope;
     use super::ports::InboxStorePort;
-    use crate::assembly::io::InboxError;
+    use crate::assembly::prelude::InboxError;
     use std::sync::Arc;
 
     #[derive(Clone)]
@@ -214,7 +214,7 @@ mod inbox_repository {
 mod recorder {
     use super::inbox_repository::InboxRecorderRepository;
     use super::models::NewInboxMessageEnvelope;
-    use crate::assembly::io::InboxError;
+    use crate::assembly::prelude::InboxError;
     use std::sync::Arc;
 
     #[derive(Clone)]
@@ -236,11 +236,11 @@ mod recorder {
 
 #[cfg(feature = "diesel")]
 mod infra_diesel_pg {
-    use super::io::{InboxStorePort, NewInboxMessageEnvelope};
-    use crate::assembly::io::InboxError;
-    use crate::assembly::io::InboxStoreStorage;
-    use crate::assembly::io::NewInboxEntry;
-    use crate::assembly::io::inbox_entries;
+    use super::prelude::{InboxStorePort, NewInboxMessageEnvelope};
+    use crate::assembly::prelude::InboxError;
+    use crate::assembly::prelude::InboxStoreStorage;
+    use crate::assembly::prelude::NewInboxEntry;
+    use crate::assembly::prelude::inbox_entries;
     use diesel::prelude::*;
 
     impl InboxStorePort for InboxStoreStorage {

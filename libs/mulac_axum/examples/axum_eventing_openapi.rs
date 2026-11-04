@@ -10,14 +10,14 @@
 use axum::extract::State;
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use mulac_axum::io::{
+use mulac_axum::prelude::{
     EventingAdapter,
     EventingHttpError,
     EventsRunResponse,
     RunEvents,
     //
 };
-use mulac_eventing_api::io::testing;
+use mulac_eventing_api::prelude::testing;
 use utoipa::OpenApi;
 
 /// Dispatch one batch of due events to the registered subscribers.

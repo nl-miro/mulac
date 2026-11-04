@@ -54,7 +54,7 @@ Direct startup using the existing Diesel inbox adapter (inside an async
 application startup function):
 
 ```rust
-use mulac_kernel::io::{InboxStoreStorage, KernelConfig, boot, build_pool};
+use mulac_kernel::prelude::{InboxStoreStorage, KernelConfig, boot, build_pool};
 use std::sync::Arc;
 
 let pool = build_pool(database_url)?;

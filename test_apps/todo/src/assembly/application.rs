@@ -1,16 +1,16 @@
 use super::domain::{TodoDto, TodoStatus};
 use super::infra_diesel::DbPool;
 use super::infra_diesel::entity::TodoRow;
-use crate::task_complete::io::{COMPLETE_TODO_COMMAND, CompleteTodoCommand};
-use crate::task_create::io::{CREATE_TODO_COMMAND, CreateTodoCommand};
-use crate::task_delete::io::{DELETE_TODO_COMMAND, DeleteTodoCommand};
-use crate::task_reopen::io::{REOPEN_TODO_COMMAND, ReopenTodoCommand};
-use crate::task_schedule_due_dates::io::{
+use crate::task_complete::prelude::{COMPLETE_TODO_COMMAND, CompleteTodoCommand};
+use crate::task_create::prelude::{CREATE_TODO_COMMAND, CreateTodoCommand};
+use crate::task_delete::prelude::{DELETE_TODO_COMMAND, DeleteTodoCommand};
+use crate::task_reopen::prelude::{REOPEN_TODO_COMMAND, ReopenTodoCommand};
+use crate::task_schedule_due_dates::prelude::{
     UPDATE_DUE_DATE_COMMAND,
     UpdateDueDateCommand, //
 };
-use crate::task_update::io::{UPDATE_TODO_COMMAND, UpdateTodoCommand};
-use kernel::io::CommandError as MulacCommandError;
+use crate::task_update::prelude::{UPDATE_TODO_COMMAND, UpdateTodoCommand};
+use kernel::prelude::CommandError as MulacCommandError;
 use poem::{IntoResponse, Response, http::StatusCode};
 use poem_openapi::Object;
 use serde::{Deserialize, Serialize};
@@ -157,13 +157,15 @@ pub type MulacState = kernel::PersistentKernelState;
 pub type MulacHandle = kernel::PersistentKernelHandle;
 
 pub async fn start_mulac(db_pool: DbPool) -> Result<MulacHandle, kernel::KernelError> {
-    use crate::assembly::io::OutboxSubscriber;
-    use crate::task_complete::io::{CompleteTodoHandler, TODO_COMPLETED_EVENT};
-    use crate::task_create::io::{CreateTodoHandler, TODO_CREATED_EVENT};
-    use crate::task_delete::io::{DeleteTodoHandler, TODO_DELETED_EVENT};
-    use crate::task_reopen::io::{ReopenTodoHandler, TODO_REOPENED_EVENT};
-    use crate::task_schedule_due_dates::io::{TODO_DUE_DATE_CHANGED_EVENT, UpdateDueDateHandler};
-    use crate::task_update::io::{TODO_UPDATED_EVENT, UpdateTodoHandler};
+    use crate::assembly::prelude::OutboxSubscriber;
+    use crate::task_complete::prelude::{CompleteTodoHandler, TODO_COMPLETED_EVENT};
+    use crate::task_create::prelude::{CreateTodoHandler, TODO_CREATED_EVENT};
+    use crate::task_delete::prelude::{DeleteTodoHandler, TODO_DELETED_EVENT};
+    use crate::task_reopen::prelude::{ReopenTodoHandler, TODO_REOPENED_EVENT};
+    use crate::task_schedule_due_dates::prelude::{
+        TODO_DUE_DATE_CHANGED_EVENT, UpdateDueDateHandler,
+    };
+    use crate::task_update::prelude::{TODO_UPDATED_EVENT, UpdateTodoHandler};
 
     kernel::boot(kernel::KernelConfig::default())
         .command_handler(
@@ -229,7 +231,7 @@ pub async fn start_mulac(db_pool: DbPool) -> Result<MulacHandle, kernel::KernelE
         .start_persistent(db_pool, 1)
 }
 
-pub use kernel::io::{block_on_blocking, run_command_worker, run_event_worker};
+pub use kernel::prelude::{block_on_blocking, run_command_worker, run_event_worker};
 
 /// Run a blocking (diesel) closure on Tokio's blocking thread pool so it does
 /// not stall the async runtime. Used by the async HTTP handlers.

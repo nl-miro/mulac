@@ -1,4 +1,4 @@
-pub mod io {
+pub mod prelude {
     pub use super::{
         RunCommandsRequest,
         RunCommandsResponse,
@@ -6,7 +6,7 @@ pub mod io {
     };
 }
 
-use crate::error::io::{
+use crate::error::prelude::{
     CommandingApiError,
     err_limit_out_of_range,
     err_malformed_request,
@@ -113,7 +113,7 @@ mod tests {
 #[cfg(all(test, feature = "testing"))]
 mod fixture_tests {
     use super::*;
-    use crate::io::testing;
+    use crate::prelude::testing;
 
     #[test]
     fn shared_run_request_table() {

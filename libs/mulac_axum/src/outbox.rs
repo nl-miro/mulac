@@ -1,4 +1,4 @@
-pub mod io {
+pub mod prelude {
     pub use super::{
         OutboxAdapter,
         OutboxHttpError,
@@ -8,7 +8,7 @@ pub mod io {
     };
 }
 
-use crate::body::io::{
+use crate::body::prelude::{
     json_body,
     rejection_response,
     //
@@ -18,7 +18,7 @@ use axum::extract::rejection::JsonRejection;
 use axum::extract::{FromRequest, Request};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use mulac_outbox_api::io::{
+use mulac_outbox_api::prelude::{
     AsyncOutboxService,
     OutboxApiError,
     OutboxApiErrorKind,
@@ -154,7 +154,7 @@ mod tests {
     use axum::http::{Request, header};
     use axum::routing::post;
     use http_body_util::BodyExt;
-    use mulac_outbox_api::io::testing;
+    use mulac_outbox_api::prelude::testing;
     use serde_json::{Value, json};
     use tower::ServiceExt;
 

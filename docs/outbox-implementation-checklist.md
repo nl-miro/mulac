@@ -84,13 +84,13 @@ Use this checklist to track implementation progress for [outbox-implementation-p
 
 ## Public API Facade
 
-- [x] Re-export domain models from `outbox::io`.
-- [x] Re-export application envelopes from `outbox::io`.
-- [x] Re-export ports from `outbox::io`.
-- [x] Re-export use-case components from `outbox::io`.
+- [x] Re-export domain models from `outbox::prelude`.
+- [x] Re-export application envelopes from `outbox::prelude`.
+- [x] Re-export ports from `outbox::prelude`.
+- [x] Re-export use-case components from `outbox::prelude`.
 - [x] Feature-gate Diesel adapter re-exports.
 - [x] Feature-gate AMQP adapter re-exports.
-- [x] Add public API smoke tests using only `outbox::io::*`.
+- [x] Add public API smoke tests using only `outbox::prelude::*`.
 
 ## Diesel Storage Adapter
 
@@ -176,8 +176,8 @@ Use this checklist to track implementation progress for [outbox-implementation-p
 
 - [x] Remove stale TODO comments that point to old `outbox/SPEC.md`.
 - [x] Ensure `outbox/SPEC.md` does not diverge from `docs/outbox-spec.md`.
-- [x] Ensure all public APIs are re-exported through `outbox::io`.
-- [x] Ensure no internal modules import through `crate::io`.
+- [x] Ensure all public APIs are re-exported through `outbox::prelude`.
+- [x] Ensure no internal modules import through `crate::prelude`.
 - [x] Ensure docs, schema, and implementation agree on UUID primary key semantics.
 - [x] Ensure docs, schema, and implementation agree on retry/dead-letter behavior.
 - [x] Ensure docs, schema, and implementation agree on idempotent duplicate recording.

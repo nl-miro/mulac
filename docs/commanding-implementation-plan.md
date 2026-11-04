@@ -24,7 +24,7 @@ The `write_side` crate has a scaffolded `commanding/` module with status models 
 
 ## Critical Files
 
-- `write_side/src/lib.rs` — needs `pub mod io` facade
+- `write_side/src/lib.rs` — needs `pub mod prelude` facade
 - `write_side/src/commanding/mod.rs` — needs restructuring
 - `write_side/src/commanding/model.rs` — `CommandStatus` moves to domain layer
 - `write_side/src/commanding/gateway.rs` — full rewrite
@@ -146,7 +146,7 @@ Follow `inbox/src/assembly/infra_diesel.rs` exactly:
 
 ### Task 10 — Public API facade (`lib.rs`)
 
-- [ ] Create/rewrite `write_side/src/lib.rs` with `pub mod io` re-exporting:
+- [ ] Create/rewrite `write_side/src/lib.rs` with `pub mod prelude` re-exporting:
   - Gateway: `CommandGateway`
   - Dispatcher: `CommandDispatcher`
   - Record: `CommandRecorder`, `CommandRecorderRepository`

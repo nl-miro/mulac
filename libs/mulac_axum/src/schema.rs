@@ -2,30 +2,30 @@
 //!
 //! The extractor and response types report the schemas of private twins, so
 //! `request_body = SubmitInbox` publishes `SubmitInboxRequest`.
-use crate::adapter::io::{
+use crate::adapter::prelude::{
     InboxRunResponse,
     InboxSubmission,
     //
 };
 #[cfg(feature = "commanding")]
-use crate::commanding::io::{
+use crate::commanding::prelude::{
     CommandsRunResponse,
     RunCommands,
     //
 };
 #[cfg(feature = "eventing")]
-use crate::eventing::io::{
+use crate::eventing::prelude::{
     EventsRunResponse,
     RunEvents,
     //
 };
-use crate::extract::io::{
+use crate::extract::prelude::{
     RunInbox,
     SubmitInbox,
     //
 };
 #[cfg(feature = "outbox")]
-use crate::outbox::io::{
+use crate::outbox::prelude::{
     OutboxRunResponse,
     RunOutbox,
     //

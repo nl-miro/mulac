@@ -1,21 +1,21 @@
-pub mod io {
+pub mod prelude {
     pub use super::AsyncInboxService;
 }
 
-use crate::contract::io::{
+use crate::contract::prelude::{
     RunRequest,
     RunResponse,
     SubmitInboxRequest,
     SubmitInboxResponse,
     //
 };
-use crate::error::io::{
+use crate::error::prelude::{
     InboxApiError,
     err_run_task_failed,
     err_submission_task_failed,
     //
 };
-use crate::service::io::InboxService;
+use crate::service::prelude::InboxService;
 use std::sync::Arc;
 
 /// Runs [`InboxService`] operations on Tokio's blocking thread pool.
@@ -60,7 +60,7 @@ impl From<InboxService> for AsyncInboxService {
 #[cfg(all(test, feature = "testing"))]
 mod tests {
     use super::*;
-    use crate::io::testing;
+    use crate::prelude::testing;
     use serde_json::json;
     use std::error::Error;
 

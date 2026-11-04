@@ -2,7 +2,7 @@ mod application;
 mod domain;
 mod infra_diesel;
 
-pub mod io {
+pub mod prelude {
     pub use super::application::{
         ApiError,
         AppCommand,

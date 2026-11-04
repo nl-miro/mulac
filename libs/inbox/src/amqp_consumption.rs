@@ -1,4 +1,4 @@
-pub mod io {
+pub mod prelude {
     #[cfg(feature = "amqp")]
     pub use super::client::AmqpClientError;
     #[cfg(feature = "amqp")]
@@ -18,7 +18,7 @@ pub mod io {
 
 #[cfg(feature = "amqp")]
 pub mod models {
-    use crate::assembly::io::{AcknowledgeHandle, InboxError};
+    use crate::assembly::prelude::{AcknowledgeHandle, InboxError};
     use lapin::Acker;
     use lapin::options::{BasicAckOptions, BasicNackOptions};
     use std::future::Future;
@@ -96,7 +96,7 @@ pub mod models {
 #[cfg(feature = "amqp")]
 mod conversions {
     use super::models::{AmqpMessage, AmqpMessageMetadata};
-    use crate::assembly::io::InboundMessageEnvelope;
+    use crate::assembly::prelude::InboundMessageEnvelope;
     use lapin::message::Delivery;
 
     impl From<&Delivery> for AmqpMessageMetadata {
@@ -290,7 +290,7 @@ mod client {
 #[cfg(feature = "amqp")]
 mod transport {
     use super::client::{AmqpClient, AmqpClientError};
-    use crate::assembly::io::{
+    use crate::assembly::prelude::{
         AcknowledgeHandle,
         InboundMessageEnvelope,
         InboxError,
@@ -340,8 +340,8 @@ mod transport {
 
 #[cfg(feature = "amqp")]
 mod worker_loop {
-    use crate::assembly::io::{InboxError, InboxTransportPort};
-    use crate::record_messages::io::{InboxRecorder, NewInboxMessageEnvelope};
+    use crate::assembly::prelude::{InboxError, InboxTransportPort};
+    use crate::record_messages::prelude::{InboxRecorder, NewInboxMessageEnvelope};
     use tokio::time::{Duration, sleep};
     use tokio_util::sync::CancellationToken;
 
@@ -434,8 +434,8 @@ mod worker {
     use super::client::AmqpClientError;
     use super::transport::AmqpTransport;
     use super::worker_loop::WorkerLoop;
-    use crate::assembly::io::InboxError;
-    use crate::record_messages::io::InboxRecorder;
+    use crate::assembly::prelude::InboxError;
+    use crate::record_messages::prelude::InboxRecorder;
     use lapin::Channel;
     use tokio_util::sync::CancellationToken;
 

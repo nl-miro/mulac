@@ -72,7 +72,7 @@ the same `from_result` mapping. `mulac_inbox_api` is unchanged.
 
 The per-crate types are never published as schemas:
 
-- **Poem:** `mulac_poem::io::{RunRequest, RunResponse}` stay the only schema
+- **Poem:** `mulac_poem::prelude::{RunRequest, RunResponse}` stay the only schema
   owners, outside every feature. Each module converts them into and out of its
   own run types with `From` implementations, which the orphan rule allows
   because the wrappers are local to `mulac_poem`. Applications declare every

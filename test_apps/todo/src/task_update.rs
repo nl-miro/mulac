@@ -2,7 +2,7 @@ pub const UPDATE_TODO_COMMAND: &str = "UpdateTodo";
 pub const TODO_UPDATED_EVENT: &str = "TodoUpdated";
 
 mod models {
-    use crate::assembly::io::TodoDto;
+    use crate::assembly::prelude::TodoDto;
     use kernel::ApplicationEvent;
     use poem_openapi::Object;
     use serde::{Deserialize, Serialize};
@@ -35,7 +35,7 @@ mod models {
 
 mod handler {
     use super::models::{TodoUpdated, UpdateTodoCommand};
-    use crate::assembly::io::{DbPool, TodoEvent};
+    use crate::assembly::prelude::{DbPool, TodoEvent};
     use kernel::{CommandError, CommandHandlerPort};
 
     pub struct UpdateTodoHandler {
@@ -60,7 +60,7 @@ mod handler {
 
 mod infra_diesel {
     use super::models::UpdateTodoCommand;
-    use crate::assembly::io::{
+    use crate::assembly::prelude::{
         AppError,
         Clock,
         DbPool,
@@ -96,7 +96,7 @@ mod http {
     use super::models::UpdateTodoCommand;
     use crate::{
         AppState,
-        assembly::io::{
+        assembly::prelude::{
             ApiError, AppCommand, AppError, MulacState, NewCommandEnvelope, TodoDto, fetch_todo,
             interpret_dispatch_error, run_blocking,
         },
@@ -157,7 +157,7 @@ mod http {
     }
 }
 
-pub mod io {
+pub mod prelude {
     pub use super::TODO_UPDATED_EVENT;
     pub use super::UPDATE_TODO_COMMAND;
     pub use super::handler::UpdateTodoHandler;

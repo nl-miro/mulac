@@ -14,7 +14,7 @@ The twitter test app is a well-structured integration harness that exercises the
 
 ## What Works Well
 
-**Module structure follows the CLAUDE.md convention.** Every feature module (e.g. `tweet_post`, `tweet_like`, `user_follow`) exposes exactly one `pub mod io` and keeps `models`, `handler`, `http`, and `infra_diesel` private. The top-level `lib.rs::io` re-exports a clean flat surface for test consumers.
+**Module structure follows the CLAUDE.md convention.** Every feature module (e.g. `tweet_post`, `tweet_like`, `user_follow`) exposes exactly one `pub mod prelude` and keeps `models`, `handler`, `http`, and `infra_diesel` private. The top-level `lib.rs::prelude` re-exports a clean flat surface for test consumers.
 
 **Assembly is separated correctly.** `assembly/application.rs` owns all mulac wiring (command registry, event registry, consumer loops, gateway construction). Feature modules are not aware of the registry — they only implement `CommandHandlerPort`. This matches the layered architecture the kernel specifies.
 

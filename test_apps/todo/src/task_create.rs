@@ -2,7 +2,7 @@ pub const CREATE_TODO_COMMAND: &str = "CreateTodo";
 pub const TODO_CREATED_EVENT: &str = "TodoCreated";
 
 mod models {
-    use crate::assembly::io::TodoDto;
+    use crate::assembly::prelude::TodoDto;
     use chrono::{DateTime, Utc};
     use kernel::ApplicationEvent;
     use poem_openapi::Object;
@@ -37,7 +37,7 @@ mod models {
 
 mod handler {
     use super::models::{CreateTodoCommand, TodoCreated};
-    use crate::assembly::io::{DbPool, TodoEvent};
+    use crate::assembly::prelude::{DbPool, TodoEvent};
     use kernel::{CommandError, CommandHandlerPort};
 
     pub struct CreateTodoHandler {
@@ -62,7 +62,7 @@ mod handler {
 
 mod infra_diesel {
     use super::models::CreateTodoCommand;
-    use crate::assembly::io::{
+    use crate::assembly::prelude::{
         AppError,
         Clock,
         DbPool,
@@ -100,10 +100,10 @@ mod infra_diesel {
 
 mod http {
     use super::models::CreateTodoCommand;
-    use crate::assembly::io::{AppCommand, AppError, NewCommandEnvelope};
+    use crate::assembly::prelude::{AppCommand, AppError, NewCommandEnvelope};
     use crate::{
         AppState,
-        assembly::io::{
+        assembly::prelude::{
             ApiError, Command, TodoDto, fetch_todo, interpret_dispatch_error, run_blocking,
         },
         //
@@ -168,7 +168,7 @@ mod http {
     }
 }
 
-pub mod io {
+pub mod prelude {
     pub use super::CREATE_TODO_COMMAND;
     pub use super::TODO_CREATED_EVENT;
     pub use super::handler::CreateTodoHandler;

@@ -1,8 +1,8 @@
-pub mod io {
+pub mod prelude {
     pub use super::spec::StaleReservationSpec;
     pub use super::sweeper::ReservationSweeper;
     #[cfg(feature = "diesel")]
-    use crate::assembly::infra_diesel::io::{DbPool, OutboxConsumerStorage};
+    use crate::assembly::infra_diesel::prelude::{DbPool, OutboxConsumerStorage};
     #[cfg(feature = "diesel")]
     use std::sync::Arc;
     #[cfg(feature = "diesel")]
@@ -38,7 +38,7 @@ mod spec {
 
 mod sweeper {
     use super::spec::StaleReservationSpec;
-    use crate::assembly::io::{OutboxError, OutboxSweepPort};
+    use crate::assembly::prelude::{OutboxError, OutboxSweepPort};
     use std::sync::Arc;
 
     pub struct ReservationSweeper {
@@ -58,8 +58,8 @@ mod sweeper {
 
 #[cfg(test)]
 mod tests {
-    use super::io::{ReservationSweeper, StaleReservationSpec};
-    use crate::assembly::io::{OutboxError, OutboxSweepPort};
+    use super::prelude::{ReservationSweeper, StaleReservationSpec};
+    use crate::assembly::prelude::{OutboxError, OutboxSweepPort};
     use chrono::Duration;
     use std::sync::{Arc, Mutex};
 

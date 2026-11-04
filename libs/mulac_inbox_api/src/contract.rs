@@ -1,4 +1,4 @@
-pub mod io {
+pub mod prelude {
     pub use super::{
         RunRequest,
         RunResponse,
@@ -8,7 +8,7 @@ pub mod io {
     };
 }
 
-use crate::error::io::{
+use crate::error::prelude::{
     InboxApiError,
     err_correlation_id_not_uuid,
     err_limit_out_of_range,
@@ -20,7 +20,7 @@ use crate::error::io::{
     //
     err_source_blank,
 };
-use inbox::io::{
+use inbox::prelude::{
     InboundMessageEnvelope,
     NewInboxMessageEnvelope,
     //
@@ -206,7 +206,7 @@ mod tests {
     #[cfg(feature = "testing")]
     #[test]
     fn rejects_empty_fields_for_parsed_and_direct_requests() {
-        for body in crate::testing::io::invalid_submissions() {
+        for body in crate::testing::prelude::invalid_submissions() {
             assert!(
                 SubmitInboxRequest::from_json(body.clone()).is_err(),
                 "{body}"

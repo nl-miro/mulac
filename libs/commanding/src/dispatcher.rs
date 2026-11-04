@@ -1,4 +1,4 @@
-pub mod io {
+pub mod prelude {
     pub use super::handler::{
         ApplicationEvent,
         CommandHandlerPort,
@@ -9,8 +9,8 @@ pub mod io {
 }
 
 mod handler {
-    use crate::assembly::io::{CommandError, NewCommandEnvelope};
-    use eventing::io::{NewEventEnvelope, NewEventMetadata};
+    use crate::assembly::prelude::{CommandError, NewCommandEnvelope};
+    use eventing::prelude::{NewEventEnvelope, NewEventMetadata};
     use serde::de::DeserializeOwned;
     use std::sync::Arc;
     use uuid::Uuid;
@@ -96,8 +96,8 @@ mod handler {
 
 mod dispatcher {
     use super::handler::ErasedCommandHandler;
-    use crate::assembly::io::{CommandError, NewCommandEnvelope};
-    use eventing::io::EventDispatchPort;
+    use crate::assembly::prelude::{CommandError, NewCommandEnvelope};
+    use eventing::prelude::EventDispatchPort;
     use std::sync::Arc;
 
     pub struct CommandDispatcher {
@@ -130,8 +130,10 @@ pub use dispatcher::CommandDispatcher;
 
 #[cfg(test)]
 mod sequence_tests {
-    use super::io::*;
-    use crate::assembly::io::{CommandError, NewCommand, NewCommandEnvelope, NewCommandMetadata};
+    use super::prelude::*;
+    use crate::assembly::prelude::{
+        CommandError, NewCommand, NewCommandEnvelope, NewCommandMetadata,
+    };
     use std::sync::Arc;
     #[derive(serde::Serialize)]
     struct Event {
@@ -183,8 +185,8 @@ mod sequence_tests {
             assert_eq!(events[0].payload, r#"{"value":"unchanged"}"#);
             let json = serde_json::to_value(metadata).unwrap();
             assert_eq!(json.get("sequence").is_some(), revision.is_some());
-            let read: eventing::io::EventMetadata = serde_json::from_value(json).unwrap();
-            let forwarded = eventing::io::NewEventMetadata::from(&read);
+            let read: eventing::prelude::EventMetadata = serde_json::from_value(json).unwrap();
+            let forwarded = eventing::prelude::NewEventMetadata::from(&read);
             assert_eq!(forwarded.sequence, revision);
         }
         for revision in [0, i64::MAX as u64 + 1] {

@@ -7,18 +7,18 @@ Reviewed against: `docs/test_app_todo.md` (functional spec) and the CLAUDE.md mo
 
 ## Summary
 
-The implementation covers all 10 required functionalities and the tests are thorough. The command/event pipeline, inbox deduplication, and outbox write-path all work correctly in the happy path. Three structural issues stand out: a storage type leaking through the public `io` boundary, a port race between command commitment and inbox status write, and the absence of a retry path for failed inbox messages.
+The implementation covers all 10 required functionalities and the tests are thorough. The command/event pipeline, inbox deduplication, and outbox write-path all work correctly in the happy path. Three structural issues stand out: a storage type leaking through the public `prelude` boundary, a port race between command commitment and inbox status write, and the absence of a retry path for failed inbox messages.
 
 ---
 
 ## Findings
 
-### 1. High — `TodoRow` exposed through the public `io` module
+### 1. High — `TodoRow` exposed through the public `prelude` module
 
 **Files**
-- `src/assembly/mod.rs:24` — re-exports `infra_sqlx_pg::entity::TodoRow` through `assembly::io`
-- `src/lib.rs:378` — re-exports it again at the crate root via `pub mod io`
-- `tests/todo_create.rs:3` — `use test_app_todo::io::TodoRow`
+- `src/assembly/mod.rs:24` — re-exports `infra_sqlx_pg::entity::TodoRow` through `assembly::prelude`
+- `src/lib.rs:378` — re-exports it again at the crate root via `pub mod prelude`
+- `tests/todo_create.rs:3` — `use test_app_todo::prelude::TodoRow`
 - `tests/todo_complete.rs:3` — same import
 - `tests/todo_reopen.rs:3` — same import
 - `tests/todo_update.rs:3` — same import
@@ -30,7 +30,7 @@ The implementation covers all 10 required functionalities and the tests are thor
 The module boundary rules in CLAUDE.md state that internal sub-modules (`infra_sqlx_pg`, etc.) must remain private. `TodoRow` is an infra detail and should not cross that boundary.
 
 **Suggested fix**  
-Remove `TodoRow` from `assembly::io` and from the crate's `pub mod io`. In the affected tests, replace the direct `sqlx::query_as::<_, TodoRow>` calls with a custom inline struct defined in `utils.rs`, or with plain `sqlx::query_scalar` / `query` calls that assert only the columns under test. `TodoDto` is already public and is sufficient for API-level assertions.
+Remove `TodoRow` from `assembly::prelude` and from the crate's `pub mod prelude`. In the affected tests, replace the direct `sqlx::query_as::<_, TodoRow>` calls with a custom inline struct defined in `utils.rs`, or with plain `sqlx::query_scalar` / `query` calls that assert only the columns under test. `TodoDto` is already public and is sufficient for API-level assertions.
 
 ---
 
@@ -87,7 +87,7 @@ Each file defines its own `async fn create_todo(base_url, title) -> Uuid` with i
 
 ## Positive observations
 
-- The module structure inside each `task_*.rs` file (`mod models`, `mod handler`, `mod infra_sqlx_pg`, `mod http`, `pub mod io`) correctly follows the CLAUDE.md boundary rules. Only `io` is public; all internal sub-modules are private.
+- The module structure inside each `task_*.rs` file (`mod models`, `mod handler`, `mod infra_sqlx_pg`, `mod http`, `pub mod prelude`) correctly follows the CLAUDE.md boundary rules. Only `prelude` is public; all internal sub-modules are private.
 - The `dispatch_command` path in `MulacState` runs the full command-then-event pipeline synchronously within the HTTP request, which makes the integration tests deterministic without any polling or sleep.
 - Outbox entries are verified in every mutating test (`assert_outbox_pending`), and command/event journal entries are also checked (`assert_command_completed`, `assert_event_completed`). This gives good coverage of the full write path.
 - Validation errors (`blank title`) are exercised at both the HTTP and inbox entry points.

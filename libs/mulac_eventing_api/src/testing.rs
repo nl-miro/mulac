@@ -3,7 +3,7 @@
 //! Doubles implement the existing `mulac-eventing` ports, so no database is
 //! required. Every `*_api` crate exposes the same run-request table, so drift
 //! between their copied run types fails a test.
-pub mod io {
+pub mod prelude {
     pub use super::{
         PROCESS_FAILURE,
         RESERVATION_FAILURE,
@@ -23,8 +23,8 @@ pub mod io {
     };
 }
 
-use crate::service::io::EventingService;
-use eventing::io::{
+use crate::service::prelude::EventingService;
+use eventing::prelude::{
     EventConsumer,
     EventConsumerRepository,
     EventDispatcher,

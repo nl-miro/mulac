@@ -1,5 +1,5 @@
 //! JSON body reading shared by every queue extractor.
-pub mod io {
+pub mod prelude {
     pub(crate) use super::{
         json_body,
         rejection_response,

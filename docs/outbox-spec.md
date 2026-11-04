@@ -19,10 +19,10 @@ domain  ←  application  ←  features  ←  infra adapters
 - **features** (`record_events.rs`, `outbox_consumer.rs`, `stale_reservation_sweep.rs`): use-case orchestration — depends on ports only
 - **infra adapters** (`assembly/infra_diesel.rs`, `amqp_publisher.rs`, `confirmed_amqp_publisher.rs`): concrete I/O — depends on feature and application layers
 
-External callers import exclusively from `lib.rs` via the `io` re-export facade.
+External callers import exclusively from `lib.rs` via the `prelude` re-export facade.
 
 ```
-lib.rs (io facade)
+lib.rs (prelude facade)
   ├─ record_events          OutboxRecorder, OutboxRecorderRepository
   ├─ outbox_consumer        OutboxConsumer, OutboxConsumerRepository, ReservableOutboxSpec
   ├─ stale_reservation_sweep  ReservationSweeper, StaleReservationSpec

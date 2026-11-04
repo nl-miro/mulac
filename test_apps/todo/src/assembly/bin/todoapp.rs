@@ -8,7 +8,7 @@ use poem::{
 };
 use poem_openapi::OpenApiService;
 use std::env;
-use test_app_todo::io::{
+use test_app_todo::prelude::{
     AppState,
     CompleteApi,
     CreateApi,

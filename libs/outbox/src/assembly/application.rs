@@ -2,7 +2,7 @@
 //!
 //! Application types are added incrementally according to the implementation checklist.
 
-pub mod io {
+pub mod prelude {
     pub use super::models::{
         NewOutboxEnvelope,
         NewOutboxMetadata,
@@ -107,7 +107,7 @@ mod ports {
     pub trait OutboxReservePort: Send + Sync {
         fn reserve(
             &self,
-            spec: &crate::outbox_consumer::io::ReservableOutboxSpec,
+            spec: &crate::outbox_consumer::prelude::ReservableOutboxSpec,
         ) -> Result<Vec<super::models::OutboxEntryEnvelope>, OutboxError>;
     }
 
@@ -121,7 +121,7 @@ mod ports {
     pub trait OutboxSweepPort: Send + Sync {
         fn sweep(
             &self,
-            spec: &crate::stale_reservation_sweep::io::StaleReservationSpec,
+            spec: &crate::stale_reservation_sweep::prelude::StaleReservationSpec,
         ) -> Result<u64, OutboxError>;
     }
 
