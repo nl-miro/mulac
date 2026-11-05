@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-05
+
+### Changed
+
+- Rename public export facades from `io` to `prelude` without compatibility aliases.
+- Consolidate HTTP contracts and Axum/Poem adapters into core crate features.
+- Use generic consumers backed by unified repositories and update kernel assembly.
+- Bump all crate versions and internal dependency requirements to `0.5.0`.
+
+### Added
+
+- Shared `mulac_http` support crate and database-free HTTP adapter test harness.
+- Prelude architecture checks and updated CI and publishing workflows.
+
 ### Removed
 
 - Remove `mulac_commanding_api`, `mulac_eventing_api`, `mulac_inbox_api`,
@@ -113,3 +127,5 @@ command and event dispatchers.
 [0.4.0]: https://github.com/nulllabsdev/mulac/releases/tag/v0.4.0
 
 [0.4.1]: https://github.com/nulllabsdev/mulac/releases/tag/0.4.1
+
+[0.5.0]: https://github.com/nulllabsdev/mulac/releases/tag/0.5.0
