@@ -17,6 +17,10 @@ mod handler {
 
     pub trait ApplicationEvent: serde::Serialize + Send + Sync {
         fn event_type(&self) -> &'static str;
+        /// Optional application revision; framework identity remains authoritative.
+        fn sequence(&self) -> Option<u64> {
+            None
+        }
     }
 
     pub trait CommandHandlerPort<C, E>: Send + Sync {
@@ -56,11 +60,18 @@ mod handler {
                 .execute(command)?
                 .into_iter()
                 .map(|event| {
+                    let sequence = event.sequence();
+                    if sequence.is_some_and(|value| value == 0 || value > i64::MAX as u64) {
+                        return Err(CommandError::Conversion(
+                            "sequence must be between 1 and i64::MAX".into(),
+                        ));
+                    }
                     Ok(NewEventEnvelope {
                         event_type: event.event_type().to_string(),
                         payload: serde_json::to_string(&event)
                             .map_err(|e| CommandError::Conversion(e.to_string()))?,
                         metadata: Some(NewEventMetadata {
+                            sequence,
                             event_id: Uuid::now_v7(),
                             correlation_id,
                             causation_id,
@@ -116,3 +127,69 @@ mod dispatcher {
 }
 
 pub use dispatcher::CommandDispatcher;
+
+#[cfg(test)]
+mod sequence_tests {
+    use super::io::*;
+    use crate::assembly::io::{CommandError, NewCommand, NewCommandEnvelope, NewCommandMetadata};
+    use std::sync::Arc;
+    #[derive(serde::Serialize)]
+    struct Event {
+        value: String,
+        #[serde(skip)]
+        revision: Option<u64>,
+    }
+    impl ApplicationEvent for Event {
+        fn event_type(&self) -> &'static str {
+            "Example"
+        }
+        fn sequence(&self) -> Option<u64> {
+            self.revision
+        }
+    }
+    struct Handler;
+    impl CommandHandlerPort<Option<u64>, Event> for Handler {
+        fn execute(&self, revision: Option<u64>) -> Result<Vec<Event>, CommandError> {
+            Ok(vec![Event {
+                value: "unchanged".into(),
+                revision,
+            }])
+        }
+    }
+    #[test]
+    fn optional_sequence_preserves_framework_identity_and_payload() {
+        let wrapper = wrap_handler(Arc::new(Handler));
+        let id = uuid::Uuid::now_v7();
+        let mut command = NewCommandEnvelope {
+            command: NewCommand {
+                command_type: "Example".into(),
+                payload: "null".into(),
+            },
+            metadata: Some(NewCommandMetadata {
+                command_id: id,
+                correlation_id: None,
+                causation_id: None,
+                source: None,
+            }),
+        };
+        for revision in [None, Some(1), Some(i64::MAX as u64)] {
+            command.command.payload = serde_json::to_string(&revision).unwrap();
+            let events = wrapper.execute(&command).unwrap();
+            let metadata = events[0].metadata.as_ref().unwrap();
+            assert_eq!(metadata.sequence, revision);
+            assert_eq!(metadata.causation_id, Some(id));
+            assert_eq!(metadata.correlation_id, Some(id));
+            assert_ne!(metadata.event_id, id);
+            assert_eq!(events[0].payload, r#"{"value":"unchanged"}"#);
+            let json = serde_json::to_value(metadata).unwrap();
+            assert_eq!(json.get("sequence").is_some(), revision.is_some());
+            let read: eventing::io::EventMetadata = serde_json::from_value(json).unwrap();
+            let forwarded = eventing::io::NewEventMetadata::from(&read);
+            assert_eq!(forwarded.sequence, revision);
+        }
+        for revision in [0, i64::MAX as u64 + 1] {
+            command.command.payload = revision.to_string();
+            assert!(wrapper.execute(&command).is_err());
+        }
+    }
+}

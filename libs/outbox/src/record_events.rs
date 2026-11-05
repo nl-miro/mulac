@@ -1,6 +1,10 @@
 pub mod io {
+    #[cfg(feature = "diesel")]
+    pub use super::postgres::record_bulk_on_connection;
     pub use super::recorder::OutboxRecorder;
     pub use super::repository::OutboxRecorderRepository;
+    #[cfg(feature = "diesel")]
+    pub(crate) use super::validation::validate_entries;
     #[cfg(feature = "diesel")]
     use crate::assembly::infra_diesel::io::{DbPool, OutboxStoreStorage};
     #[cfg(feature = "diesel")]
@@ -25,7 +29,18 @@ mod repository {
             Self { store }
         }
 
+        /// Insert a batch using the storage adapter's bulk operation.
+        /// Atomicity depends on the adapter; PostgreSQL inserts atomically.
+        pub(super) fn insert_bulk(&self, entries: &[NewOutboxEntry]) -> Result<(), OutboxError> {
+            if entries.is_empty() {
+                return Ok(());
+            }
+            super::validation::validate_entries(entries)?;
+            self.store.record_bulk(entries)
+        }
+
         pub(super) fn insert(&self, entry: &NewOutboxEntry) -> Result<(), OutboxError> {
+            super::validation::validate_entries(std::slice::from_ref(entry))?;
             self.store.record(entry)
         }
     }
@@ -45,6 +60,18 @@ mod recorder {
             Self { repo }
         }
 
+        /// Validate the entire batch before storing any entries.
+        pub fn record_bulk(&self, envelopes: &[NewOutboxEnvelope]) -> Result<(), OutboxError> {
+            if envelopes.is_empty() {
+                return Ok(());
+            }
+            for envelope in envelopes {
+                validate_routing_key(envelope)?;
+            }
+            let entries: Vec<_> = envelopes.iter().map(NewOutboxEntry::from).collect();
+            self.repo.insert_bulk(&entries)
+        }
+
         pub fn record(&self, envelope: &NewOutboxEnvelope) -> Result<(), OutboxError> {
             validate_routing_key(envelope)?;
             let entry = NewOutboxEntry::from(envelope);
@@ -53,6 +80,15 @@ mod recorder {
     }
 
     fn validate_routing_key(envelope: &NewOutboxEnvelope) -> Result<(), OutboxError> {
+        if envelope
+            .metadata
+            .sequence
+            .is_some_and(|value| value == 0 || value > i64::MAX as u64)
+        {
+            return Err(OutboxError::Routing(
+                "sequence must be between 1 and i64::MAX".into(),
+            ));
+        }
         if envelope.metadata.routing_key.trim().is_empty() {
             return Err(OutboxError::Routing("routing_key is required".into()));
         }
@@ -104,6 +140,11 @@ mod tests {
     }
 
     impl OutboxStorePort for FakeStore {
+        fn record_bulk(&self, entries: &[NewOutboxEntry]) -> Result<(), OutboxError> {
+            self.entries.lock().unwrap().extend_from_slice(entries);
+            Ok(())
+        }
+
         fn record(&self, entry: &NewOutboxEntry) -> Result<(), OutboxError> {
             self.entries.lock().unwrap().push(entry.clone());
             Ok(())
@@ -114,6 +155,7 @@ mod tests {
         NewOutboxEnvelope {
             payload: "{}".into(),
             metadata: NewOutboxMetadata {
+                sequence: None,
                 event_id,
                 message_id: None,
                 correlation_id: None,
@@ -124,6 +166,59 @@ mod tests {
                 content_type: Some("application/json".into()),
             },
         }
+    }
+
+    #[test]
+    fn bulk_records_all_entries_and_accepts_empty_batch() {
+        let store = Arc::new(FakeStore::default());
+        let repo = Arc::new(OutboxRecorderRepository::new(store.clone()));
+        let recorder = OutboxRecorder::new(repo);
+        let ids = [Uuid::now_v7(), Uuid::now_v7()];
+        recorder.record_bulk(&[]).unwrap();
+        recorder.record_bulk(&ids.map(envelope)).unwrap();
+        let entries = store.entries.lock().unwrap();
+        assert_eq!(
+            entries.iter().map(|entry| entry.id).collect::<Vec<_>>(),
+            ids
+        );
+    }
+
+    #[test]
+    fn bulk_validates_all_envelopes_before_storage() {
+        let store = Arc::new(FakeStore::default());
+        let recorder = OutboxRecorder::new(Arc::new(OutboxRecorderRepository::new(store.clone())));
+        let valid = envelope(Uuid::now_v7());
+        let mut invalid = envelope(Uuid::now_v7());
+        invalid.metadata.routing_key = " ".into();
+        assert!(matches!(
+            recorder.record_bulk(&[valid, invalid]),
+            Err(OutboxError::Routing(_))
+        ));
+        assert!(store.entries.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn rejects_duplicates_and_non_object_payloads_before_storage() {
+        let store = Arc::new(FakeStore::default());
+        let recorder = OutboxRecorder::new(Arc::new(OutboxRecorderRepository::new(store.clone())));
+        let e = envelope(Uuid::now_v7());
+        assert!(matches!(
+            recorder.record_bulk(&[e.clone(), e.clone()]),
+            Err(OutboxError::Duplicate { .. })
+        ));
+        for payload in ["invalid", "[]", "null", "1", "\"text\""] {
+            let mut invalid = e.clone();
+            invalid.payload = payload.into();
+            assert!(matches!(
+                recorder.record(&invalid),
+                Err(OutboxError::InvalidPayload { .. })
+            ));
+            assert!(matches!(
+                recorder.record_bulk(&[invalid]),
+                Err(OutboxError::InvalidPayload { .. })
+            ));
+        }
+        assert!(store.entries.lock().unwrap().is_empty());
     }
 
     #[test]
@@ -181,5 +276,54 @@ mod tests {
         let entries = store.entries.lock().unwrap();
         assert_eq!(entries[0].id, event_id);
         assert_eq!(entries[0].meta.event_id, event_id);
+    }
+}
+
+mod validation {
+    use crate::assembly::io::{NewOutboxEntry, OutboxError};
+
+    pub(crate) fn validate_entries(entries: &[NewOutboxEntry]) -> Result<(), OutboxError> {
+        let mut sorted: Vec<_> = entries.iter().collect();
+        sorted.sort_by_key(|entry| entry.id);
+        for pair in sorted.windows(2) {
+            if pair[0].id == pair[1].id {
+                return Err(OutboxError::Duplicate { id: pair[0].id });
+            }
+        }
+        for entry in sorted {
+            if entry.meta.routing_key.trim().is_empty() {
+                return Err(OutboxError::Routing("routing_key is required".into()));
+            }
+            if entry
+                .meta
+                .sequence
+                .is_some_and(|v| v == 0 || v > i64::MAX as u64)
+            {
+                return Err(OutboxError::Routing(
+                    "sequence must be between 1 and i64::MAX".into(),
+                ));
+            }
+            if !matches!(
+                serde_json::from_str::<serde_json::Value>(&entry.payload),
+                Ok(serde_json::Value::Object(_))
+            ) {
+                return Err(OutboxError::InvalidPayload { id: entry.id });
+            }
+        }
+        Ok(())
+    }
+}
+
+#[cfg(feature = "diesel")]
+mod postgres {
+    use crate::assembly::io::{NewOutboxEntry, NewOutboxEnvelope, OutboxError};
+
+    /// Record atomically on a caller-owned connection (a savepoint in an outer transaction).
+    pub fn record_bulk_on_connection(
+        conn: &mut diesel::PgConnection,
+        envelopes: &[NewOutboxEnvelope],
+    ) -> Result<(), OutboxError> {
+        let entries: Vec<_> = envelopes.iter().map(NewOutboxEntry::from).collect();
+        crate::assembly::io::record_entries_on_connection(conn, &entries)
     }
 }

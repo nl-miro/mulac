@@ -1,4 +1,5 @@
 pub mod io {
+    pub(crate) use super::storage::record_entries_on_connection;
     pub use super::storage::{OutboxConsumerStorage, OutboxStoreStorage};
     pub use mulac_diesel::{DbPool, build_pool};
 }
@@ -387,20 +388,200 @@ mod storage {
 
     impl OutboxStorePort for OutboxStoreStorage {
         fn record(&self, entry: &NewOutboxEntry) -> Result<(), OutboxError> {
+            self.record_bulk(std::slice::from_ref(entry))
+        }
+
+        fn record_bulk(&self, entries: &[NewOutboxEntry]) -> Result<(), OutboxError> {
+            if entries.is_empty() {
+                return Ok(());
+            }
+            crate::record_events::io::validate_entries(entries)?;
             let mut conn = self
                 .pool
                 .get()
                 .map_err(|err| OutboxError::Storage(err.to_string()))?;
-            let record = NewOutboxEntryRecord::from(entry);
 
-            diesel::insert_into(outbox_entries::table)
-                .values(&record)
-                .on_conflict(outbox_entries::id)
-                .do_nothing()
-                .execute(&mut conn)
-                .map_err(|err| OutboxError::Storage(err.to_string()))?;
+            record_entries_on_connection(&mut conn, entries)
+        }
+    }
 
+    pub(crate) fn record_entries_on_connection(
+        conn: &mut PgConnection,
+        entries: &[NewOutboxEntry],
+    ) -> Result<(), OutboxError> {
+        if entries.is_empty() {
+            return Ok(());
+        }
+        crate::record_events::io::validate_entries(entries)?;
+        let mut records: Vec<_> = entries.iter().map(NewOutboxEntryRecord::from).collect();
+        // Acquire unique-key locks in a consistent order across overlapping batches.
+        records.sort_by_key(NewOutboxEntryRecord::id);
+
+        conn.transaction::<(), OutboxError, _>(|conn| {
+            // Keep each statement below PostgreSQL's bind-parameter limit.
+            // Chunk after sorting so lock ordering is consistent across the whole batch.
+            const INSERT_CHUNK_SIZE: usize = 5_000;
+            let mut inserted = 0;
+            for chunk in records.chunks(INSERT_CHUNK_SIZE) {
+                inserted += diesel::insert_into(outbox_entries::table)
+                    .values(chunk)
+                    .on_conflict(outbox_entries::id)
+                    .do_nothing()
+                    .execute(conn)?;
+            }
+
+            // All entries were newly inserted; only conflicts need read-back verification.
+            if inserted == entries.len() {
+                return Ok(());
+            }
+
+            let ids: Vec<_> = entries.iter().map(|entry| entry.id).collect();
+            let stored = outbox_entries::table
+                .filter(outbox_entries::id.eq_any(&ids))
+                .select(OutboxEntryRecord::as_select())
+                .for_share()
+                .load::<OutboxEntryRecord>(conn)?;
+
+            verify_recorded_entries(
+                entries,
+                stored
+                    .iter()
+                    .map(|row| (row.id(), row.payload(), row.meta())),
+            )?;
             Ok(())
+        })
+    }
+
+    // Compare immutable message content, not timestamps or delivery state:
+    // identical retries may encounter entries that have already been processed.
+    fn verify_recorded_entries<'a>(
+        entries: &[NewOutboxEntry],
+        stored: impl IntoIterator<
+            Item = (
+                Uuid,
+                &'a str,
+                &'a crate::assembly::domain::OutboxEntryMetadata,
+            ),
+        >,
+    ) -> Result<(), OutboxError> {
+        let stored: std::collections::HashMap<_, _> = stored
+            .into_iter()
+            .map(|(id, payload, meta)| (id, (payload, meta)))
+            .collect();
+        let mut entries: Vec<_> = entries.iter().collect();
+        entries.sort_by_key(|entry| entry.id);
+        let missing: Vec<_> = entries
+            .iter()
+            .filter(|e| !stored.contains_key(&e.id))
+            .map(|e| e.id)
+            .collect();
+        if !missing.is_empty() {
+            return Err(OutboxError::Missing { ids: missing });
+        }
+        for entry in entries {
+            match stored.get(&entry.id) {
+                Some((payload, meta))
+                    if serde_json::from_str::<serde_json::Value>(payload).ok()
+                        == serde_json::from_str::<serde_json::Value>(&entry.payload).ok()
+                        && meta.message_id == entry.meta.message_id
+                        && meta.routing_key == entry.meta.routing_key
+                        && meta.event_type == entry.meta.event_type
+                        && meta.content_type == entry.meta.content_type
+                        && meta.sequence == entry.meta.sequence => {}
+                Some(_) => {
+                    return Err(OutboxError::recorded_content_mismatch(entry.id));
+                }
+                None => {
+                    return Err(OutboxError::entry_not_recorded(entry.id));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    #[cfg(test)]
+    mod verification_tests {
+        use super::*;
+        use crate::assembly::domain::OutboxEntryMetadata;
+
+        fn entry() -> NewOutboxEntry {
+            let id = Uuid::now_v7();
+            NewOutboxEntry {
+                id,
+                payload: "{}".into(),
+                meta: OutboxEntryMetadata {
+                    sequence: None,
+                    event_id: id,
+                    message_id: id,
+                    correlation_id: None,
+                    causation_id: None,
+                    event_type: "created".into(),
+                    routing_key: "events.created".into(),
+                    source: None,
+                    content_type: None,
+                },
+                scheduled_at: Utc::now(),
+                received_at: Utc::now(),
+            }
+        }
+
+        fn verify(
+            entries: &[NewOutboxEntry],
+            stored: &[NewOutboxEntry],
+        ) -> Result<(), OutboxError> {
+            verify_recorded_entries(
+                entries,
+                stored.iter().map(|e| (e.id, e.payload.as_str(), &e.meta)),
+            )
+        }
+
+        #[test]
+        fn semantic_replay_and_missing_ids() {
+            let mut a = entry();
+            a.payload = r#"{"a":1,"b":2}"#.into();
+            let mut replay = a.clone();
+            replay.payload = r#"{ "b":2, "a":1 }"#.into();
+            replay.meta.source = Some("new source".into());
+            replay.meta.correlation_id = Some(Uuid::now_v7());
+            assert!(verify(&[replay.clone()], &[a.clone()]).is_ok());
+            replay.meta.sequence = Some(1);
+            assert!(matches!(
+                verify(&[replay], &[a.clone()]),
+                Err(OutboxError::Conflict { .. })
+            ));
+            let b = entry();
+            let mut expected = vec![a.id, b.id];
+            expected.sort();
+            assert!(
+                matches!(verify(&[b, a], &[]), Err(OutboxError::Missing { ids }) if ids == expected)
+            );
+        }
+
+        #[test]
+        fn matches_by_id_regardless_of_order_and_accepts_identical_duplicates() {
+            let a = entry();
+            let b = entry();
+            assert!(verify(&[a.clone(), b.clone(), a.clone()], &[b, a]).is_ok());
+        }
+
+        #[test]
+        fn rejects_missing_ids_and_different_content() {
+            let a = entry();
+            assert!(verify(std::slice::from_ref(&a), &[]).is_err());
+            let mut changed = a.clone();
+            changed.payload = "different".into();
+            assert!(verify(std::slice::from_ref(&a), &[changed]).is_err());
+            let mut changed = a.clone();
+            changed.meta.routing_key = "different".into();
+            assert!(verify(std::slice::from_ref(&a), &[changed]).is_err());
+        }
+
+        #[test]
+        fn rejects_conflicting_duplicates_in_input() {
+            let a = entry();
+            let mut changed = a.clone();
+            changed.payload = "different".into();
+            assert!(verify(&[a.clone(), changed], &[a]).is_err());
         }
     }
 
@@ -728,6 +909,7 @@ mod tests {
 
     fn metadata(event_id: Uuid) -> OutboxEntryMetadata {
         OutboxEntryMetadata {
+            sequence: None,
             event_id,
             message_id: event_id,
             correlation_id: None,

@@ -7,6 +7,10 @@ use uuid::Uuid;
 struct NoopStore;
 
 impl OutboxStorePort for NoopStore {
+    fn record_bulk(&self, _entries: &[NewOutboxEntry]) -> Result<(), OutboxError> {
+        Ok(())
+    }
+
     fn record(&self, _entry: &NewOutboxEntry) -> Result<(), OutboxError> {
         Ok(())
     }
@@ -70,6 +74,7 @@ impl OutboxPublisherPort for NoopPublisher {
 fn io_facade_reexports_core_outbox_api() {
     let event_id = Uuid::now_v7();
     let metadata = NewOutboxMetadata {
+        sequence: None,
         event_id,
         message_id: None,
         correlation_id: None,

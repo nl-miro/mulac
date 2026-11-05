@@ -89,6 +89,7 @@ fn reset_schema(pool: &DbPool) {
 
 fn metadata(event_id: Uuid, routing_key: &str) -> OutboxEntryMetadata {
     OutboxEntryMetadata {
+        sequence: None,
         event_id,
         message_id: event_id,
         correlation_id: None,

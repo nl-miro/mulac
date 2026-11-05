@@ -6,6 +6,8 @@ pub mod io {
         ReservableOutboxSpec,
         //
     };
+    #[cfg(feature = "diesel")]
+    pub use crate::record_events::io::record_bulk_on_connection;
     pub use crate::record_events::io::{
         OutboxRecorder,
         OutboxRecorderRepository,
@@ -34,11 +36,15 @@ pub mod io {
 
     #[cfg(feature = "amqp")]
     pub use crate::amqp_publisher::io::{AmqpPublishConfig, AmqpPublisher};
+    #[cfg(feature = "amqp")]
+    pub use crate::confirmed_amqp_publisher::io::ConfirmedAmqpPublisher;
 }
 
 #[cfg(feature = "amqp")]
 mod amqp_publisher;
 mod assembly;
+#[cfg(feature = "amqp")]
+mod confirmed_amqp_publisher;
 mod outbox_consumer;
 mod record_events;
 mod stale_reservation_sweep;

@@ -183,7 +183,10 @@ mod consumer {
         }
 
         /// Publish all currently reservable entries, collecting per-entry errors.
-        pub fn publish_batch(&self, spec: &ReservableOutboxSpec) -> Result<usize, Vec<OutboxError>> {
+        pub fn publish_batch(
+            &self,
+            spec: &ReservableOutboxSpec,
+        ) -> Result<usize, Vec<OutboxError>> {
             let entries = match self.repository.reserve(spec) {
                 Ok(entries) => entries,
                 Err(e) => return Err(vec![e]),
@@ -348,6 +351,7 @@ mod tests {
 
     fn metadata(event_id: Uuid) -> OutboxEntryMetadata {
         OutboxEntryMetadata {
+            sequence: None,
             event_id,
             message_id: event_id,
             correlation_id: None,

@@ -96,6 +96,12 @@ impl OutboxStatus {
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct OutboxEntryMetadata {
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "sequence"
+    )]
+    pub sequence: Option<u64>,
     pub event_id: uuid::Uuid,
     pub message_id: uuid::Uuid,
     pub correlation_id: Option<uuid::Uuid>,
@@ -199,4 +205,14 @@ mod tests {
         assert_eq!(OutboxStatus::Dead.as_str(), "dead");
         assert_eq!(OutboxStatus::Archive.as_str(), "archive");
     }
+}
+
+fn sequence<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<Option<u64>, D::Error> {
+    let value = <Option<u64> as serde::Deserialize>::deserialize(deserializer)?;
+    if value.is_some_and(|sequence| sequence == 0 || sequence > i64::MAX as u64) {
+        return Err(serde::de::Error::custom(
+            "sequence must be between 1 and i64::MAX",
+        ));
+    }
+    Ok(value)
 }
