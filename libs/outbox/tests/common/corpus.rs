@@ -3,7 +3,7 @@
 
 /// A payload with exactly `total` nested containers, counting the outermost.
 pub fn nested(total: usize) -> String {
-    let is_object = |i: usize| i % 2 == 0;
+    let is_object = |i: usize| i.is_multiple_of(2);
     let mut s = if is_object(total - 1) { "{}" } else { "[]" }.to_string();
     for i in (0..total - 1).rev() {
         s = if is_object(i) {

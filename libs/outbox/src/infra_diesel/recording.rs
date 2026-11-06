@@ -54,13 +54,17 @@ impl Failure {
     }
 }
 
+/// Test code run at a named point of a recording flow.
+#[cfg(test)]
+type Hook = Box<dyn FnMut()>;
+
 /// Owns every transaction-control statement so tests can fail any one step.
 struct Session<'c> {
     conn: &'c mut PgConnection,
     #[cfg(test)]
     fail_at: Option<&'static str>,
     #[cfg(test)]
-    hooks: Vec<(&'static str, Box<dyn FnMut()>)>,
+    hooks: Vec<(&'static str, Hook)>,
 }
 
 impl<'c> Session<'c> {

@@ -42,15 +42,19 @@ fn batch_records_every_event_and_replay_succeeds_unchanged() {
 
 #[test]
 #[ignore = "requires OUTBOX_TEST_DATABASE_URL"]
-fn batch_above_the_bind_parameter_limit_records_completely() {
-    let db = TestDb::new();
-    let repo = db.repo();
-    let ids = ids(70_000);
-    let entries: Vec<_> = ids.iter().copied().map(entry).collect();
-    repo.record_batch(&entries).expect("large batch");
-    assert_eq!(db.count(), 70_000);
-    repo.record_batch(&entries).expect("large replay");
-    assert_eq!(db.count(), 70_000);
+fn batch_above_the_bind_parameter_limit_records_completely_on_every_path() {
+    // One more than PostgreSQL's 65,535 bind parameters allow in one statement.
+    const LARGE: usize = 65_536;
+    for api in APIS {
+        let db = TestDb::new();
+        let batch = envelopes(&ids(LARGE));
+        api.record(&db, &batch)
+            .unwrap_or_else(|e| panic!("{api:?}: {e:?}"));
+        assert_eq!(db.count(), LARGE as i64, "{api:?}");
+        api.record(&db, &batch)
+            .unwrap_or_else(|e| panic!("{api:?} replay: {e:?}"));
+        assert_eq!(db.count(), LARGE as i64, "{api:?} replay");
+    }
 }
 
 #[test]
