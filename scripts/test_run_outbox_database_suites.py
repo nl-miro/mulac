@@ -1,6 +1,8 @@
 import contextlib
 import io
+import pathlib
 import subprocess
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -71,6 +73,49 @@ class PreflightTests(unittest.TestCase):
         _, stderr, code = run_preflight(completed("not a record\n"))
         self.assertEqual(code, 1)
         self.assertIn("unexpected output", stderr)
+
+
+class InventoryTests(unittest.TestCase):
+    def tree(self, *files):
+        root = pathlib.Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: __import__("shutil").rmtree(root, ignore_errors=True))
+        for relative in files:
+            path = root / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("// no mention of the database url here\n")
+        return root
+
+    def test_a_suite_reaching_the_database_only_through_the_harness_is_still_caught(self):
+        root = self.tree("libs/outbox/tests/new_suite.rs")
+        self.assertEqual(len(suites.unclassified_suites(root, set())), 1)
+
+    def test_inventoried_elsewhere_and_declared_database_free_files_are_classified(self):
+        root = self.tree(
+            "libs/outbox/tests/listed.rs",
+            "libs/outbox/tests/prelude_smoke.rs",
+            "test_apps/outbox_serde_matrix/tests/matrix.rs",
+        )
+        self.assertEqual(suites.unclassified_suites(root, {"listed"}), [])
+
+    def test_a_test_app_suite_is_checked_too(self):
+        root = self.tree("test_apps/outbox_other/tests/other.rs")
+        self.assertEqual(len(suites.unclassified_suites(root, set())), 1)
+
+    def test_the_shared_harness_directory_is_not_a_suite(self):
+        root = self.tree("libs/outbox/tests/common/mod.rs")
+        self.assertEqual(suites.unclassified_suites(root, set()), [])
+
+    def test_missing_inventoried_and_declared_files_are_reported(self):
+        root = self.tree("libs/outbox/tests/present.rs")
+        problems = suites.missing_suites(root, {"present", "gone"})
+        self.assertTrue(any("gone" in p for p in problems))
+        self.assertFalse(any("present" in p and "does not exist" in p and "gone" not in p for p in problems))
+        self.assertTrue(any("prelude_smoke.rs" in p for p in problems))
+
+    def test_the_real_repository_is_fully_classified(self):
+        inventoried = {sel[1] for _, _, sel, _, _ in suites.INVENTORY if sel[0] == "--test"}
+        self.assertEqual(suites.unclassified_suites(suites.ROOT, inventoried), [])
+        self.assertEqual(suites.missing_suites(suites.ROOT, inventoried), [])
 
 
 if __name__ == "__main__":

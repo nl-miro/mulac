@@ -3,8 +3,8 @@
 
 A suite that is missing, discovers no cases, or executes fewer cases than it
 discovered (for example because they stayed ignored) fails the run, and so does
-a database suite that exists in `libs/outbox/tests` but is not in the
-inventory. Needs OUTBOX_TEST_DATABASE_URL pointing at a disposable database.
+any test file in `libs/outbox/tests` or `test_apps/outbox_*/tests` that is
+neither inventoried, run by another script, nor explicitly declared database-free. Needs OUTBOX_TEST_DATABASE_URL pointing at a disposable database.
 """
 import csv
 import io
@@ -21,7 +21,7 @@ SUBSCRIBER = ["--manifest-path", str(ROOT / "test_apps" / "outbox_subscriber_beh
 # (label, cargo package arguments, test selector, libtest name filter, minimum
 # cases it must discover). A suite that discovers fewer fails the run.
 INVENTORY = [
-    ("lib: infra_diesel (engine, fault injection, deletion races)", LIBS, ["--lib"], ["infra_diesel::"], 20),
+    ("lib: infra_diesel (engine, fault injection, deletion races)", LIBS, ["--lib"], ["infra_diesel::"], 21),
     ("diesel_storage", LIBS, ["--test", "diesel_storage"], [], 4),
     ("lifecycle", LIBS, ["--test", "lifecycle"], [], 5),
     ("reservation_isolation", LIBS, ["--test", "reservation_isolation"], [], 7),
@@ -38,6 +38,11 @@ INVENTORY = [
 
 # Database suites that are deliberately run by another script.
 RUN_ELSEWHERE = {"test_apps/outbox_serde_matrix/tests/matrix.rs": "scripts/check_outbox_serde_features.sh"}
+
+# Test files that never touch the database. Every other test file must be
+# inventoried, so a new suite cannot evade the check by how it reaches the
+# database; it has to be classified here on purpose.
+NO_DATABASE = {"libs/outbox/tests/prelude_smoke.rs"}
 
 
 def fail(message):
@@ -88,25 +93,50 @@ def preflight(url):
     print(f"database preflight ok: PostgreSQL {version}, database {database}")
 
 
+def test_files(root):
+    """Every top-level test file of the outbox crate and its outbox test apps."""
+    files = list((root / "libs" / "outbox" / "tests").glob("*.rs"))
+    files += (root / "test_apps").glob("outbox_*/tests/*.rs")
+    return sorted(str(path.relative_to(root)) for path in files)
+
+
+def unclassified_suites(root, inventoried):
+    """Test files that are in no list: the inventory (by file stem), the scripts
+    that run a suite elsewhere, or the declared database-free files."""
+    return [
+        f"test file {relative} is not in the required-suite inventory, RUN_ELSEWHERE or NO_DATABASE"
+        for relative in test_files(root)
+        if pathlib.Path(relative).stem not in inventoried
+        and relative not in RUN_ELSEWHERE
+        and relative not in NO_DATABASE
+    ]
+
+
+def missing_suites(root, inventoried):
+    """Inventoried or declared suites that do not exist."""
+    existing = set(test_files(root))
+    problems = [
+        f"inventoried suite {name} does not exist"
+        for name in sorted(inventoried)
+        if not any(pathlib.Path(relative).stem == name for relative in existing)
+    ]
+    problems += [
+        f"{relative} is declared in RUN_ELSEWHERE or NO_DATABASE but does not exist"
+        for relative in sorted({*RUN_ELSEWHERE, *NO_DATABASE} - existing)
+    ]
+    return problems
+
+
 def main():
     url = os.environ.get("OUTBOX_TEST_DATABASE_URL")
     if not url:
         fail("OUTBOX_TEST_DATABASE_URL is not set")
     preflight(url)
 
-    # Every file that talks to the database must be inventoried.
     inventoried = {sel[1] for _, _, sel, _, _ in INVENTORY if sel[0] == "--test"}
-    suites = list((ROOT / "libs" / "outbox" / "tests").glob("*.rs"))
-    suites += (ROOT / "test_apps").glob("outbox_*/tests/*.rs")
-    for path in sorted(suites):
-        relative = str(path.relative_to(ROOT))
-        if "OUTBOX_TEST_DATABASE_URL" not in path.read_text() or relative in RUN_ELSEWHERE:
-            continue
-        if path.stem not in inventoried:
-            fail(f"database suite {relative} is not in the required-suite inventory")
-    for name in sorted(inventoried):
-        if not list(ROOT.glob(f"libs/outbox/tests/{name}.rs")) + list(ROOT.glob(f"test_apps/outbox_*/tests/{name}.rs")):
-            fail(f"inventoried suite {name} does not exist")
+    problems = unclassified_suites(ROOT, inventoried) + missing_suites(ROOT, inventoried)
+    if problems:
+        fail("\n".join(problems))
 
     totals = []
     for label, package, selector, filters, minimum in INVENTORY:
