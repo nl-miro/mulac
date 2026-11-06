@@ -43,7 +43,11 @@ impl TestDb {
     /// Connection URL pinned to this test's schema.
     pub fn url(&self) -> String {
         let sep = if self.base.contains('?') { '&' } else { '?' };
-        format!("{}{sep}options=-csearch_path%3D{}", self.base, self.schema)
+        // `application_name` lets observers tell this test's backends apart.
+        format!(
+            "{}{sep}options=-csearch_path%3D{}&application_name={}",
+            self.base, self.schema, self.schema
+        )
     }
 
     pub fn conn(&self) -> PgConnection {
@@ -135,4 +139,43 @@ pub fn ids(n: usize) -> Vec<Uuid> {
 
 pub fn envelopes(ids: &[Uuid]) -> Vec<NewOutboxEnvelope> {
     ids.iter().copied().map(envelope).collect()
+}
+
+/// Backends of this test that are currently waiting on another backend's lock.
+pub fn blocked_backends(db: &TestDb, observer: &mut PgConnection) -> i64 {
+    diesel::sql_query(
+        "SELECT count(*) AS count FROM pg_stat_activity \
+         WHERE application_name = $1 AND cardinality(pg_blocking_pids(pid)) > 0",
+    )
+    .bind::<diesel::sql_types::Text, _>(db.schema.clone())
+    .get_result::<Count>(observer)
+    .expect("observe blocked backends")
+    .count
+}
+
+/// Waits, with a watchdog, until at least `n` of this test's backends are
+/// blocked on another backend. This proves real contention rather than timing.
+pub fn wait_blocked(db: &TestDb, n: i64) {
+    let mut observer = db.conn();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    while blocked_backends(db, &mut observer) < n {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "expected {n} blocked backend(s) but contention never appeared"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+}
+
+/// Joins a worker thread under a watchdog.
+pub fn join<T: Send + 'static>(handle: std::thread::JoinHandle<T>) -> T {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+    while !handle.is_finished() {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "worker did not finish"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    handle.join().expect("worker panicked")
 }
