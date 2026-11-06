@@ -1,16 +1,15 @@
 #![cfg(feature = "diesel")]
 
-use std::env;
-use std::sync::{Arc, Mutex, OnceLock};
+mod common;
+use common::TestDb;
+
+use std::sync::{Arc, Mutex};
 
 use chrono::{Duration, Utc};
-use diesel::connection::SimpleConnection;
 use diesel::prelude::*;
 use diesel::sql_types::{Int4, Nullable, Timestamptz, Uuid as SqlUuid};
 use mulac_outbox::prelude::*;
 use uuid::Uuid;
-
-static DB_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
 #[derive(QueryableByName)]
 struct EntryRow {
@@ -59,24 +58,6 @@ impl OutboxPublisherPort for FakePublisher {
     }
 }
 
-fn database_url() -> String {
-    env::var("OUTBOX_TEST_DATABASE_URL")
-        .expect("OUTBOX_TEST_DATABASE_URL must be set to run Diesel integration tests")
-}
-
-fn test_pool() -> DbPool {
-    build_pool(&database_url()).expect("pool builds")
-}
-
-fn reset_schema(pool: &DbPool) {
-    let _guard = DB_LOCK.get_or_init(|| Mutex::new(())).lock().unwrap();
-    let mut conn = pool.get().expect("pool connection");
-    conn.batch_execute("DROP TABLE IF EXISTS outbox_entries;")
-        .expect("drop table");
-    conn.batch_execute(include_str!("../../../docs/outbox_entries.sql"))
-        .expect("create schema");
-}
-
 fn metadata(event_id: Uuid, routing_key: &str) -> NewOutboxMetadata {
     NewOutboxMetadata {
         sequence: None,
@@ -115,8 +96,8 @@ fn fetch_entry(pool: &DbPool, id: Uuid) -> EntryRow {
 #[ignore = "requires OUTBOX_TEST_DATABASE_URL"]
 #[test]
 fn record_reserve_publish_complete_updates_row() {
-    let pool = test_pool();
-    reset_schema(&pool);
+    let db = TestDb::new();
+    let pool = db.pool();
     let recorder = OutboxRecorder::new(Arc::new(DieselPgOutboxRepository::new(pool.clone())));
     let publisher = Arc::new(FakePublisher::success());
     let consumer = OutboxConsumer::new(
@@ -146,8 +127,8 @@ fn record_reserve_publish_complete_updates_row() {
 #[ignore = "requires OUTBOX_TEST_DATABASE_URL"]
 #[test]
 fn transport_failure_moves_entry_to_failed() {
-    let pool = test_pool();
-    reset_schema(&pool);
+    let db = TestDb::new();
+    let pool = db.pool();
     let recorder = OutboxRecorder::new(Arc::new(DieselPgOutboxRepository::new(pool.clone())));
     let publisher = Arc::new(FakePublisher::failing("broker unavailable"));
     let consumer = OutboxConsumer::new(
@@ -173,8 +154,8 @@ fn transport_failure_moves_entry_to_failed() {
 #[ignore = "requires OUTBOX_TEST_DATABASE_URL"]
 #[test]
 fn failed_entries_become_reservable_after_scheduled_at() {
-    let pool = test_pool();
-    reset_schema(&pool);
+    let db = TestDb::new();
+    let pool = db.pool();
     let recorder = OutboxRecorder::new(Arc::new(DieselPgOutboxRepository::new(pool.clone())));
     let publisher = Arc::new(FakePublisher::failing("broker unavailable"));
     let consumer = OutboxConsumer::new(
@@ -210,8 +191,8 @@ fn failed_entries_become_reservable_after_scheduled_at() {
 #[ignore = "requires OUTBOX_TEST_DATABASE_URL"]
 #[test]
 fn conversion_failure_moves_entry_to_failed() {
-    let pool = test_pool();
-    reset_schema(&pool);
+    let db = TestDb::new();
+    let pool = db.pool();
     let recorder = OutboxRecorder::new(Arc::new(DieselPgOutboxRepository::new(pool.clone())));
     let publisher = Arc::new(FakePublisher::success());
     let consumer = OutboxConsumer::new(

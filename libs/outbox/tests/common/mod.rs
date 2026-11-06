@@ -26,14 +26,20 @@ pub struct TestDb {
 }
 
 impl TestDb {
-    pub fn new() -> Self {
+    /// A fresh, empty schema: the caller applies its own baseline.
+    pub fn bare() -> Self {
         let base = base_url();
         let schema = format!("t_{}", Uuid::new_v4().simple());
         let mut admin = PgConnection::establish(&base).expect("connect to test database");
         admin
             .batch_execute(&format!("CREATE SCHEMA {schema}"))
             .expect("create schema");
-        let db = Self { base, schema };
+        Self { base, schema }
+    }
+
+    /// A fresh schema holding the table from `docs/outbox_entries.sql`.
+    pub fn new() -> Self {
+        let db = Self::bare();
         db.conn()
             .batch_execute(SCHEMA_SQL)
             .expect("apply docs/outbox_entries.sql");
@@ -56,7 +62,7 @@ impl TestDb {
 
     pub fn pool(&self) -> DbPool {
         Pool::builder()
-            .max_size(4)
+            .max_size(8)
             .min_idle(Some(0))
             .build(ConnectionManager::<PgConnection>::new(self.url()))
             .expect("build pool")

@@ -9,6 +9,7 @@ use uuid::Uuid;
 
 fn unreachable_pool() -> DbPool {
     Pool::builder()
+        .connection_timeout(std::time::Duration::from_millis(300))
         .max_size(1)
         .build_unchecked(ConnectionManager::<diesel::PgConnection>::new(
             "postgres://nobody:none@127.0.0.1:1/none",

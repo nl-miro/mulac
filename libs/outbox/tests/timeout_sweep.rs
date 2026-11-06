@@ -1,4 +1,5 @@
 #![cfg(feature = "diesel")]
+mod common;
 use chrono::{DateTime, Duration, Utc};
 use diesel::Connection;
 use diesel::{
@@ -19,11 +20,12 @@ fn url() -> String {
     std::env::var("OUTBOX_TEST_DATABASE_URL")
         .expect("set OUTBOX_TEST_DATABASE_URL to a disposable test database")
 }
-fn ddl(temporary: bool) -> String {
+/// The documented schema plus this suite's explicit seeding conveniences: its
+/// fixtures insert rows without a payload or metadata.
+fn ddl() -> String {
     format!(
-        "CREATE {} TABLE {} (id uuid PRIMARY KEY,status int4 NOT NULL,payload text NOT NULL DEFAULT '',meta jsonb,scheduled_at timestamptz NOT NULL,attempts int4 NOT NULL,reservation_id uuid,reserved_at timestamptz,received_at timestamptz NOT NULL DEFAULT now(),updated_at timestamptz NOT NULL,processed_at timestamptz,extra_info jsonb,last_error text)",
-        if temporary { "TEMP" } else { "" },
-        TABLE
+        "{}; ALTER TABLE {TABLE} ALTER COLUMN payload SET DEFAULT '', ALTER COLUMN meta DROP NOT NULL",
+        include_str!("../../../docs/outbox_entries.sql")
     )
 }
 fn seed(conn: &mut PgConnection) {
@@ -52,15 +54,17 @@ fn rows(conn: &mut PgConnection) -> Vec<Row> {
 #[test]
 #[ignore = "requires OUTBOX_TEST_DATABASE_URL"]
 fn timeout_sweep_policy_and_rollback() {
+    let db = common::TestDb::bare();
     for limit in [6, 3] {
+        // The schema is empty; the documented table is created inside the test transaction.
         let pool = Pool::builder()
             .max_size(1)
-            .build(ConnectionManager::<PgConnection>::new(url()))
+            .build(ConnectionManager::<PgConnection>::new(db.url()))
             .unwrap();
         {
             let mut c = pool.get().unwrap();
             c.begin_test_transaction().unwrap();
-            c.batch_execute(&ddl(true)).unwrap();
+            c.batch_execute(&ddl()).unwrap();
             seed(&mut c);
         }
         let database_now = diesel::select(diesel::dsl::sql::<diesel::sql_types::Timestamptz>(
@@ -140,7 +144,7 @@ impl Fixture {
             .unwrap();
         {
             let mut c = pool.get().unwrap();
-            c.batch_execute(&ddl(false)).unwrap();
+            c.batch_execute(&ddl()).unwrap();
             seed(&mut c);
             c.batch_execute(&format!("DELETE FROM {TABLE} WHERE attempts<>1"))
                 .unwrap();

@@ -42,14 +42,14 @@ impl Fixture {
             .connection_customizer(Box::new(SearchPath(schema.clone())))
             .build(ConnectionManager::<PgConnection>::new(url))
             .unwrap();
-        pool.get().unwrap().batch_execute(&format!("CREATE TABLE {TABLE} (
-            id uuid PRIMARY KEY, status int4 NOT NULL DEFAULT 0, payload text NOT NULL DEFAULT '{{}}',
-            command_type text NOT NULL DEFAULT 'test', event_type text NOT NULL DEFAULT 'test',
-            meta jsonb NOT NULL, attempts int4 NOT NULL DEFAULT 0,
-            reservation_id uuid, reserved_at timestamptz, received_at timestamptz NOT NULL DEFAULT now(),
-            scheduled_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(),
-            processed_at timestamptz, extra_info jsonb, last_error text
-        )")).unwrap();
+        // The documented schema, plus this suite's explicit seeding conveniences.
+        pool.get()
+            .unwrap()
+            .batch_execute(&format!(
+                "{}; ALTER TABLE {TABLE} ALTER COLUMN status SET DEFAULT 0, ALTER COLUMN payload SET DEFAULT '{{}}'",
+                include_str!("../../../docs/outbox_entries.sql")
+            ))
+            .unwrap();
         Self { schema, pool }
     }
     fn repository(&self) -> DieselPgOutboxRepository {

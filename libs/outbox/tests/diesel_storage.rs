@@ -1,11 +1,12 @@
 #![cfg(feature = "diesel")]
 
-use std::env;
-use std::sync::{Arc, Mutex, OnceLock};
+mod common;
+use common::TestDb;
+
+use std::sync::Arc;
 use std::thread;
 
 use chrono::{Duration, Utc};
-use diesel::connection::SimpleConnection;
 use diesel::deserialize::{FromSql, Result as DeserializeResult};
 use diesel::pg::{Pg, PgValue};
 use diesel::prelude::*;
@@ -13,8 +14,6 @@ use diesel::sql_types::{BigInt, Int4, Jsonb, Nullable, Text, Timestamptz, Uuid a
 use mulac_outbox::prelude::*;
 use serde_json::from_slice;
 use uuid::Uuid;
-
-static DB_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
 #[derive(QueryableByName)]
 struct CountRow {
@@ -69,24 +68,6 @@ impl FromSql<Jsonb, Pg> for ExtraInfoJsonb {
     }
 }
 
-fn database_url() -> String {
-    env::var("OUTBOX_TEST_DATABASE_URL")
-        .expect("OUTBOX_TEST_DATABASE_URL must be set to run Diesel integration tests")
-}
-
-fn test_pool() -> DbPool {
-    build_pool(&database_url()).expect("pool builds")
-}
-
-fn reset_schema(pool: &DbPool) {
-    let _guard = DB_LOCK.get_or_init(|| Mutex::new(())).lock().unwrap();
-    let mut conn = pool.get().expect("pool connection");
-    conn.batch_execute("DROP TABLE IF EXISTS outbox_entries;")
-        .expect("drop table");
-    conn.batch_execute(include_str!("../../../docs/outbox_entries.sql"))
-        .expect("create schema");
-}
-
 fn metadata(event_id: Uuid, routing_key: &str) -> OutboxEntryMetadata {
     OutboxEntryMetadata {
         sequence: None,
@@ -137,8 +118,8 @@ fn fetch_entry(pool: &DbPool, id: Uuid) -> EntryRow {
 #[ignore = "requires OUTBOX_TEST_DATABASE_URL"]
 #[test]
 fn idempotent_recording_keeps_one_row() {
-    let pool = test_pool();
-    reset_schema(&pool);
+    let db = TestDb::new();
+    let pool = db.pool();
     let store = DieselPgOutboxRepository::new(pool.clone());
     let event_id = Uuid::now_v7();
     let entry = new_entry(event_id);
@@ -152,8 +133,8 @@ fn idempotent_recording_keeps_one_row() {
 #[ignore = "requires OUTBOX_TEST_DATABASE_URL"]
 #[test]
 fn concurrent_reservations_do_not_claim_the_same_row() {
-    let pool = test_pool();
-    reset_schema(&pool);
+    let db = TestDb::new();
+    let pool = db.pool();
     let store = DieselPgOutboxRepository::new(pool.clone());
     let storage = Arc::new(DieselPgOutboxRepository::new(pool.clone()));
 
@@ -201,8 +182,8 @@ fn concurrent_reservations_do_not_claim_the_same_row() {
 #[ignore = "requires OUTBOX_TEST_DATABASE_URL"]
 #[test]
 fn lifecycle_transitions_update_status_and_metadata() {
-    let pool = test_pool();
-    reset_schema(&pool);
+    let db = TestDb::new();
+    let pool = db.pool();
     let store = DieselPgOutboxRepository::new(pool.clone());
     let storage = DieselPgOutboxRepository::new(pool.clone());
 
@@ -279,8 +260,8 @@ fn lifecycle_transitions_update_status_and_metadata() {
 #[ignore = "requires OUTBOX_TEST_DATABASE_URL"]
 #[test]
 fn stale_sweep_releases_old_reservations_without_incrementing_attempts() {
-    let pool = test_pool();
-    reset_schema(&pool);
+    let db = TestDb::new();
+    let pool = db.pool();
     let mut conn = pool.get().expect("pool connection");
     let event_id = Uuid::now_v7();
     let reservation_id = Uuid::now_v7();
