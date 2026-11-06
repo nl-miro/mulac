@@ -179,3 +179,64 @@ pub fn join<T: Send + 'static>(handle: std::thread::JoinHandle<T>) -> T {
     }
     handle.join().expect("worker panicked")
 }
+
+/// The three ways to record a batch of envelopes.
+#[derive(Clone, Copy, Debug)]
+pub enum Api {
+    Recorder,
+    Port,
+    Caller,
+}
+
+pub const APIS: [Api; 3] = [Api::Recorder, Api::Port, Api::Caller];
+
+impl Api {
+    /// Records `batch` the way this API would. The caller path runs inside its
+    /// own raw transaction, committed on success and rolled back on failure.
+    pub fn record(self, db: &TestDb, batch: &[NewOutboxEnvelope]) -> Result<(), RecordingError> {
+        match self {
+            Api::Recorder => {
+                OutboxRecorder::new(std::sync::Arc::new(db.repo())).record_batch(batch)
+            }
+            Api::Port => {
+                let entries: Vec<_> = batch.iter().map(NewOutboxEntry::from).collect();
+                db.repo().record_batch(&entries)
+            }
+            Api::Caller => {
+                let mut conn = db.conn();
+                conn.batch_execute("BEGIN").unwrap();
+                let result = record_batch_on_connection(&mut conn, batch);
+                conn.batch_execute(if result.is_ok() { "COMMIT" } else { "ROLLBACK" })
+                    .unwrap();
+                result
+            }
+        }
+    }
+}
+
+pub fn status(conn: &mut PgConnection, id: Uuid) -> i32 {
+    #[derive(QueryableByName)]
+    struct S {
+        #[diesel(sql_type = diesel::sql_types::Int4)]
+        status: i32,
+    }
+    diesel::sql_query("SELECT status FROM outbox_entries WHERE id = $1")
+        .bind::<diesel::sql_types::Uuid, _>(id)
+        .get_result::<S>(conn)
+        .expect("row exists")
+        .status
+}
+
+/// The whole stored row as JSON text, to prove nothing about it changed.
+pub fn snapshot(conn: &mut PgConnection, id: Uuid) -> String {
+    #[derive(QueryableByName)]
+    struct J {
+        #[diesel(sql_type = diesel::sql_types::Text)]
+        row: String,
+    }
+    diesel::sql_query("SELECT row_to_json(t)::text AS row FROM outbox_entries t WHERE id = $1")
+        .bind::<diesel::sql_types::Uuid, _>(id)
+        .get_result::<J>(conn)
+        .expect("row exists")
+        .row
+}
