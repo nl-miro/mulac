@@ -45,7 +45,7 @@ fn batch_records_every_event_and_replay_succeeds_unchanged() {
 fn batch_above_the_bind_parameter_limit_records_completely_on_every_path() {
     // One more than PostgreSQL's 65,535 bind parameters allow in one statement.
     const LARGE: usize = 65_536;
-    for api in APIS {
+    for api in BATCH_APIS {
         let db = TestDb::new();
         let batch = envelopes(&ids(LARGE));
         api.record(&db, &batch)

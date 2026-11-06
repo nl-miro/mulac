@@ -43,7 +43,17 @@ fn dead_connection(db: &TestDb) -> PgConnection {
 
 /// Records without any reachable database: only validation can answer.
 fn offline(api: Api, db: &TestDb, batch: &[NewOutboxEnvelope]) -> RecordingError {
+    assert!(
+        !api.is_single() || batch.len() == 1,
+        "{api:?} takes one event"
+    );
     match api {
+        Api::RecorderSingle => OutboxRecorder::new(Arc::new(unreachable_repo()))
+            .record(&batch[0])
+            .unwrap_err(),
+        Api::PortSingle => unreachable_repo()
+            .record(&NewOutboxEntry::from(&batch[0]))
+            .unwrap_err(),
         Api::Recorder => OutboxRecorder::new(Arc::new(unreachable_repo()))
             .record_batch(batch)
             .unwrap_err(),
@@ -152,15 +162,19 @@ fn payload_equivalence_ignores_layout_but_compares_numbers_by_written_form() {
 #[ignore = "requires OUTBOX_TEST_DATABASE_URL"]
 fn metadata_and_batch_rules_hold_on_every_path() {
     let db = TestDb::new();
-    for api in APIS {
-        // Duplicate IDs, even when the two events are identical.
+    // Duplicate IDs need a batch, so only the batch APIs can be given one, even
+    // when the two events are identical.
+    for api in BATCH_APIS {
         let id = Uuid::now_v7();
         let err = offline(api, &db, &[envelope(id), envelope(id)]);
         assert!(
             matches!(err, RecordingError::DuplicateEventId(d) if d == id),
             "{api:?}"
         );
+    }
 
+    // Every other rule applies to a single event, through every API.
+    for api in APIS {
         // NUL in each metadata string.
         for field in ["routing_key", "event_type", "source", "content_type"] {
             let mut e = envelope(Uuid::now_v7());
@@ -245,8 +259,15 @@ fn mismatched_entry_and_metadata_ids_are_rejected_through_the_storage_port() {
         RecordingError::MismatchedEventId { entry_id: e, event_id: m } if e == entry_id && m == event_id
     ));
     assert_eq!(err.outcome(), RecordingOutcome::NoRowsAdded);
+    // The single-entry port method reports the same error.
+    let err = unreachable_repo().record(&mismatched).unwrap_err();
+    assert!(matches!(
+        err,
+        RecordingError::MismatchedEventId { entry_id: e, event_id: m } if e == entry_id && m == event_id
+    ));
     // Also with a reachable database: nothing is written.
     let db = TestDb::new();
-    assert!(db.repo().record_batch(&[mismatched]).is_err());
+    assert!(db.repo().record_batch(&[mismatched.clone()]).is_err());
+    assert!(db.repo().record(&mismatched).is_err());
     assert_eq!(db.count(), 0);
 }

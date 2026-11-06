@@ -199,21 +199,51 @@ pub fn join<T: Send + 'static>(handle: std::thread::JoinHandle<T>) -> T {
     handle.join().expect("worker panicked")
 }
 
-/// The three ways to record a batch of envelopes.
+/// Every public way to record envelopes: the batch methods, the single-event
+/// methods, and the caller-connection function. The single-event modes call
+/// `OutboxRecorder::record` and `OutboxStorePort::record` themselves, so a rule
+/// asserted through them is proven for those methods and not only for a batch
+/// of one.
 #[derive(Clone, Copy, Debug)]
 pub enum Api {
     Recorder,
     Port,
     Caller,
+    RecorderSingle,
+    PortSingle,
 }
 
-pub const APIS: [Api; 3] = [Api::Recorder, Api::Port, Api::Caller];
+/// Every API, for cases that record exactly one event per call.
+pub const APIS: [Api; 5] = [
+    Api::Recorder,
+    Api::Port,
+    Api::Caller,
+    Api::RecorderSingle,
+    Api::PortSingle,
+];
+
+/// The APIs that accept a batch of any size, for cases with several events.
+pub const BATCH_APIS: [Api; 3] = [Api::Recorder, Api::Port, Api::Caller];
 
 impl Api {
-    /// Records `batch` the way this API would. The caller path runs inside its
-    /// own raw transaction, committed on success and rolled back on failure.
+    pub fn is_single(self) -> bool {
+        matches!(self, Api::RecorderSingle | Api::PortSingle)
+    }
+
+    /// Records `batch` the way this API would; the single-event modes take
+    /// exactly one event and fail loudly otherwise. The caller path runs inside
+    /// its own raw transaction, committed on success and rolled back on failure.
     pub fn record(self, db: &TestDb, batch: &[NewOutboxEnvelope]) -> Result<(), RecordingError> {
+        assert!(
+            !self.is_single() || batch.len() == 1,
+            "{self:?} records exactly one event, got {}; use BATCH_APIS for batches",
+            batch.len()
+        );
         match self {
+            Api::RecorderSingle => {
+                OutboxRecorder::new(std::sync::Arc::new(db.repo())).record(&batch[0])
+            }
+            Api::PortSingle => db.repo().record(&NewOutboxEntry::from(&batch[0])),
             Api::Recorder => {
                 OutboxRecorder::new(std::sync::Arc::new(db.repo())).record_batch(batch)
             }
@@ -232,6 +262,25 @@ impl Api {
                 }
                 result
             }
+        }
+    }
+}
+
+impl Api {
+    /// Records every event of `batch`: at once through a batch API, or one call
+    /// per event through a single-event API (stopping at the first error). For
+    /// cases where the events are independent, such as replaying distinct rows.
+    pub fn record_each(
+        self,
+        db: &TestDb,
+        batch: &[NewOutboxEnvelope],
+    ) -> Result<(), RecordingError> {
+        if self.is_single() {
+            batch
+                .iter()
+                .try_for_each(|e| self.record(db, std::slice::from_ref(e)))
+        } else {
+            self.record(db, batch)
         }
     }
 }

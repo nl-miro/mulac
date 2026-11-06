@@ -150,7 +150,7 @@ fn replay_changes_nothing_in_any_delivery_state() {
             .map(|(id, _)| snapshot(&mut db.conn(), *id))
             .collect();
         let batch: Vec<_> = rows.iter().map(|(id, _)| envelope(*id)).collect();
-        api.record(&db, &batch)
+        api.record_each(&db, &batch)
             .expect("replay in every delivery state");
         let after: Vec<_> = rows
             .iter()

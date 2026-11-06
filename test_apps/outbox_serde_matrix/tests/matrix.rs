@@ -82,32 +82,33 @@ fn validation_corpus_gives_the_same_results_without_a_database() {
 #[test]
 #[ignore = "requires OUTBOX_TEST_DATABASE_URL"]
 fn equivalence_corpus_gives_the_same_results_in_the_database() {
-    for (first, second) in corpus::equivalent() {
-        let db = TestDb::new();
-        let id = Uuid::now_v7();
-        let (mut a, mut b) = (envelope(id), envelope(id));
-        (a.payload, b.payload) = (first.into(), second.into());
-        Api::Port.record(&db, &[a]).unwrap();
-        Api::Port
-            .record(&db, &[b])
-            .unwrap_or_else(|e| panic!("{first} ~ {second}: {e:?}"));
-    }
-    for (first, second) in corpus::different() {
-        let db = TestDb::new();
-        let id = Uuid::now_v7();
-        let (mut a, mut b) = (envelope(id), envelope(id));
-        (a.payload, b.payload) = (first.into(), second.into());
-        Api::Port.record(&db, &[a]).unwrap();
-        let err = Api::Port.record(&db, &[b]).expect_err("must conflict");
-        assert!(
-            matches!(
-                err,
-                RecordingError::ReplayConflict {
-                    field: "payload",
-                    ..
-                }
-            ),
-            "{first} vs {second}: {err:?}"
-        );
+    for api in APIS {
+        for (first, second) in corpus::equivalent() {
+            let db = TestDb::new();
+            let id = Uuid::now_v7();
+            let (mut a, mut b) = (envelope(id), envelope(id));
+            (a.payload, b.payload) = (first.into(), second.into());
+            api.record(&db, &[a]).unwrap();
+            api.record(&db, &[b])
+                .unwrap_or_else(|e| panic!("{first} ~ {second}: {e:?}"));
+        }
+        for (first, second) in corpus::different() {
+            let db = TestDb::new();
+            let id = Uuid::now_v7();
+            let (mut a, mut b) = (envelope(id), envelope(id));
+            (a.payload, b.payload) = (first.into(), second.into());
+            api.record(&db, &[a]).unwrap();
+            let err = api.record(&db, &[b]).expect_err("must conflict");
+            assert!(
+                matches!(
+                    err,
+                    RecordingError::ReplayConflict {
+                        field: "payload",
+                        ..
+                    }
+                ),
+                "{first} vs {second}: {err:?}"
+            );
+        }
     }
 }

@@ -24,11 +24,12 @@ fn unreachable_repo() -> DieselPgOutboxRepository {
 /// statements have really written rows.
 const LARGE: usize = 5_010;
 
-/// Installs a trigger that runs `action` when the highest event ID is inserted.
-fn trigger_on_last(db: &TestDb, action: &str) -> Vec<Uuid> {
-    let mut all = ids(LARGE);
+/// Installs a trigger that runs `action` when the highest of `n` new event IDs
+/// is inserted, and returns those IDs.
+fn trigger_on_last_of(db: &TestDb, n: usize, action: &str) -> Vec<Uuid> {
+    let mut all = ids(n);
     all.sort();
-    let last = all[LARGE - 1];
+    let last = all[n - 1];
     db.exec(&format!(
         "CREATE FUNCTION on_last() RETURNS trigger LANGUAGE plpgsql AS $$ \
          BEGIN IF NEW.id = '{last}' THEN {action} END IF; RETURN NEW; END $$; \
@@ -38,10 +39,14 @@ fn trigger_on_last(db: &TestDb, action: &str) -> Vec<Uuid> {
     all
 }
 
+fn trigger_on_last(db: &TestDb, action: &str) -> Vec<Uuid> {
+    trigger_on_last_of(db, LARGE, action)
+}
+
 #[test]
 #[ignore = "requires OUTBOX_TEST_DATABASE_URL"]
 fn connection_loss_during_a_batch_reports_uncertain_on_every_path() {
-    for api in APIS {
+    for api in BATCH_APIS {
         let db = TestDb::new();
         let all = trigger_on_last(
             &db,
@@ -65,7 +70,7 @@ fn connection_loss_during_a_batch_reports_uncertain_on_every_path() {
 #[test]
 #[ignore = "requires OUTBOX_TEST_DATABASE_URL"]
 fn a_rolled_back_database_failure_keeps_the_original_backend_error() {
-    for api in APIS {
+    for api in BATCH_APIS {
         let db = TestDb::new();
         let all = trigger_on_last(&db, "RAISE EXCEPTION 'forced failure';");
         let err = api
@@ -80,6 +85,50 @@ fn a_rolled_back_database_failure_keeps_the_original_backend_error() {
         assert!(source.downcast_ref::<diesel::result::Error>().is_some());
         assert!(source.to_string().contains("forced failure"));
         assert_eq!(db.count(), 0);
+    }
+}
+
+#[test]
+#[ignore = "requires OUTBOX_TEST_DATABASE_URL"]
+fn a_single_event_connection_loss_reports_uncertain_through_every_api() {
+    for api in APIS {
+        let db = TestDb::new();
+        let one = trigger_on_last_of(
+            &db,
+            1,
+            "PERFORM pg_terminate_backend(pg_backend_pid()); PERFORM pg_sleep(1);",
+        );
+        let err = api
+            .record(&db, &envelopes(&one))
+            .expect_err("connection lost");
+        assert!(
+            matches!(err, RecordingError::DatabaseUncertain(_)),
+            "{api:?}: {err:?}"
+        );
+        assert_eq!(err.outcome(), RecordingOutcome::Uncertain);
+        assert!(err.source().is_some());
+        assert_eq!(db.count(), 0, "{api:?}");
+    }
+}
+
+#[test]
+#[ignore = "requires OUTBOX_TEST_DATABASE_URL"]
+fn a_single_event_database_failure_keeps_the_original_backend_error_through_every_api() {
+    for api in APIS {
+        let db = TestDb::new();
+        let one = trigger_on_last_of(&db, 1, "RAISE EXCEPTION 'forced failure';");
+        let err = api
+            .record(&db, &envelopes(&one))
+            .expect_err("database failure");
+        assert!(
+            matches!(err, RecordingError::DatabaseRolledBack(_)),
+            "{api:?}: {err:?}"
+        );
+        assert_eq!(err.outcome(), RecordingOutcome::NoRowsAdded);
+        let source = err.source().expect("source");
+        assert!(source.downcast_ref::<diesel::result::Error>().is_some());
+        assert!(source.to_string().contains("forced failure"));
+        assert_eq!(db.count(), 0, "{api:?}");
     }
 }
 
