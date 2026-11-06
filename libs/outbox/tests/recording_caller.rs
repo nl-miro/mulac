@@ -183,6 +183,87 @@ fn nested_caller_savepoints_decide_the_batch_and_a_same_named_savepoint_survives
     assert_eq!(count(&mut conn), 0);
 }
 
+#[derive(QueryableByName)]
+struct Setting {
+    #[diesel(sql_type = diesel::sql_types::Nullable<diesel::sql_types::Text>)]
+    value: Option<String>,
+}
+
+fn probe_setting(conn: &mut PgConnection) -> Option<String> {
+    diesel::sql_query("SELECT current_setting('mulac_outbox.probe', true) AS value")
+        .get_result::<Setting>(conn)
+        .unwrap()
+        .value
+}
+
+#[test]
+#[ignore = "requires OUTBOX_TEST_DATABASE_URL"]
+fn a_preexisting_probe_setting_does_not_make_an_idle_connection_look_transactional() {
+    let db = setup();
+    let mut conn = db.conn();
+    // The value the old fixed probe wrote, set for the whole session.
+    conn.batch_execute("SET mulac_outbox.probe = '1'").unwrap();
+    for batch in [Vec::new(), envelopes(&ids(2))] {
+        let err = record_batch_on_connection(&mut conn, &batch).unwrap_err();
+        assert!(matches!(err, RecordingError::NoOpenTransaction), "{err:?}");
+        assert_eq!(err.outcome(), RecordingOutcome::NoRowsAdded);
+    }
+    assert_eq!(count(&mut conn), 0);
+    assert_eq!(probe_setting(&mut conn).as_deref(), Some("1"));
+
+    // An empty or marker-like value is no different.
+    for value in ["", "probe", "00000000-0000-0000-0000-000000000000"] {
+        conn.batch_execute(&format!("SET mulac_outbox.probe = '{value}'"))
+            .unwrap();
+        let err = record_batch_on_connection(&mut conn, &[]).unwrap_err();
+        assert!(matches!(err, RecordingError::NoOpenTransaction), "{err:?}");
+    }
+}
+
+#[test]
+#[ignore = "requires OUTBOX_TEST_DATABASE_URL"]
+fn a_preexisting_probe_setting_does_not_stop_an_active_transaction_from_being_recognised() {
+    let db = setup();
+    let mut conn = db.conn();
+    conn.batch_execute("SET mulac_outbox.probe = '1'").unwrap();
+    conn.batch_execute("BEGIN").unwrap();
+    record_batch_on_connection(&mut conn, &[]).expect("empty batch");
+    let id = Uuid::now_v7();
+    record_batch_on_connection(&mut conn, &[envelope(id)]).expect("batch");
+    conn.batch_execute("COMMIT").unwrap();
+    assert!(stored(&mut conn, id).is_some());
+    assert_eq!(probe_setting(&mut conn).as_deref(), Some("1"));
+}
+
+#[test]
+#[ignore = "requires OUTBOX_TEST_DATABASE_URL"]
+fn the_probe_leaves_the_callers_value_of_its_setting_untouched() {
+    let db = setup();
+    let mut conn = db.conn();
+
+    // Never defined by the caller: the probe may leave it empty, never a marker.
+    conn.batch_execute("BEGIN").unwrap();
+    record_batch_on_connection(&mut conn, &[]).unwrap();
+    assert!(matches!(
+        probe_setting(&mut conn).as_deref(),
+        None | Some("")
+    ));
+    conn.batch_execute("ROLLBACK").unwrap();
+
+    // A session value and a transaction-local value both survive the call.
+    conn.batch_execute("SET mulac_outbox.probe = 'session'")
+        .unwrap();
+    conn.batch_execute("BEGIN").unwrap();
+    record_batch_on_connection(&mut conn, &envelopes(&ids(1))).unwrap();
+    assert_eq!(probe_setting(&mut conn).as_deref(), Some("session"));
+    conn.batch_execute("SET LOCAL mulac_outbox.probe = 'local'")
+        .unwrap();
+    record_batch_on_connection(&mut conn, &envelopes(&ids(1))).unwrap();
+    assert_eq!(probe_setting(&mut conn).as_deref(), Some("local"));
+    conn.batch_execute("COMMIT").unwrap();
+    assert_eq!(probe_setting(&mut conn).as_deref(), Some("session"));
+}
+
 fn kill_backend(db: &TestDb, conn: &mut PgConnection) {
     #[derive(QueryableByName)]
     struct Pid {

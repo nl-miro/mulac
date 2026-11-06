@@ -79,7 +79,9 @@ fails the handler test. All changes were reverted.
 - **Insert chunks of at most 5,000 rows** (nine bound columns, well under the
   65,535 limit). Internal; tests depend on it only for "more than one chunk".
 - **Open-transaction detection** sets and reads back a transaction-local setting
-  (`mulac_outbox.probe`) in two statements. It is visible only inside the caller's
+  (`mulac_outbox.probe`) in two statements, using a value unique to each call so no
+  preexisting session or role setting can be mistaken for it, and restoring the
+  caller's own value. It is visible only inside the caller's
   transaction and ends with it. It never reads Diesel's depth or error text.
 - **One savepoint, `mulac_outbox_record`.** A caller savepoint with the same name is
   shadowed during the call and intact afterwards (tested).

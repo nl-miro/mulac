@@ -54,6 +54,18 @@ impl Failure {
     }
 }
 
+#[derive(QueryableByName)]
+struct ProbeMarked {
+    #[diesel(sql_type = Nullable<Text>)]
+    prior: Option<String>,
+}
+
+#[derive(QueryableByName)]
+struct ProbeChecked {
+    #[diesel(sql_type = Nullable<Text>)]
+    seen: Option<String>,
+}
+
 /// Test code run at a named point of a recording flow.
 #[cfg(test)]
 type Hook = Box<dyn FnMut()>;
@@ -101,18 +113,38 @@ impl<'c> Session<'c> {
 
     /// Whether the connection is inside an open transaction, however it was
     /// opened. A transaction-local setting survives to the next statement only
-    /// inside a transaction block. This neither reads Diesel's tracked depth nor
-    /// interprets error text, and an aborted transaction or lost connection
+    /// inside a transaction block. The setting gets a value unique to this call,
+    /// so no session, role, database or connection-option value of the same
+    /// setting can be mistaken for it. This neither reads Diesel's tracked depth
+    /// nor interprets error text, and an aborted transaction or lost connection
     /// surfaces as a database error rather than as "no transaction".
+    ///
+    /// Inside a transaction the setting is put back to the value the caller had
+    /// (or to empty when it was never defined, which is what the session sees
+    /// afterwards anyway), so the probe leaves no trace in the caller's view.
     fn in_transaction(&mut self) -> QueryResult<bool> {
         self.step("PROBE")?;
-        diesel::sql_query(format!("SELECT set_config('{PROBE_SETTING}', '1', true)"))
-            .execute(&mut *self.conn)?;
-        let seen = diesel::select(diesel::dsl::sql::<Nullable<Text>>(&format!(
-            "current_setting('{PROBE_SETTING}', true)"
-        )))
-        .get_result::<Option<String>>(&mut *self.conn)?;
-        Ok(seen.as_deref() == Some("1"))
+        let marker = Uuid::now_v7().to_string();
+        let marked = diesel::sql_query(
+            "WITH prior AS MATERIALIZED (SELECT current_setting($1, true) AS value) \
+             SELECT prior.value AS prior, set_config($1, $2, true) AS marked FROM prior",
+        )
+        .bind::<Text, _>(PROBE_SETTING)
+        .bind::<Text, _>(&marker)
+        .get_result::<ProbeMarked>(&mut *self.conn)?;
+
+        self.step("PROBE_CHECK")?;
+        // One statement reads the marker and restores the caller's value, so the
+        // restore cannot be skipped between them. Outside a transaction both the
+        // marker and this restore expire with their own statement.
+        let checked = diesel::sql_query(
+            "WITH seen AS MATERIALIZED (SELECT current_setting($1, true) AS value) \
+             SELECT seen.value AS seen, set_config($1, $2, true) AS restored FROM seen",
+        )
+        .bind::<Text, _>(PROBE_SETTING)
+        .bind::<Text, _>(marked.prior.unwrap_or_default())
+        .get_result::<ProbeChecked>(&mut *self.conn)?;
+        Ok(checked.seen.as_deref() == Some(marker.as_str()))
     }
 
     fn savepoint(&mut self) -> QueryResult<()> {
@@ -379,6 +411,29 @@ mod fault_tests {
         );
         assert!(source_text(&err).contains("injected failure at PROBE"));
         assert_eq!(err.outcome(), RecordingOutcome::NoRowsAdded);
+    }
+
+    #[test]
+    #[ignore = "requires OUTBOX_TEST_DATABASE_URL"]
+    fn failed_second_probe_statement_is_a_database_failure_not_a_verdict() {
+        let db = TestDb::new();
+        // Idle and active alike: neither may become NoOpenTransaction or succeed.
+        for begin in [false, true] {
+            let mut conn = db.conn();
+            if begin {
+                conn.batch_execute("BEGIN").unwrap();
+            }
+            let err = caller(&mut conn, "PROBE_CHECK", &[entry(Uuid::now_v7())]).unwrap_err();
+            assert!(
+                matches!(err, RecordingError::DatabaseRolledBack(_)),
+                "{err:?}"
+            );
+            assert!(source_text(&err).contains("injected failure at PROBE_CHECK"));
+            assert_eq!(err.outcome(), RecordingOutcome::NoRowsAdded);
+            if begin {
+                assert_eq!(count(&mut conn), 0);
+            }
+        }
     }
 
     #[test]
