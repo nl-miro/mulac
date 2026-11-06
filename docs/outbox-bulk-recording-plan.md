@@ -15,27 +15,48 @@ Storage errors are also reduced to text, so callers can't reliably tell these fa
 ### Batch recording
 
 - Callers can record a list of events as one operation.
-- The operation is all-or-nothing on PostgreSQL: new rows from a batch commit together or not at all. Validation rejection writes nothing; a confirmed rollback leaves no new row from that batch. An error alone is not proof of rollback (see failure outcomes below).
+- The operation is all-or-nothing on PostgreSQL: new rows from a batch commit together or not at all. See [Failure outcomes](#failure-outcomes) for what an error does and doesn't establish.
 - An empty batch succeeds and does nothing.
 - Batch size must not be limited by database statement limits. Very large batches must work the same way as small ones.
 - No maximum batch size is enforced. The documentation states the costs of a very large batch (memory use and one long transaction) and suggests a practical size.
 - Success returns no per-event result. A new insert and a matching replay look the same to the caller.
+- At `READ COMMITTED`, batch calls that hold no other locks must not deadlock with each other, whatever order their events are supplied in, or with consumers and the stale-reservation sweep. This does not extend to caller transactions that already hold locks.
 
-### Recording inside a caller's transaction
+### Recording on a caller's connection
 
 - Callers using Diesel can record a batch on a connection they own, alongside their business writes.
-- Inside the caller's transaction, nothing is durable until the caller commits, and the outer transaction is never committed on their behalf.
-- A failed batch leaves no new rows of its own after successful rollback to its savepoint. The caller can handle a recoverable error and continue only if transaction recovery succeeds. A broken connection or failed savepoint rollback carries no such guarantee.
-- Above `READ COMMITTED`, a concurrent write of the same event can raise a serialization failure. It reaches the caller as an unchanged database error, and recording does not retry it. The caller retries the whole transaction, because it owns the business writes too.
-- Caller-owned transactions can already hold locks from business writes or earlier recording calls. They are not covered by the deadlock-free requirement for isolated recording calls. Deadlocks can occur even at `READ COMMITTED`; they reach the caller as unchanged database errors without an internal retry. The caller retries the whole transaction, not just the recording call.
+- **In an open transaction:** nothing is durable until the caller commits, and the transaction is never committed on the caller's behalf. A failed batch's new rows are undone without undoing the caller's earlier work, provided recovery succeeds.
+- **With no open transaction:** recording commits by itself and behaves exactly like pooled recording, including uncertain commit outcomes.
 - Applications that don't use Diesel must not need to depend on it.
 
 ### Failure outcomes
 
-- Validation rejection or confirmed transaction/savepoint rollback establishes that the batch added no rows. If rollback or connection recovery fails, report that failure without promising that the caller's transaction remains usable.
-- Losing the acknowledgment of a pooled recording transaction's commit can return an error even though the entire batch committed and may already be published. Report the outcome as uncertain, not as a confirmed rollback, while preserving the original database error.
-- Retry recording after an uncertain outcome with the same event IDs and the same replay-compared content. Never generate replacement event IDs to recover from that error. A matching replay safely accepts an already committed batch without adding rows.
-- When the caller owns the transaction, it also owns commit-outcome recovery. Replaying outbox events alone does not make business writes idempotent; the caller must reconcile or safely retry the complete business operation after an uncertain commit.
+**What a failure establishes**
+
+| Failure | What the caller knows |
+|---|---|
+| Validation rejection | Nothing was written |
+| Failure with confirmed rollback | The batch added no rows |
+| Commit acknowledgment lost while recording was committing | Uncertain: the whole batch may have committed and may already be published |
+| Rollback or connection recovery failed | No rollback is promised, and the caller must not treat its transaction as usable |
+
+**Retrying after an uncertain outcome**
+
+- Retry with the same event IDs and the same replay-compared content. Never generate replacement event IDs to recover from this error.
+- A matching replay accepts an already committed batch without adding rows.
+
+**Failures inside a caller's open transaction**
+
+| Failure | What the caller does |
+|---|---|
+| Validation error or replay conflict, with recovery succeeded | May continue or abandon the transaction. Continuing commits its business writes without those events, so the caller must decide that is acceptable. |
+| Any other failure, including deadlocks and serialization failures | Must abandon the whole transaction, even if the database would allow it to continue. |
+
+- Recording never retries internally.
+- After any database failure, callers may retry the whole transaction a limited number of times. Stable event IDs make this safe for outbox rows, and it applies to business writes only if they are safe to retry too.
+- This rule covers all database failures because deadlocks can't be reliably identified: the database driver reports them only as generic errors. Serialization failures can be identified.
+- Deadlocks and serialization failures are possible here. Deadlocks can occur at `READ COMMITTED` when transactions already hold locks, and a concurrent write of the same event can raise a serialization failure above `READ COMMITTED`.
+- The caller owns the outcome of its own commit. Replaying outbox events doesn't make business writes idempotent, so after an uncertain commit the caller must reconcile or safely retry the complete business operation.
 
 ### Validation
 
@@ -44,15 +65,16 @@ These rules apply to every recording path. An invalid event rejects the whole re
 | Input | Result |
 |---|---|
 | The same event ID twice in one request, even if identical | Rejected |
-| Entry `id` differs from `meta.event_id` on an entry-based recording path | Rejected |
+| Entry ID differs from its metadata event ID | Rejected |
 | Payload that isn't a JSON object | Rejected |
+| Payload with a duplicate key at any level | Rejected |
 | Blank routing key | Rejected |
 | Sequence outside 1 to `i64::MAX` | Rejected |
 | No sequence | Accepted |
 
 Accepted payloads are stored exactly as supplied, without reformatting.
 
-Envelope conversion establishes `id == meta.event_id`; direct storage inputs must be checked rather than trusting callers to preserve that invariant. Single-event, bulk, and caller-owned-connection entry points must not bypass it.
+Recording from an envelope always produces matching IDs. Direct storage inputs must be checked rather than trusted, and no recording path may bypass that check.
 
 ### Replay
 
@@ -62,7 +84,7 @@ When a request contains an event ID that is already stored:
 
 | Field | Rule |
 |---|---|
-| Stored `meta.event_id` | Must equal the row ID and the incoming event ID; inconsistent legacy rows cause a conflict |
+| Stored metadata | Must be readable, and its event ID must equal the row ID |
 | Payload | Must be equivalent as JSON; whitespace and key order don't matter, but numbers must be written identically |
 | Message ID, routing key, event type, content type, sequence | Must match |
 | Correlation ID, causation ID, source | May differ; the stored values are kept |
@@ -84,7 +106,7 @@ Callers must be able to distinguish these outcomes programmatically, and databas
 - Conflict with a stored event, identifying one conflicting event ID
 - Events that should be stored but can't be found, identifying all of them
 - Database failure, retaining the original error and distinguishing confirmed absence of new batch rows from an uncertain outcome
-- Rollback or transaction-recovery failure, retaining both the original failure and the recovery error; callers must not be told that continuing the transaction is safe
+- Rollback or connection recovery failure, retaining the recovery error
 - Failure to obtain a connection
 
 ### Design constraints
@@ -92,7 +114,8 @@ Callers must be able to distinguish these outcomes programmatically, and databas
 - Bulk recording is part of the storage port, with no fallback that quietly records events one at a time. The port must state what its implementations guarantee.
 - Public API is exposed only through the crate's `prelude`.
 - No new repository type is needed; the existing storage repository takes on this responsibility.
-- The existing `outbox_entries` table stays as it is, with no migration or rewriting of existing rows. Existing rows that fail the new payload rule or have inconsistent stored event identities retain their existing delivery behavior, but can't be replayed.
+- The existing `outbox_entries` table stays as it is, with no migration or rewriting of existing rows.
+- Existing rows that break the new payload rules, have unreadable metadata, or have mismatched event IDs keep their current delivery behavior. Replaying one reports a conflict for that event.
 
 ## Out of scope
 
@@ -107,8 +130,10 @@ This is a breaking change, to be called out in the changelog:
 
 - Custom storage implementations must support bulk recording.
 - New error cases break exhaustive matches on the error type.
-- Payloads that aren't JSON objects, and conflicting replays, previously succeeded and now fail.
-- Direct storage inputs with differing entry and metadata event IDs are rejected; replay of an existing row with inconsistent event identity now conflicts.
+- Recording's database errors no longer arrive as `Storage`. Code that matches on `Storage` still compiles but behaves differently, so this needs a specific migration note.
+- Payloads that aren't JSON objects or contain duplicate keys, and conflicting replays, previously succeeded and now fail.
+- Direct storage calls now also reject blank routing keys and mismatched event IDs.
+- Replaying an existing row with mismatched event IDs or unreadable metadata now conflicts.
 
 ## Done when
 
@@ -116,22 +141,31 @@ This is a breaking change, to be called out in the changelog:
 
 - Batches below, at, and well above any internal statement boundary are recorded completely.
 - A failure late in a large batch followed by a confirmed rollback leaves none of that batch's new rows.
-- Direct single-event and bulk storage calls reject mismatched entry/metadata IDs without inserting any rows. Replaying a legacy row whose stored metadata event ID differs from its row ID reports a conflict and leaves it unchanged.
+- Direct single-event and bulk storage calls reject mismatched event IDs without inserting any rows.
 - Replaying a batch succeeds and changes nothing, including on rows that are reserved, failed, or already delivered.
 - Each compared field rejects a change on its own, and each tolerated field leaves the stored value intact.
 - Payloads differing only in whitespace or key order replay successfully. `1` vs `1.0`, and large numbers that differ only beyond floating-point precision, both conflict.
+- Replaying an existing row that breaks the payload rules, has unreadable metadata, or has mismatched event IDs reports a conflict for that event and leaves the row unchanged.
 - A batch mixing new events with a conflicting event leaves no new rows.
-- With a separate business table: outer commit keeps both, outer rollback removes both, and a handled recoverable recording failure followed by successful savepoint rollback keeps earlier business writes and permits further work in that transaction.
-- Concurrent overlapping batches, submitted in opposite orders at `READ COMMITTED`, each in an otherwise idle transaction with no pre-existing conflicting locks, all finish without deadlock and with correct final content. This includes running alongside consumers and the stale-reservation sweep; it is not a guarantee for arbitrary caller-owned transactions.
-- Opposing locks from earlier recording calls in two caller-owned transactions can cause a deadlock. The recording call surfaces the database error without retrying internally; retrying the failed outer transaction succeeds with correct business and outbox content.
-- A concurrent write of the same event inside a `REPEATABLE READ` caller transaction surfaces as a database error the caller can identify as a serialization failure, and retrying the transaction succeeds.
-- Fault injection that loses a commit acknowledgment after PostgreSQL commits reports an uncertain outcome, not a confirmed rollback. Retrying the same batch with the original event IDs and compared content succeeds without adding or changing rows.
-- Connection loss or failed savepoint recovery is surfaced without promising a usable outer transaction or confirmed rollback; the original failure and any recovery error are preserved.
+- With a separate business table in an open transaction: outer commit keeps both, outer rollback removes both, and a handled validation error or replay conflict keeps earlier business writes and permits further work.
+- On a caller's connection with no open transaction: a successful batch is committed by the call, and a failed batch leaves no new rows.
+- Concurrent overlapping batches, supplied in opposite orders at `READ COMMITTED` and holding no other locks, all finish without deadlock and with correct final content, including alongside consumers and the stale-reservation sweep.
+- Two caller transactions holding opposing locks from earlier recording calls can deadlock. Recording surfaces the database error without retrying, and retrying the whole failed transaction succeeds with correct business and outbox content.
+- A concurrent write of the same event inside a `REPEATABLE READ` caller transaction surfaces as a database error the caller can identify as a serialization failure, and retrying the whole transaction succeeds.
+- Connection loss or failed recovery is surfaced without promising a usable transaction or a confirmed rollback, and the recovery error is preserved.
 
 **Also required:**
 
-- Invalid input reaches no storage, and each error case above is asserted. Identity validation is exercised on every public entry-based recording path before database access.
+- Invalid input reaches no storage, including payloads with duplicate keys at any level, and each error case above is asserted. Event ID validation is exercised on every public path that accepts entries, before database access.
+- A lost commit acknowledgment reports an uncertain outcome, and retrying the same batch adds or changes no rows. This depends on cutting a connection right after commit, so it can be a documented manual check rather than a CI test.
 - The database tests run in CI. Today no workflow runs them, so a green build says nothing about these guarantees.
 - Default, no-default-feature, and all-feature builds pass.
 - All-new, all-replay, and mixed batches have been measured at realistic sizes, so that any optimization work rests on data.
-- `docs/outbox-spec.md` and the crate README describe bulk recording, event identity validation, the replay rules including number comparison, when a successful call becomes durable, batch-size guidance, the scope of deadlock avoidance, whole-transaction retries after deadlocks or serialization failures, and recovery from uncertain commit outcomes using stable event IDs and caller-owned business-operation recovery.
+- `docs/outbox-spec.md` and the crate README describe:
+  - bulk recording and batch-size guidance
+  - validation, including event IDs and duplicate payload keys
+  - the replay rules, including number comparison
+  - when a successful call becomes durable
+  - the scope of deadlock avoidance
+  - which failures allow a caller to continue its transaction, and when to retry the whole transaction
+  - recovery from uncertain commit outcomes
