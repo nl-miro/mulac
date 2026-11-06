@@ -6,17 +6,27 @@ records what has been built, where the evidence for each **Done when** item is,
 what only the repository owner can do, and the judgment calls made inside the
 plan's latitude.
 
-**Status: implemented and verified locally; not yet delivered.** Everything the
-plan asks of code, tests, CI scripts and documentation exists and passes against
-PostgreSQL 16. Delivery still needs the owner steps below. In particular, the new
-GitHub workflow has not yet run on GitHub: its scripts were run locally against a
-default-configured PostgreSQL 16 container, which is what its service container is.
+**Status: implemented; not yet delivered, and not fully re-verified.** Everything
+the plan asks of code, tests, CI scripts and documentation exists. The suites passed
+against PostgreSQL 16 at commit `3dde3da`. The findings of
+[the implementation review](outbox-bulk-recording-review.md) were addressed in the
+commits after it (preflight parsing, the open-transaction probe, the Unicode corpus,
+single-event coverage, the two-statement probe and rollback-after-failure fault
+cases, all eight serde configurations, test-file classification, and the retry
+example's repeat-safety and retry budget). Those later changes were compiled,
+formatted, linted and unit-tested, and the database-free tests and the runner's
+script tests pass, but **the PostgreSQL suites, the serde matrix's database cases
+and the new acknowledgment-loss handler tests have not been run since** the
+changes, because no PostgreSQL was available to the implementer. Treat the counts
+below as what the run prints, not as a record: the first run of the workflow on a
+pull request is the verification. The new GitHub workflow has also never run on
+GitHub.
 
 ## Running everything
 
 ```sh
 export OUTBOX_TEST_DATABASE_URL=postgres://user:pw@localhost:5432/db   # disposable database
-make test-outbox-database    # 13 suites, 87 cases; preflight and discovered/executed counts
+make test-outbox-database    # runner script tests, then every suite; preflight and discovered/executed counts
 make check-outbox-serde      # payload corpus under all 8 serde_json feature configurations
 make check-outbox-features   # default/no/all/API/HTTP builds; diesel absent when disabled
 make check test-libs         # database-free gates used by the existing CI
