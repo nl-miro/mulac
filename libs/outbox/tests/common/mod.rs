@@ -206,8 +206,11 @@ impl Api {
                 let mut conn = db.conn();
                 conn.batch_execute("BEGIN").unwrap();
                 let result = record_batch_on_connection(&mut conn, batch);
-                conn.batch_execute(if result.is_ok() { "COMMIT" } else { "ROLLBACK" })
-                    .unwrap();
+                let end = conn.batch_execute(if result.is_ok() { "COMMIT" } else { "ROLLBACK" });
+                // A session the failure itself killed cannot be ended cleanly.
+                if result.is_ok() {
+                    end.unwrap();
+                }
                 result
             }
         }
