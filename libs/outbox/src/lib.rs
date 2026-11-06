@@ -1,3 +1,10 @@
+// Lets crate-internal database tests reuse the integration test harness.
+#[cfg(test)]
+extern crate self as mulac_outbox;
+#[cfg(all(test, feature = "diesel"))]
+#[path = "../tests/common/mod.rs"]
+mod test_common;
+
 #[cfg(feature = "api")]
 mod http;
 
