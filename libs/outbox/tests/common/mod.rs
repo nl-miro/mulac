@@ -5,6 +5,8 @@
 //! each other's tables. Tests are `#[ignore]`d and need `OUTBOX_TEST_DATABASE_URL`.
 #![allow(dead_code)]
 
+pub mod corpus;
+
 use diesel::connection::SimpleConnection;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;

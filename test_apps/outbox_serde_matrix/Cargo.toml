@@ -1,0 +1,23 @@
+[package]
+name = "outbox_serde_matrix"
+version = "0.5.0"
+edition = "2024"
+publish = false
+
+# Package-isolated on purpose: its own workspace keeps `serde_json` feature
+# unification from any other crate (for example a dev-dependency that enables
+# `raw_value`) out of the baseline. Each feature below is what a downstream
+# application could enable; `scripts/check_outbox_serde_features.sh` runs the
+# same corpus under every combination and records the resolved features.
+[workspace]
+
+[features]
+arbitrary_precision = ["serde_json/arbitrary_precision"]
+preserve_order = ["serde_json/preserve_order"]
+raw_value = ["serde_json/raw_value"]
+
+[dev-dependencies]
+mulac-outbox = { path = "../../libs/outbox", default-features = false, features = ["diesel"] }
+serde_json = "1"
+diesel = { version = "2", features = ["postgres", "r2d2", "uuid", "chrono", "serde_json"] }
+uuid = { version = "1", features = ["v4", "v7", "serde"] }
