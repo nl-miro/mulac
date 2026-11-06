@@ -4,7 +4,7 @@ pub mod prelude {
 
 mod recorder {
     use crate::application::prelude::OutboxStorePort;
-    use crate::application::prelude::{NewOutboxEntry, NewOutboxEnvelope, OutboxError};
+    use crate::application::prelude::{NewOutboxEntry, NewOutboxEnvelope};
     use std::sync::Arc;
 
     pub struct OutboxRecorder {
@@ -16,20 +16,24 @@ mod recorder {
             Self { repo }
         }
 
-        pub fn record(&self, envelope: &NewOutboxEnvelope) -> Result<(), OutboxError> {
-            validate_routing_key(envelope)?;
-            let entry = NewOutboxEntry::from(envelope);
-            self.repo.record(&entry)
+        pub fn record(
+            &self,
+            envelope: &NewOutboxEnvelope,
+        ) -> Result<(), super::super::prelude::RecordingError> {
+            self.record_batch(std::slice::from_ref(envelope))
         }
-    }
 
-    fn validate_routing_key(envelope: &NewOutboxEnvelope) -> Result<(), OutboxError> {
-        crate::application::prelude::validate_sequence(envelope.metadata.sequence)
-            .map_err(|message| OutboxError::Routing(message.into()))?;
-        if envelope.metadata.routing_key.trim().is_empty() {
-            return Err(OutboxError::Routing("routing_key is required".into()));
+        pub fn record_batch(
+            &self,
+            envelopes: &[NewOutboxEnvelope],
+        ) -> Result<(), super::super::prelude::RecordingError> {
+            let entries: Vec<_> = envelopes.iter().map(NewOutboxEntry::from).collect();
+            super::super::prelude::validate_batch(&entries)?;
+            if entries.is_empty() {
+                return Ok(());
+            }
+            self.repo.record_batch(&entries)
         }
-        Ok(())
     }
 }
 
@@ -64,7 +68,6 @@ mod tests {
         NewOutboxEntry,
         NewOutboxEnvelope,
         NewOutboxMetadata,
-        OutboxError,
         OutboxStorePort,
         //
     };
@@ -77,8 +80,11 @@ mod tests {
     }
 
     impl OutboxStorePort for FakeStore {
-        fn record(&self, entry: &NewOutboxEntry) -> Result<(), OutboxError> {
-            self.entries.lock().unwrap().push(entry.clone());
+        fn record_batch(
+            &self,
+            entries: &[NewOutboxEntry],
+        ) -> Result<(), crate::prelude::RecordingError> {
+            self.entries.lock().unwrap().extend_from_slice(entries);
             Ok(())
         }
     }
@@ -135,9 +141,13 @@ mod tests {
             .record(&envelope)
             .expect_err("routing validation fails");
 
-        assert!(
-            matches!(err, OutboxError::Routing(message) if message == "routing_key is required")
-        );
+        assert!(matches!(
+            err,
+            crate::prelude::RecordingError::InvalidMetadata {
+                field: "routing_key",
+                ..
+            }
+        ));
         assert!(store.entries.lock().unwrap().is_empty());
     }
 

@@ -7,7 +7,7 @@ use uuid::Uuid;
 struct NoopStore;
 
 impl OutboxStorePort for NoopStore {
-    fn record(&self, _entry: &NewOutboxEntry) -> Result<(), OutboxError> {
+    fn record_batch(&self, _entries: &[NewOutboxEntry]) -> Result<(), RecordingError> {
         Ok(())
     }
 }

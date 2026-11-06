@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Outbox recording now returns feature-independent `RecordingError` rather than
+  the reservation/publishing `OutboxError`; callers must explicitly map errors.
+- Recording test doubles must implement the atomic `record_batch` operation.
+  Third-party production recording stores are unsupported.
+- Single and batch recording reject duplicate IDs, ID mismatches, non-object or
+  malformed JSON, duplicate decoded keys, excessive nesting, invalid Unicode,
+  blank routing keys, metadata NULs, and invalid sequence bounds.
+- Diesel pooled recording verifies immutable replay content rather than silently
+  accepting conflicting event IDs. Numeric spellings are compared exactly.
+  Producers must preserve IDs, payload, message IDs, routing, sequence and content
+  type across retries. Old-format payload producers need a coordinated cutover;
+  deleting or rewriting retained rows is not a safe repair.
+- Rolling deployments may intermittently accept conflicts on old instances;
+  rolling back does not undo published messages.
+
+
 ## [0.5.0] - 2026-11-05
 
 ### Changed

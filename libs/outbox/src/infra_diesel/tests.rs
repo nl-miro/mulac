@@ -89,7 +89,7 @@ fn outbox_record_converts_to_entry_envelope() {
 
 #[test]
 fn direct_store_rejects_invalid_sequence_before_connecting() {
-    use crate::prelude::{DieselPgOutboxRepository, OutboxError, OutboxStorePort};
+    use crate::prelude::{DieselPgOutboxRepository, OutboxStorePort};
     use diesel::{
         PgConnection,
         r2d2::{ConnectionManager, Pool},
@@ -116,7 +116,7 @@ fn direct_store_rejects_invalid_sequence_before_connecting() {
         };
         assert!(matches!(
             repository.record(&entry),
-            Err(OutboxError::Routing(_))
+            Err(crate::prelude::RecordingError::InvalidMetadata { .. })
         ));
     }
 }

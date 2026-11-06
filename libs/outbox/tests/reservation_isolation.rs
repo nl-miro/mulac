@@ -379,7 +379,10 @@ fn direct_store_validates_sequence_and_round_trips_supported_bounds() {
             scheduled_at: Utc::now(),
             received_at: Utc::now(),
         };
-        assert!(matches!(repo.record(&entry), Err(OutboxError::Routing(_))));
+        assert!(matches!(
+            repo.record(&entry),
+            Err(RecordingError::InvalidMetadata { .. })
+        ));
     }
     assert_eq!(f.rows().len(), 3);
     let mut entries = repo.reserve(&ReservableOutboxSpec::new(3)).unwrap();

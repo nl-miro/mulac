@@ -18,23 +18,97 @@ use mulac_diesel::DbPool;
 use uuid::Uuid;
 
 impl OutboxStorePort for DieselPgOutboxRepository {
-    fn record(&self, entry: &NewOutboxEntry) -> Result<(), OutboxError> {
-        crate::application::prelude::validate_sequence(entry.meta.sequence)
-            .map_err(|message| OutboxError::Routing(message.into()))?;
+    fn record_batch(
+        &self,
+        entries: &[NewOutboxEntry],
+    ) -> Result<(), crate::prelude::RecordingError> {
+        use crate::application::prelude::{RecordingError, payload, validate_batch};
+        use diesel::connection::SimpleConnection;
+        validate_batch(entries)?;
+        if entries.is_empty() {
+            return Ok(());
+        }
         let mut conn = self
             .pool
             .get()
-            .map_err(|err| OutboxError::Storage(err.to_string()))?;
-        let record = NewOutboxEntryRecord::from(entry);
-
-        diesel::insert_into(outbox_entries::table)
-            .values(&record)
-            .on_conflict(outbox_entries::id)
-            .do_nothing()
-            .execute(&mut conn)
-            .map_err(|err| OutboxError::Storage(err.to_string()))?;
-
-        Ok(())
+            .map_err(|e| RecordingError::NoConnection(Box::new(e)))?;
+        conn.batch_execute("BEGIN")
+            .map_err(|e| RecordingError::DatabaseUncertain(Box::new(e)))?;
+        let result = (|| {
+            let mut ordered: Vec<_> = entries.iter().collect();
+            ordered.sort_unstable_by_key(|e| e.id);
+            let mut missing = Vec::new();
+            for entry in ordered {
+                let record = NewOutboxEntryRecord::from(entry);
+                let count = diesel::insert_into(outbox_entries::table)
+                    .values(&record)
+                    .on_conflict(outbox_entries::id)
+                    .do_nothing()
+                    .execute(&mut conn)
+                    .map_err(|e| RecordingError::DatabaseUncertain(Box::new(e)))?;
+                if count != 0 {
+                    continue;
+                }
+                let stored = outbox_entries::table
+                    .filter(outbox_entries::id.eq(entry.id))
+                    .select((
+                        outbox_entries::payload,
+                        diesel::dsl::sql::<diesel::sql_types::Text>("meta::text"),
+                    ))
+                    .first::<(String, String)>(&mut conn)
+                    .optional()
+                    .map_err(|e| RecordingError::DatabaseUncertain(Box::new(e)))?;
+                let Some((body, meta)) = stored else {
+                    missing.push(entry.id);
+                    continue;
+                };
+                let m: crate::prelude::OutboxEntryMetadata =
+                    serde_json::from_str(&meta).map_err(|_| RecordingError::ReplayConflict {
+                        event_id: entry.id,
+                        field: "stored_metadata",
+                    })?;
+                let field = if m.event_id != entry.id {
+                    Some("stored_event_id")
+                } else if payload(&body).ok() != payload(&entry.payload).ok() {
+                    Some("payload")
+                } else if m.message_id != entry.meta.message_id {
+                    Some("message_id")
+                } else if m.routing_key != entry.meta.routing_key {
+                    Some("routing_key")
+                } else if m.event_type != entry.meta.event_type {
+                    Some("event_type")
+                } else if m.content_type != entry.meta.content_type {
+                    Some("content_type")
+                } else if m.sequence != entry.meta.sequence {
+                    Some("sequence")
+                } else {
+                    None
+                };
+                if let Some(field) = field {
+                    return Err(RecordingError::ReplayConflict {
+                        event_id: entry.id,
+                        field,
+                    });
+                }
+            }
+            if missing.is_empty() {
+                Ok(())
+            } else {
+                Err(RecordingError::MissingEvents(missing))
+            }
+        })();
+        if let Err(error) = result {
+            conn.batch_execute("ROLLBACK")
+                .map_err(|e| RecordingError::DatabaseUncertain(Box::new(e)))?;
+            return Err(match error {
+                RecordingError::DatabaseUncertain(source) => {
+                    RecordingError::DatabaseRolledBack(source)
+                }
+                other => other,
+            });
+        }
+        conn.batch_execute("COMMIT")
+            .map_err(|e| RecordingError::DatabaseUncertain(Box::new(e)))
     }
 }
 

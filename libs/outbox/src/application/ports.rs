@@ -22,10 +22,16 @@ use crate::application::prelude::{
 use crate::execution::prelude::ReservableOutboxSpec;
 use uuid::Uuid;
 
-/// Persists newly recorded entries. Validate sequence bounds before writing;
-/// direct callers must not bypass metadata validation performed by the recorder.
+/// Atomic recording port. Production recording is supported only by Diesel;
+/// this unsealed port also supports application test doubles.
 pub trait OutboxStorePort: Send + Sync {
-    fn record(&self, entry: &NewOutboxEntry) -> Result<(), OutboxError>;
+    fn record_batch(
+        &self,
+        entries: &[NewOutboxEntry],
+    ) -> Result<(), super::prelude::RecordingError>;
+    fn record(&self, entry: &NewOutboxEntry) -> Result<(), super::prelude::RecordingError> {
+        self.record_batch(std::slice::from_ref(entry))
+    }
 }
 
 /// Reserves entries eligible for publication.

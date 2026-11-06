@@ -152,3 +152,25 @@ at `error` and unparsable bodies at `warn`. `EnvFilter::from_default_env()` show
 This endpoint publishes entries already recorded in storage; it does not record new
 ones. The application constructs and supplies the consumer and its publisher, or
 uses `AsyncOutboxService::from_postgres(pool, publisher)`.
+
+
+### Bulk recording implementation status
+
+`OutboxRecorder::record_batch` accepts envelopes; `OutboxStorePort::record_batch`
+accepts entries. Both return `RecordingError`; single recording delegates to a
+batch of one. Empty batches avoid pool acquisition. Diesel pooled batches validate
+all input before acquiring a connection, insert in global event-ID order within
+one transaction, and verify conflicts without locking replay rows. Input payload
+bytes are preserved. Replay ignores delivery state and never restarts exhausted
+publication. Only Diesel is supported for production recording; the unsealed
+port remains available for test doubles.
+
+Large batches consume input memory, hold a connection and transaction throughout,
+and may build a delivery backlog. There is no enforced maximum. Practical sizing
+still requires the release measurements specified in
+[the implementation plan](../../docs/outbox-bulk-recording-plan.md).
+
+This is not yet the complete planned release: the caller-owned transaction API,
+the PostgreSQL concurrency/fault-injection acceptance suites, handler example,
+dedicated CI and manual release evidence remain outstanding. Do not infer those
+guarantees from this initial implementation.
