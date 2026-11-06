@@ -16,7 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   roll back together. Recording one event is a batch of one.
 - `RecordingError` and `RecordingOutcome` (`NoRowsAdded` or `Uncertain`), separate
   from the reservation and publishing `OutboxError`.
-- A handler example with a bounded retry loop (`examples/record_with_retry.rs`), the
+- A handler example with a bounded retry loop (`examples/record_with_retry.rs`) that
+  states and tests the repeat-safe business write requirement, the
   reasoning for the deadlock guarantee, release-build batch-size measurements, and
   specification sections on recording, timeouts, blocking sessions and recovery.
 - A dedicated PostgreSQL CI job that runs every outbox database suite from a required

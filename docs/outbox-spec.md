@@ -596,7 +596,16 @@ includes the file itself). It shows:
   redrive and restart;
 - every recording case handled explicitly, with no wildcard;
 - event IDs logged whenever an outcome is uncertain, and escalation (not new IDs)
-  when a retry after an uncertain attempt conflicts or retries run out.
+  when a retry after an uncertain attempt conflicts or retries run out;
+- a business write that is safe to repeat. A `COMMIT` can reach the database
+  while its acknowledgment is lost, and the handler cannot tell that from a failed
+  commit, so it runs the whole transaction again, business callback included. The
+  outbox rows are found again by their IDs and add nothing; the callback must be
+  keyed by the plan's operation ID (or reconcile first) to do the same. The
+  `handler_example` suite loses a real commit acknowledgment and shows both
+  outcomes: a keyed write stays single, an unkeyed one is duplicated;
+- a retry budget that cannot be zero (`NonZeroU32`), so a last failure always
+  exists to report.
 
 ### Waits, timeouts and blocking sessions
 

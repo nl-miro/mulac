@@ -1,26 +1,48 @@
 //! Runs the documented handler example (`examples/record_with_retry.rs`) itself.
 #![cfg(feature = "diesel")]
+#[path = "common/ack_proxy.rs"]
+mod ack_proxy;
 mod common;
 #[allow(dead_code)]
 #[path = "../examples/record_with_retry.rs"]
 mod example;
 
+use ack_proxy::AckProxy;
 use common::*;
 use diesel::connection::SimpleConnection;
 use diesel::prelude::*;
 use example::*;
 use mulac_outbox::prelude::*;
+use std::num::NonZeroU32;
 use uuid::Uuid;
 
+fn attempts(n: u32) -> NonZeroU32 {
+    NonZeroU32::new(n).expect("non-zero")
+}
+
+/// The naive callback: every run adds a row.
 fn business(conn: &mut PgConnection) -> QueryResult<()> {
     diesel::sql_query("INSERT INTO orders (n) VALUES (1)")
         .execute(conn)
         .map(|_| ())
 }
 
+/// The repeat-safe callback: keyed by the plan's operation, so running it again
+/// finds its own earlier row.
+fn keyed_business(operation: Uuid) -> impl Fn(&mut PgConnection) -> QueryResult<()> {
+    move |conn| {
+        diesel::sql_query(
+            "INSERT INTO orders (operation, n) VALUES ($1, 1) ON CONFLICT (operation) DO NOTHING",
+        )
+        .bind::<diesel::sql_types::Uuid, _>(operation)
+        .execute(conn)
+        .map(|_| ())
+    }
+}
+
 fn setup() -> TestDb {
     let db = TestDb::new();
-    db.exec("CREATE TABLE orders (n INT)");
+    db.exec("CREATE TABLE orders (operation UUID PRIMARY KEY DEFAULT gen_random_uuid(), n INT)");
     db
 }
 
@@ -38,6 +60,7 @@ fn orders(db: &TestDb) -> i64 {
 
 fn plan(ids: &[Uuid]) -> Plan {
     Plan {
+        operation_id: Uuid::now_v7(),
         events: envelopes(ids),
     }
 }
@@ -116,7 +139,14 @@ fn business_and_events_commit_together_and_the_history_is_clear() {
     let db = setup();
     let ids = ids(2);
     let mut history = History::default();
-    handle(&db.pool(), &plan(&ids), &mut history, 3, &business).expect("handled");
+    handle(
+        &db.pool(),
+        &plan(&ids),
+        &mut history,
+        attempts(3),
+        &business,
+    )
+    .expect("handled");
     assert_eq!((orders(&db), db.count()), (1, 2));
     assert_eq!(history.attempts, [Attempt::Committed]);
     assert!(!history.unresolved);
@@ -130,7 +160,7 @@ fn a_rejected_input_is_returned_once_and_rolls_the_business_write_back() {
     let mut bad = plan(&[id]);
     bad.events[0].payload = "[]".into();
     let mut history = History::default();
-    let error = handle(&db.pool(), &bad, &mut history, 3, &business).unwrap_err();
+    let error = handle(&db.pool(), &bad, &mut history, attempts(3), &business).unwrap_err();
     assert!(matches!(error, HandlerError::Recording(RecordingError::InvalidPayload(i)) if i == id));
     assert_eq!(
         history.attempts,
@@ -148,7 +178,8 @@ fn an_uncertain_attempt_is_retried_with_the_same_ids_and_resolves_on_success() {
     kill_on_insert(&db, ids[0], true);
     let plan = plan(&ids);
     let mut history = History::default();
-    handle(&db.pool(), &plan, &mut history, 3, &business).expect("second attempt succeeds");
+    handle(&db.pool(), &plan, &mut history, attempts(3), &business)
+        .expect("second attempt succeeds");
     assert_eq!(history.attempts, [Attempt::Uncertain, Attempt::Committed]);
     assert!(!history.unresolved);
     assert!(
@@ -173,7 +204,7 @@ fn a_conflict_after_an_uncertain_attempt_escalates_and_the_outcome_stays_unresol
 
     let plan = plan(&[fresh, existing]);
     let mut history = History::default();
-    let error = handle(&db.pool(), &plan, &mut history, 3, &business).unwrap_err();
+    let error = handle(&db.pool(), &plan, &mut history, attempts(3), &business).unwrap_err();
     match error {
         HandlerError::Escalate {
             reason,
@@ -209,7 +240,7 @@ fn exhausted_retries_after_uncertain_attempts_stay_uncertain_with_the_same_ids()
     kill_on_insert(&db, ids[0], false);
     let plan = plan(&ids);
     let mut history = History::default();
-    let error = handle(&db.pool(), &plan, &mut history, 3, &business).unwrap_err();
+    let error = handle(&db.pool(), &plan, &mut history, attempts(3), &business).unwrap_err();
     match error {
         HandlerError::Escalate {
             reason,
@@ -249,7 +280,7 @@ fn a_failed_commit_is_a_commit_error_and_never_a_recording_error() {
     );
     let plan = plan(&ids(1));
     let mut history = History::default();
-    let error = handle(&db.pool(), &plan, &mut history, 1, &business).unwrap_err();
+    let error = handle(&db.pool(), &plan, &mut history, attempts(1), &business).unwrap_err();
     match error {
         HandlerError::Escalate { last, .. } => {
             assert!(matches!(*last, HandlerError::Commit(_)), "{last:?}");
@@ -270,7 +301,14 @@ fn a_failed_callback_followed_by_a_failed_rollback_keeps_the_callback_error() {
     };
     let plan = plan(&ids(1));
     let mut history = History::default();
-    let error = handle(&db.pool(), &plan, &mut history, 1, &double_failure).unwrap_err();
+    let error = handle(
+        &db.pool(),
+        &plan,
+        &mut history,
+        attempts(1),
+        &double_failure,
+    )
+    .unwrap_err();
     match error {
         HandlerError::Escalate { last, .. } => match *last {
             HandlerError::Business(ref e) => {
@@ -292,4 +330,52 @@ fn a_failed_callback_followed_by_a_failed_rollback_keeps_the_callback_error() {
         other => panic!("expected escalation, got {other:?}"),
     }
     assert_eq!(db.count(), 0);
+}
+
+/// A pool whose connections run through a proxy that loses the first COMMIT
+/// acknowledgment: the database commits, the application sees a dead connection.
+fn pool_losing_one_commit_acknowledgment(db: &TestDb) -> (AckProxy, DbPool) {
+    let proxy = AckProxy::start(&base_url(), 1);
+    let pool = build_pool(&proxy.url(&db.url())).expect("pool through the proxy");
+    (proxy, pool)
+}
+
+#[test]
+#[ignore = "requires OUTBOX_TEST_DATABASE_URL"]
+fn an_unacknowledged_commit_is_retried_without_repeating_a_keyed_business_write() {
+    let db = setup();
+    let (proxy, pool) = pool_losing_one_commit_acknowledgment(&db);
+    let plan = plan(&ids(2));
+    let mut history = History::default();
+    let callback = keyed_business(plan.operation_id);
+
+    handle(&pool, &plan, &mut history, attempts(4), &callback).expect("a later attempt succeeds");
+
+    assert_eq!(
+        proxy.cuts(),
+        1,
+        "exactly one commit acknowledgment was lost"
+    );
+    assert_eq!(history.attempts.first(), Some(&Attempt::Uncertain));
+    assert_eq!(history.attempts.last(), Some(&Attempt::Committed));
+    assert!(!history.unresolved);
+    // The first attempt really committed; the retry added neither business
+    // work nor outbox rows.
+    assert_eq!((orders(&db), db.count()), (1, 2));
+}
+
+#[test]
+#[ignore = "requires OUTBOX_TEST_DATABASE_URL"]
+fn an_unacknowledged_commit_repeats_a_business_write_that_is_not_keyed() {
+    let db = setup();
+    let (proxy, pool) = pool_losing_one_commit_acknowledgment(&db);
+    let plan = plan(&ids(2));
+    let mut history = History::default();
+
+    handle(&pool, &plan, &mut history, attempts(4), &business).expect("a later attempt succeeds");
+
+    assert_eq!(proxy.cuts(), 1);
+    // The outbox rows are protected by their IDs; the naive business row is not.
+    // This is why the callback must be safe to repeat.
+    assert_eq!((orders(&db), db.count()), (2, 2));
 }

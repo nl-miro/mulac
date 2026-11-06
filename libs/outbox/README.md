@@ -238,4 +238,8 @@ event, use a new event ID, or leave the source event `Failed` and escalate) and
 what each gives up.
 
 The handler example, with a bounded retry loop and an application-owned error
-type, is `examples/record_with_retry.rs`; CI compiles and runs it.
+type, is `examples/record_with_retry.rs`; CI compiles and runs it. Its business
+callback runs again whenever an outcome is uncertain, including after a commit that
+did succeed but was never acknowledged, so it must be safe to repeat (key it by the
+plan's operation ID, or check for its own earlier effect first); the outbox rows
+are protected by their event IDs, the business writes are not.

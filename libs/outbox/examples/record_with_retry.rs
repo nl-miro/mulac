@@ -14,6 +14,13 @@
 //!   database failures, and the caller's own commit failure apart. Convert it
 //!   explicitly into the handler or subscriber error only after it has been
 //!   classified; never with a blanket `From`.
+//! * **The business write must be safe to repeat.** A `COMMIT` can reach the
+//!   database and its acknowledgment never reach the application. The handler
+//!   cannot tell that from a commit that failed, so it runs the whole
+//!   transaction again, business callback included. Key the business write by
+//!   the plan's `operation_id` (for example `INSERT … ON CONFLICT DO NOTHING`),
+//!   or look the operation up and reconcile before retrying. A callback that
+//!   simply inserts a row inserts it twice.
 //! * **The callback outcome is recorded.** `transaction` can return a rollback
 //!   or commit error in place of the callback's error, so the loop notes what
 //!   the callback itself returned and trusts that.
@@ -23,11 +30,15 @@
 //!   history stays unresolved.
 use diesel::prelude::*;
 use mulac_outbox::prelude::*;
+use std::num::NonZeroU32;
 use uuid::Uuid;
 
 /// Everything a retry must reuse unchanged. Create it once per logical
 /// operation, before the first attempt, and persist it.
 pub struct Plan {
+    /// Identifies the business operation. The business write is keyed by it, so
+    /// a repeated attempt finds its own earlier write instead of adding another.
+    pub operation_id: Uuid,
     pub events: Vec<NewOutboxEnvelope>,
 }
 
@@ -148,15 +159,36 @@ fn escalate(plan: &Plan, reason: &'static str, last: HandlerError) -> HandlerErr
 }
 
 /// Runs the plan with at most `max_attempts` whole-transaction attempts.
+///
+/// # The business callback must be safe to repeat
+///
+/// An uncertain outcome (a failed `COMMIT`, or a recording that could not
+/// confirm its rollback) is retried by running the whole transaction again,
+/// including `business`. If the earlier attempt had in fact committed, the
+/// outbox rows are found again and add nothing, but `business` runs a second
+/// time. It must therefore either be keyed by [`Plan::operation_id`] so that
+/// repeating it changes nothing, or check for its own earlier effect first.
+/// This function cannot make an arbitrary callback safe.
+///
+/// # What to keep
+///
+/// Persist the [`Plan`] (event IDs and replay-compared content, and the
+/// operation ID) before the first attempt, and the [`History`] after every
+/// attempt, so a restarted process or a delayed redrive reuses both. While
+/// `History::unresolved` is set the operation may already have committed:
+/// never replace the plan's IDs, and treat a later "fix your input" failure as
+/// an escalation, not as proof that nothing was stored.
+///
+/// `max_attempts` cannot be zero, so there is always a last failure to report.
 pub fn handle(
     pool: &DbPool,
     plan: &Plan,
     history: &mut History,
-    max_attempts: u32,
+    max_attempts: NonZeroU32,
     business: &dyn Fn(&mut PgConnection) -> QueryResult<()>,
 ) -> Result<(), HandlerError> {
     let mut last = None;
-    for _ in 0..max_attempts {
+    for _ in 0..max_attempts.get() {
         let error = match attempt(pool, plan, business) {
             Ok(()) => {
                 history.attempts.push(Attempt::Committed);
@@ -192,7 +224,7 @@ pub fn handle(
     Err(escalate(
         plan,
         "retries exhausted",
-        last.expect("max_attempts must be at least 1"),
+        last.expect("the loop ran at least once because max_attempts is non-zero"),
     ))
 }
 
@@ -217,6 +249,7 @@ fn main() {
     };
     let pool = build_pool(&url).expect("pool");
     let plan = Plan {
+        operation_id: Uuid::now_v7(),
         events: vec![NewOutboxEnvelope {
             payload: r#"{"order":1}"#.into(),
             metadata: NewOutboxMetadata {
@@ -233,7 +266,9 @@ fn main() {
         }],
     };
     let mut history = History::default();
-    match handle(&pool, &plan, &mut history, 3, &|_| Ok(())) {
+    // A real callback writes business rows keyed by `plan.operation_id`.
+    let attempts = NonZeroU32::new(3).expect("non-zero");
+    match handle(&pool, &plan, &mut history, attempts, &|_| Ok(())) {
         Ok(()) => println!("recorded"),
         Err(error) => println!("{}", for_subscriber(&error)),
     }
