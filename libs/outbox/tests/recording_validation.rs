@@ -62,6 +62,11 @@ fn with_payload(payload: &str) -> NewOutboxEnvelope {
 }
 
 #[test]
+fn the_shared_corpus_really_contains_the_escapes_it_claims_to_test() {
+    corpus::assert_corpus_exercises_escapes();
+}
+
+#[test]
 #[ignore = "requires OUTBOX_TEST_DATABASE_URL"]
 fn invalid_payloads_are_rejected_without_reaching_a_database() {
     let rejected = corpus::rejected();

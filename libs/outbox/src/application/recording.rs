@@ -298,6 +298,45 @@ mod tests {
         }
     }
     #[test]
+    fn escaped_and_literal_spellings_of_keys_and_values_are_equivalent() {
+        for (a, b) in [
+            (r#"{"a":1}"#, r#"{"\u0061":1}"#),
+            (r#"{"a":"x"}"#, r#"{"a":"\u0078"}"#),
+            (r#"{"s":"é"}"#, r#"{"s":"\u00e9"}"#),
+            (r#"{"s":"\u00e9"}"#, r#"{"s":"\u00E9"}"#),
+            (r#"{"s":"😀"}"#, r#"{"s":"\ud83d\ude00"}"#),
+            (r#"{"s":"\ud83d\ude00"}"#, r#"{"s":"\uD83D\uDE00"}"#),
+            (r#"{"é":1}"#, r#"{"\u00e9":1}"#),
+            (r#"{"😀":1}"#, r#"{"\ud83d\ude00":1}"#),
+        ] {
+            assert!(payload(a).is_ok(), "{a}");
+            assert_eq!(payload(a), payload(b), "{a} ~ {b}");
+        }
+        for (a, b) in [
+            (r#"{"s":"\u00e9"}"#, r#"{"s":"e\u0301"}"#),
+            (r#"{"s":"é"}"#, r#"{"s":"\u00e8"}"#),
+            (r#"{"s":"\ud83d\ude00"}"#, r#"{"s":"\ud83d\ude01"}"#),
+            (r#"{"a":1}"#, r#"{"\u0062":1}"#),
+        ] {
+            assert_ne!(payload(a), payload(b), "{a} vs {b}");
+        }
+    }
+    #[test]
+    fn duplicate_keys_are_found_across_escape_spellings() {
+        for s in [
+            r#"{"a":1,"\u0061":2}"#,
+            r#"{"\u0061":1,"a":2}"#,
+            r#"{"\u0061":1,"\u0061":2}"#,
+            r#"{"é":1,"\u00e9":2}"#,
+            r#"{"\u00e9":1,"\u00E9":2}"#,
+            r#"{"😀":1,"\ud83d\ude00":2}"#,
+            r#"{"a/b":1,"a\/b":2}"#,
+            r#"{"o":{"\u0061":1,"a":1}}"#,
+        ] {
+            assert!(payload(s).is_err(), "{s}");
+        }
+    }
+    #[test]
     fn invalid() {
         for s in [
             r#"{"a":1,"\u0061":2}"#,

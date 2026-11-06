@@ -37,9 +37,33 @@ pub fn rejected() -> Vec<(&'static str, String)> {
         ("unquoted key", "{a:1}".into()),
         ("comment", r#"{"a":1/*x*/}"#.into()),
         ("duplicate key", r#"{"a":1,"a":2}"#.into()),
-        ("escaped duplicate key", r#"{"a":1,"a":2}"#.into()),
+        ("escaped duplicate key", r#"{"a":1,"\u0061":2}"#.into()),
+        (
+            "escaped duplicate key, escape first",
+            r#"{"\u0061":1,"a":2}"#.into(),
+        ),
+        (
+            "two escapes of one key",
+            r#"{"\u0061":1,"\u0061":2}"#.into(),
+        ),
         ("duplicate nested", r#"{"o":{"a":1,"a":1}}"#.into()),
-        ("duplicate across escapes", r#"{"é":1,"é":2}"#.into()),
+        ("duplicate across escapes", r#"{"é":1,"\u00e9":2}"#.into()),
+        (
+            "duplicate across hex case",
+            r#"{"\u00e9":1,"\u00E9":2}"#.into(),
+        ),
+        (
+            "duplicate across surrogate pair",
+            r#"{"😀":1,"\ud83d\ude00":2}"#.into(),
+        ),
+        (
+            "duplicate across solidus escape",
+            r#"{"a/b":1,"a\/b":2}"#.into(),
+        ),
+        (
+            "escaped duplicate nested",
+            r#"{"o":{"\u0061":1,"a":1}}"#.into(),
+        ),
         ("lone high surrogate", r#"{"s":"\ud800"}"#.into()),
         ("lone low surrogate", r#"{"s":"\udc00"}"#.into()),
         ("high then non-low", r#"{"s":"\ud800a"}"#.into()),
@@ -86,7 +110,12 @@ pub fn accepted() -> Vec<(&'static str, String)> {
         ("negative zero", r#"{"n":-0}"#.into()),
         ("fraction", r#"{"n":0.0,"m":1E+2,"k":-1.5e-3}"#.into()),
         ("unicode", r#"{"s":"é日本語 😀"}"#.into()),
-        ("surrogate pair", r#"{"s":"😀"}"#.into()),
+        ("surrogate pair", r#"{"s":"\ud83d\ude00"}"#.into()),
+        ("surrogate pair key", r#"{"\ud83d\ude00":1}"#.into()),
+        (
+            "escaped and literal keys that differ",
+            r#"{"a":1,"\u0062":2}"#.into(),
+        ),
         ("escaped NUL value", r#"{"s":"\u0000"}"#.into()),
         ("escaped NUL key", r#"{"\u0000":"x","a\u0000b":1}"#.into()),
         (
@@ -108,10 +137,15 @@ pub fn equivalent() -> Vec<(&'static str, &'static str)> {
     vec![
         (r#"{"a":1,"b":2}"#, r#"{"b":2,"a":1}"#),
         (r#"{"a":1}"#, " { \"a\" :\t1 }\n"),
-        (r#"{"a":"x"}"#, r#"{"a":"x"}"#),
+        (r#"{"a":1}"#, r#"{"\u0061":1}"#),
+        (r#"{"a":"x"}"#, r#"{"a":"\u0078"}"#),
         (r#"{"s":"a/b"}"#, r#"{"s":"a\/b"}"#),
-        (r#"{"s":"é"}"#, r#"{"s":"é"}"#),
-        (r#"{"s":"😀"}"#, r#"{"s":"😀"}"#),
+        (r#"{"s":"é"}"#, r#"{"s":"\u00e9"}"#),
+        (r#"{"s":"\u00e9"}"#, r#"{"s":"\u00E9"}"#),
+        (r#"{"s":"😀"}"#, r#"{"s":"\ud83d\ude00"}"#),
+        (r#"{"s":"\ud83d\ude00"}"#, r#"{"s":"\uD83D\uDE00"}"#),
+        (r#"{"é":1}"#, r#"{"\u00e9":1}"#),
+        (r#"{"😀":1}"#, r#"{"\ud83d\ude00":1}"#),
         (
             r#"{"o":{"a":1,"b":[1,{"c":2,"d":3}]}}"#,
             r#"{"o":{"b":[1,{"d":3,"c":2}],"a":1}}"#,
@@ -135,9 +169,39 @@ pub fn different() -> Vec<(&'static str, &'static str)> {
         (r#"{"n":1.0000000000000001}"#, r#"{"n":1.0}"#),
         (r#"{"a":[1,2]}"#, r#"{"a":[2,1]}"#),
         (r#"{"s":"é"}"#, "{\"s\":\"e\u{301}\"}"),
+        (r#"{"s":"\u00e9"}"#, r#"{"s":"e\u0301"}"#),
+        (r#"{"s":"é"}"#, r#"{"s":"\u00e8"}"#),
+        (r#"{"s":"\ud83d\ude00"}"#, r#"{"s":"\ud83d\ude01"}"#),
+        (r#"{"a":1}"#, r#"{"\u0062":1}"#),
         (r#"{"s":"a"}"#, r#"{"s":"A"}"#),
         (r#"{"v":true}"#, r#"{"v":"true"}"#),
         (r#"{"v":null}"#, r#"{"v":"null"}"#),
         (r#"{"a":1}"#, r#"{"a":1,"b":2}"#),
     ]
+}
+
+/// Guards the corpus itself: a case that is meant to exercise an escape must
+/// still contain it, and a pair meant to show equivalence across encodings must
+/// differ in bytes. Without this a self-comparison passes any parser.
+pub fn assert_corpus_exercises_escapes() {
+    for (name, payload) in rejected().into_iter().chain(accepted()) {
+        let escape_case = name.contains("escape") || name.contains("surrogate pair");
+        if escape_case {
+            assert!(payload.contains('\\'), "{name}: lost its JSON escape");
+        }
+    }
+    for (first, second) in equivalent() {
+        assert_ne!(first, second, "equivalent pair is a self-comparison");
+    }
+    for (first, second) in different() {
+        assert_ne!(first, second, "different pair is a self-comparison");
+    }
+    let escaped_pairs = equivalent()
+        .into_iter()
+        .filter(|(a, b)| a.contains("\\u") != b.contains("\\u"))
+        .count();
+    assert!(
+        escaped_pairs >= 6,
+        "only {escaped_pairs} literal-versus-escaped equivalence pairs"
+    );
 }

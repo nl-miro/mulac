@@ -47,6 +47,11 @@ fn the_runtime_configuration_matches_the_requested_features() {
 }
 
 #[test]
+fn the_shared_corpus_really_contains_the_escapes_it_claims_to_test() {
+    corpus::assert_corpus_exercises_escapes();
+}
+
+#[test]
 fn validation_corpus_gives_the_same_results_without_a_database() {
     for (name, payload) in corpus::rejected() {
         let capture = Arc::new(Capture::default());
