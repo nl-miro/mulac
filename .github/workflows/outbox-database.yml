@@ -1,0 +1,75 @@
+name: outbox database
+
+# Runs on every pull request, with no branch or path filter, so the outbox
+# database suites cannot be skipped. The `outbox database` job is meant to be a
+# required status check on `main` (a repository setting, not part of this file).
+on:
+  workflow_dispatch:
+  pull_request:
+
+jobs:
+  outbox-database:
+    name: outbox database
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: outbox
+          POSTGRES_PASSWORD: outbox
+          POSTGRES_USER: outbox
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U outbox -d outbox"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      CARGO_TERM_COLOR: always
+      OUTBOX_TEST_DATABASE_URL: postgres://outbox:outbox@127.0.0.1:5432/outbox
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            libs -> target
+            test_apps/outbox_serde_matrix -> target
+
+      # Database preflight, the required-suite inventory, and discovered versus
+      # executed counts per suite. A missing suite, zero cases, or a skipped
+      # eligible case fails the job.
+      - name: Outbox database suites
+        run: python3 scripts/run_outbox_database_suites.py
+
+      # The same payload corpus under every serde_json feature combination,
+      # with the resolved features printed.
+      - name: Outbox serde_json feature matrix
+        run: scripts/check_outbox_serde_features.sh
+
+  outbox-features:
+    name: outbox features
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            libs -> target
+
+      # Default, no, all and API/HTTP feature builds, and Diesel absent from the
+      # dependency tree whenever it is disabled.
+      - name: Outbox feature combinations
+        run: scripts/check_outbox_features.sh
