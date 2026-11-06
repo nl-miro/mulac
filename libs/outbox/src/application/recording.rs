@@ -1,6 +1,8 @@
 pub mod prelude {
+    #[cfg(feature = "diesel")]
+    pub(crate) use super::payload;
+    pub(crate) use super::validate_batch;
     pub use super::{RecordingError, RecordingOutcome};
-    pub(crate) use super::{payload, validate_batch};
 }
 
 type Source = Box<dyn std::error::Error + Send + Sync + 'static>;
