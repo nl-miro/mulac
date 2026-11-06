@@ -54,6 +54,7 @@ test-apps:
 # Outbox database suites (need OUTBOX_TEST_DATABASE_URL, a disposable PostgreSQL),
 # the feature-combination builds, and the serde_json feature matrix.
 test-outbox-database:
+	cd scripts && python3 -m unittest test_run_outbox_database_suites
 	python3 scripts/run_outbox_database_suites.py
 
 check-outbox-features:

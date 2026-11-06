@@ -44,6 +44,12 @@ jobs:
             test_apps/outbox_serde_matrix -> target
             test_apps/outbox_subscriber_behavior -> target
 
+      # The runner's own tests, so a preflight defect cannot masquerade as a
+      # database failure.
+      - name: Outbox runner script tests
+        run: python3 -m unittest test_run_outbox_database_suites
+        working-directory: scripts
+
       # Database preflight, the required-suite inventory, and discovered versus
       # executed counts per suite. A missing suite, zero cases, or a skipped
       # eligible case fails the job.

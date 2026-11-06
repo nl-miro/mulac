@@ -6,6 +6,8 @@ discovered (for example because they stayed ignored) fails the run, and so does
 a database suite that exists in `libs/outbox/tests` but is not in the
 inventory. Needs OUTBOX_TEST_DATABASE_URL pointing at a disposable database.
 """
+import csv
+import io
 import os
 import pathlib
 import re
@@ -51,15 +53,38 @@ def cargo_test(package, selector, filters, extra):
     )
 
 
+PREFLIGHT_QUERY = "SELECT current_setting('server_version'), current_database()"
+
+
+def parse_preflight(output):
+    """Returns (server version, database name) from one CSV record.
+
+    The version string may hold spaces and parentheses, for example
+    `16.15 (Debian 16.15-1.pgdg13+1)`, and a database name may hold anything
+    PostgreSQL allows, so the record is parsed as CSV, never split on spaces.
+    """
+    rows = list(csv.reader(io.StringIO(output)))
+    if len(rows) != 1 or len(rows[0]) != 2 or not all(rows[0]):
+        raise ValueError(f"expected one record with a version and a database name, got {output!r}")
+    version, database = rows[0]
+    return version, database
+
+
 def preflight(url):
-    probe = subprocess.run(
-        ["psql", url, "-Atc", "SHOW server_version; SELECT current_database()"],
-        capture_output=True,
-        text=True,
-    )
+    try:
+        probe = subprocess.run(
+            ["psql", url, "--csv", "-t", "-c", PREFLIGHT_QUERY],
+            capture_output=True,
+            text=True,
+        )
+    except OSError as error:
+        fail(f"database preflight could not run psql: {error}")
     if probe.returncode != 0:
         fail(f"database preflight failed:\n{probe.stderr}")
-    version, database = probe.stdout.split()
+    try:
+        version, database = parse_preflight(probe.stdout)
+    except ValueError as error:
+        fail(f"database preflight returned unexpected output: {error}")
     print(f"database preflight ok: PostgreSQL {version}, database {database}")
 
 
