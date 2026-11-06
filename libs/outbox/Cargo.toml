@@ -54,3 +54,7 @@ required-features = ["diesel"]
 [[example]]
 name = "measure_recording"
 required-features = ["diesel"]
+
+[[example]]
+name = "commit_cut_check"
+required-features = ["diesel"]
