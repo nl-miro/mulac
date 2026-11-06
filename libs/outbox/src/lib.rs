@@ -25,6 +25,7 @@ pub mod prelude {
         DbPool,
         DieselPgOutboxRepository,
         build_pool,
+        record_batch_on_connection,
         //
     };
 }

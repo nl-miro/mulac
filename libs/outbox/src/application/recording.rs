@@ -1,41 +1,87 @@
 pub mod prelude {
-    pub use super::RecordingError;
+    pub use super::{RecordingError, RecordingOutcome};
     pub(crate) use super::{payload, validate_batch};
 }
 
 type Source = Box<dyn std::error::Error + Send + Sync + 'static>;
 
+/// What one recording attempt established about the outbox rows it was asked
+/// to add. See the Failures table in the bulk recording plan.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RecordingOutcome {
+    /// Nothing was written, or the attempt's writes were rolled back.
+    NoRowsAdded,
+    /// A commit, rollback or release failed, so rows may or may not exist.
+    Uncertain,
+}
+
+const DISPLAY_LIMIT: usize = 200;
+const DISPLAY_IDS: usize = 3;
+
+fn bounded(source: &Source) -> String {
+    let text = source.to_string();
+    match text.char_indices().nth(DISPLAY_LIMIT) {
+        Some((end, _)) => format!("{}...", &text[..end]),
+        None => text,
+    }
+}
+
+fn bounded_ids(ids: &[uuid::Uuid]) -> String {
+    let shown: Vec<_> = ids
+        .iter()
+        .take(DISPLAY_IDS)
+        .map(ToString::to_string)
+        .collect();
+    match ids.len().saturating_sub(DISPLAY_IDS) {
+        0 => shown.join(", "),
+        more => format!("{} and {more} more", shown.join(", ")),
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum RecordingError {
-    #[error("duplicate event ID {0}")]
+    #[error("duplicate event ID {0}; no rows added")]
     DuplicateEventId(uuid::Uuid),
-    #[error("entry ID {entry_id} differs from metadata ID {event_id}")]
+    #[error("entry ID {entry_id} differs from metadata event ID {event_id}; no rows added")]
     MismatchedEventId {
         entry_id: uuid::Uuid,
         event_id: uuid::Uuid,
     },
-    #[error("invalid payload for {0}")]
+    #[error("invalid payload for event {0}; no rows added")]
     InvalidPayload(uuid::Uuid),
-    #[error("invalid metadata for {event_id}: {field}")]
+    #[error("invalid metadata for event {event_id}: {field}; no rows added")]
     InvalidMetadata {
         event_id: uuid::Uuid,
         field: &'static str,
     },
-    #[error("replay conflict for {event_id}: {field}")]
+    #[error("replay conflict for event {event_id}: {field}; no rows added")]
     ReplayConflict {
         event_id: uuid::Uuid,
         field: &'static str,
     },
-    #[error("no open transaction")]
+    #[error("no open transaction; no rows added")]
     NoOpenTransaction,
-    #[error("events missing after insertion")]
+    #[error(
+        "events neither inserted nor found afterwards: {}; no rows added",
+        bounded_ids(.0)
+    )]
     MissingEvents(Vec<uuid::Uuid>),
-    #[error("no recording connection")]
+    #[error("no recording connection: {}; no rows added", bounded(.0))]
     NoConnection(#[source] Source),
-    #[error("database failure; batch rolled back")]
+    #[error("database failure: {}; no rows added", bounded(.0))]
     DatabaseRolledBack(#[source] Source),
-    #[error("database failure; outcome uncertain")]
+    #[error("database failure: {}; outcome uncertain", bounded(.0))]
     DatabaseUncertain(#[source] Source),
+}
+
+impl RecordingError {
+    /// The outcome of the attempt that produced this error.
+    pub fn outcome(&self) -> RecordingOutcome {
+        match self {
+            Self::DatabaseUncertain(_) => RecordingOutcome::Uncertain,
+            _ => RecordingOutcome::NoRowsAdded,
+        }
+    }
 }
 
 // Token spelling is retained independently of serde_json's numeric representation.
