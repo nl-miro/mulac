@@ -1,0 +1,18 @@
+[package]
+name = "outbox_subscriber_behavior"
+version = "0.5.0"
+edition = "2024"
+publish = false
+
+# A focused application-integration test of the documented behavior of event
+# subscribers that record outbox events. It uses the real kernel subscriber
+# registry, eventing consumer and gateways, and the real outbox recorder, and
+# needs no kernel change.
+[workspace]
+
+[dev-dependencies]
+mulac-kernel = { path = "../../kernel" }
+mulac-eventing = { path = "../../libs/eventing" }
+mulac-outbox = { path = "../../libs/outbox", default-features = false, features = ["diesel"] }
+diesel = { version = "2", features = ["postgres", "r2d2", "uuid", "chrono", "serde_json"] }
+uuid = { version = "1", features = ["v4", "v7", "serde"] }

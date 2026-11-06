@@ -42,6 +42,7 @@ jobs:
           workspaces: |
             libs -> target
             test_apps/outbox_serde_matrix -> target
+            test_apps/outbox_subscriber_behavior -> target
 
       # Database preflight, the required-suite inventory, and discovered versus
       # executed counts per suite. A missing suite, zero cases, or a skipped

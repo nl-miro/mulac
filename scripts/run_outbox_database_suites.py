@@ -13,23 +13,28 @@ import subprocess
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-MANIFEST = str(ROOT / "libs" / "Cargo.toml")
-TESTS = ROOT / "libs" / "outbox" / "tests"
+LIBS = ["--manifest-path", str(ROOT / "libs" / "Cargo.toml"), "-p", "mulac-outbox"]
+SUBSCRIBER = ["--manifest-path", str(ROOT / "test_apps" / "outbox_subscriber_behavior" / "Cargo.toml")]
 
-# (label, cargo test selector, libtest name filter, minimum cases it must discover)
+# (label, cargo package arguments, test selector, libtest name filter, minimum
+# cases it must discover). A suite that discovers fewer fails the run.
 INVENTORY = [
-    ("lib: infra_diesel (engine, fault injection, deletion races)", ["--lib"], ["infra_diesel::"], 19),
-    ("diesel_storage", ["--test", "diesel_storage"], [], 4),
-    ("lifecycle", ["--test", "lifecycle"], [], 5),
-    ("reservation_isolation", ["--test", "reservation_isolation"], [], 7),
-    ("timeout_sweep", ["--test", "timeout_sweep"], [], 3),
-    ("recording_pooled", ["--test", "recording_pooled"], [], 4),
-    ("recording_caller", ["--test", "recording_caller"], [], 6),
-    ("recording_concurrency", ["--test", "recording_concurrency"], [], 7),
-    ("recording_replay", ["--test", "recording_replay"], [], 7),
-    ("recording_validation", ["--test", "recording_validation"], [], 5),
-    ("recording_failures", ["--test", "recording_failures"], [], 7),
+    ("lib: infra_diesel (engine, fault injection, deletion races)", LIBS, ["--lib"], ["infra_diesel::"], 19),
+    ("diesel_storage", LIBS, ["--test", "diesel_storage"], [], 4),
+    ("lifecycle", LIBS, ["--test", "lifecycle"], [], 5),
+    ("reservation_isolation", LIBS, ["--test", "reservation_isolation"], [], 7),
+    ("timeout_sweep", LIBS, ["--test", "timeout_sweep"], [], 3),
+    ("recording_pooled", LIBS, ["--test", "recording_pooled"], [], 4),
+    ("recording_caller", LIBS, ["--test", "recording_caller"], [], 6),
+    ("recording_concurrency", LIBS, ["--test", "recording_concurrency"], [], 7),
+    ("recording_replay", LIBS, ["--test", "recording_replay"], [], 7),
+    ("recording_validation", LIBS, ["--test", "recording_validation"], [], 5),
+    ("recording_failures", LIBS, ["--test", "recording_failures"], [], 7),
+    ("subscriber_behavior (TwoPhased and Direct)", SUBSCRIBER, ["--test", "subscriber_behavior"], [], 3),
 ]
+
+# Database suites that are deliberately run by another script.
+RUN_ELSEWHERE = {"test_apps/outbox_serde_matrix/tests/matrix.rs": "scripts/check_outbox_serde_features.sh"}
 
 
 def fail(message):
@@ -37,9 +42,9 @@ def fail(message):
     sys.exit(1)
 
 
-def cargo_test(selector, filters, extra):
+def cargo_test(package, selector, filters, extra):
     return subprocess.run(
-        ["cargo", "test", "--manifest-path", MANIFEST, "-p", "mulac-outbox", *selector, "--", *filters, *extra],
+        ["cargo", "test", *package, *selector, "--", *filters, *extra],
         capture_output=True,
         text=True,
     )
@@ -64,24 +69,29 @@ def main():
     preflight(url)
 
     # Every file that talks to the database must be inventoried.
-    inventoried = {sel[1] for _, sel, _, _ in INVENTORY if sel[0] == "--test"}
-    for path in sorted(TESTS.glob("*.rs")):
-        if "OUTBOX_TEST_DATABASE_URL" in path.read_text() and path.stem not in inventoried:
-            fail(f"database suite {path.name} is not in the required-suite inventory")
+    inventoried = {sel[1] for _, _, sel, _, _ in INVENTORY if sel[0] == "--test"}
+    suites = list((ROOT / "libs" / "outbox" / "tests").glob("*.rs"))
+    suites += (ROOT / "test_apps").glob("outbox_*/tests/*.rs")
+    for path in sorted(suites):
+        relative = str(path.relative_to(ROOT))
+        if "OUTBOX_TEST_DATABASE_URL" not in path.read_text() or relative in RUN_ELSEWHERE:
+            continue
+        if path.stem not in inventoried:
+            fail(f"database suite {relative} is not in the required-suite inventory")
     for name in sorted(inventoried):
-        if not (TESTS / f"{name}.rs").exists():
+        if not list(ROOT.glob(f"libs/outbox/tests/{name}.rs")) + list(ROOT.glob(f"test_apps/outbox_*/tests/{name}.rs")):
             fail(f"inventoried suite {name} does not exist")
 
     totals = []
-    for label, selector, filters, minimum in INVENTORY:
-        listing = cargo_test(selector, filters, ["--list"])
+    for label, package, selector, filters, minimum in INVENTORY:
+        listing = cargo_test(package, selector, filters, ["--list"])
         if listing.returncode != 0:
             fail(f"{label}: cannot discover cases:\n{listing.stderr}")
         discovered = len(re.findall(r": test$", listing.stdout, re.M))
         if discovered == 0 or discovered < minimum:
             fail(f"{label}: discovered {discovered} cases, expected at least {minimum}")
 
-        run = cargo_test(selector, filters, ["--include-ignored"])
+        run = cargo_test(package, selector, filters, ["--include-ignored"])
         sys.stdout.write(run.stdout)
         if run.returncode != 0:
             sys.stderr.write(run.stderr)
