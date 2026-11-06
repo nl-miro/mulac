@@ -46,3 +46,7 @@ required-features = ["axum", "api-testing"]
 [[example]]
 name = "poem_outbox"
 required-features = ["poem", "diesel"]
+
+[[example]]
+name = "record_with_retry"
+required-features = ["diesel"]
