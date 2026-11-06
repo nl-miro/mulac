@@ -605,6 +605,54 @@ mod fault_tests {
         );
     }
 
+    /// Every insert fails, so the engine meets a genuine database failure.
+    fn failing_inserts(db: &TestDb) {
+        db.exec(
+            "CREATE FUNCTION fail_all() RETURNS trigger LANGUAGE plpgsql AS $$ \
+             BEGIN RAISE EXCEPTION 'forced failure'; END $$; \
+             CREATE TRIGGER fail_all BEFORE INSERT ON outbox_entries \
+             FOR EACH ROW EXECUTE FUNCTION fail_all();",
+        );
+    }
+
+    #[test]
+    #[ignore = "requires OUTBOX_TEST_DATABASE_URL"]
+    fn failed_rollback_after_a_database_failure_is_uncertain_with_only_the_rollback_error() {
+        let db = TestDb::new();
+        failing_inserts(&db);
+        let batch = vec![entry(Uuid::now_v7()), entry(Uuid::now_v7())];
+
+        // Caller connection: the savepoint rollback cannot be confirmed.
+        let mut conn = db.conn();
+        conn.batch_execute("BEGIN").unwrap();
+        let err = caller(&mut conn, "ROLLBACK TO", &batch).unwrap_err();
+        assert!(
+            matches!(err, RecordingError::DatabaseUncertain(_)),
+            "{err:?}"
+        );
+        assert_eq!(err.outcome(), RecordingOutcome::Uncertain);
+        let text = source_text(&err);
+        assert!(text.contains("injected failure at ROLLBACK TO"), "{text}");
+        assert!(!text.contains("forced failure"), "{text}");
+
+        // Pooled: the transaction rollback cannot be confirmed, and the
+        // connection must not return to the pool.
+        let (result, broken) = pooled(&db, "ROLLBACK", &batch);
+        let err = result.unwrap_err();
+        assert!(
+            matches!(err, RecordingError::DatabaseUncertain(_)),
+            "{err:?}"
+        );
+        assert_eq!(err.outcome(), RecordingOutcome::Uncertain);
+        let text = source_text(&err);
+        assert!(text.contains("injected failure at ROLLBACK"), "{text}");
+        assert!(!text.contains("forced failure"), "{text}");
+        assert!(
+            broken,
+            "a connection with an unconfirmed rollback must not be reused"
+        );
+    }
+
     fn deleter(db: &TestDb, id: Uuid) -> Box<dyn FnMut()> {
         let url = db.url();
         Box::new(move || {
