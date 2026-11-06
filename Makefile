@@ -1,4 +1,4 @@
-.PHONY: all fmt check test test-libs test-apps prune-target
+.PHONY: all fmt check test test-libs test-apps prune-target test-outbox-database check-outbox-features check-outbox-serde
 
 CARGO_DIRS := $(shell find . -name Cargo.toml -not -path '*/target/*' -exec dirname {} \; | sort)
 LIB_DIRS   := $(filter-out ./test_apps/%,$(CARGO_DIRS))
@@ -50,6 +50,17 @@ test-libs:
 # Test apps only (todo, twitter); needs Postgres running.
 test-apps:
 	$(call run-in-dirs,$(APP_DIRS),test --all-features)
+
+# Outbox database suites (need OUTBOX_TEST_DATABASE_URL, a disposable PostgreSQL),
+# the feature-combination builds, and the serde_json feature matrix.
+test-outbox-database:
+	python3 scripts/run_outbox_database_suites.py
+
+check-outbox-features:
+	scripts/check_outbox_features.sh
+
+check-outbox-serde:
+	scripts/check_outbox_serde_features.sh
 
 CI_DIRS := libs kernel test_apps/http_adapters
 LIBS_MANIFEST := --manifest-path libs/Cargo.toml
