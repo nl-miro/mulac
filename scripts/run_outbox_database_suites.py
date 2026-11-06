@@ -26,7 +26,7 @@ INVENTORY = [
     ("timeout_sweep", LIBS, ["--test", "timeout_sweep"], [], 3),
     ("recording_pooled", LIBS, ["--test", "recording_pooled"], [], 4),
     ("recording_caller", LIBS, ["--test", "recording_caller"], [], 6),
-    ("recording_concurrency", LIBS, ["--test", "recording_concurrency"], [], 7),
+    ("recording_concurrency", LIBS, ["--test", "recording_concurrency"], [], 9),
     ("recording_replay", LIBS, ["--test", "recording_replay"], [], 7),
     ("recording_validation", LIBS, ["--test", "recording_validation"], [], 5),
     ("recording_failures", LIBS, ["--test", "recording_failures"], [], 7),

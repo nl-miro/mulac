@@ -5,7 +5,7 @@ transactional reservation, item-level panic containment, and recovery limits.
 
 ## Overview
 
-The outbox crate provides a durable outbound message buffer that decouples internal event processing from external transport publication. It accepts event envelopes from the event dispatcher, stores outbound work atomically, and exposes stored entries to consumers that publish each entry to a broker or other external transport. The event dispatcher is the only caller expected to record into the outbox.
+The outbox crate provides a durable outbound message buffer that decouples internal event processing from external transport publication. It accepts event envelopes from the event dispatcher, stores outbound work atomically, and exposes stored entries to consumers that publish each entry to a broker or other external transport. Applications and the event dispatcher can record into the outbox, singly or in batches, and a batch can be recorded inside the caller's own database transaction so that business writes and outbox events commit or roll back together. See [Recording](#recording).
 
 The outbox guarantees at-least-once delivery to the external transport boundary. Reservation, retry scheduling, failure recording, and stale-reservation recovery are built in. Duplicate publication is possible and must be tolerated by downstream systems.
 
@@ -26,16 +26,13 @@ See [ADR-012](adr/012-unified-queue-repositories.md) and
 
 ### OutboxRecorder
 
-Use case: accept an event from the event dispatcher and record outbound work durably.
+Use case: accept events and record outbound work. See [Recording](#recording) for the complete contract.
 
-- Receives a `NewOutboxEnvelope` from the event dispatcher; no event ID generation is performed inside the outbox.
+- Receives `NewOutboxEnvelope`s from the event dispatcher or from the application; no event ID generation is performed inside the outbox.
 - Requires `event_id` and `routing_key` in metadata. `event_id` becomes the `OutboxEntry.id` and the default outbound `message_id`.
-- Validates that the event metadata contains a routable `routing_key`.
-- Converts the input envelope into a `NewOutboxEntry`.
-- Stores exactly one `outbox_entries` row for each accepted event ID.
-- Does not touch existing rows on conflict, making recording idempotent when the event dispatcher retries subscriber delivery.
-- Returns success only after durable storage succeeds.
-- Rejects routing errors before storage, so invalid routing does not create an outbox row.
+- Validates the whole batch (IDs, metadata, JSON object payloads) before any storage access, converts it into `NewOutboxEntry`s, and hands it to the store as one atomic batch. `record` is a batch of one.
+- Stores exactly one `outbox_entries` row for each event ID. Recording an event ID that is already stored succeeds only if its immutable content matches; a conflicting replay is rejected and never overwrites the stored row.
+- Returns success only after the batch is stored (or, for replays, found stored with matching content). Failures are `RecordingError`s that say whether rows may have been added.
 
 ### OutboxConsumer<R>
 
@@ -59,7 +56,7 @@ Use case: release stale reservations back to the eligible queue.
 
 ### DieselPgOutboxRepository: recording
 
-Implements `OutboxStorePort`. Inserts a new `outbox_entries` row. Does not touch existing rows on conflict. The insert, or an idempotent conflict on an already-recorded event ID, is the outbox acceptance boundary.
+Implements `OutboxStorePort`; it is the only supported production recording store. A batch runs in its own transaction on one pooled connection (begun and committed through Diesel's transaction manager, so a connection with an unconfirmed commit or rollback is never reused). Event IDs are sorted once and inserted in that global order, in multi-row `INSERT … ON CONFLICT (id) DO NOTHING` statements of at most 5,000 rows. Skipped IDs are then read back, without row locks, and compared with the batch. `record_batch_on_connection` uses the same engine inside the caller's transaction, through a savepoint.
 
 ### DieselPgOutboxRepository: processing and recovery
 
@@ -262,13 +259,18 @@ Builds query criteria: `StatusIn([Received, Failed])`, `ScheduledBeforeNow`, `Ma
 | `MissingReservation` | Entry returned without a `reservation_id`       |
 | `Conversion`         | Envelope-to-outbound-message conversion failure |
 
+Recording does not use `OutboxError`: it returns `RecordingError` (see [Failures](#failures)).
+
 ## Ports
 
 ### OutboxStorePort
 
 ```rust
-fn record(&self, entry: &NewOutboxEntry) -> Result<(), OutboxError>;
+fn record_batch(&self, entries: &[NewOutboxEntry]) -> Result<(), RecordingError>;
+fn record(&self, entry: &NewOutboxEntry) -> Result<(), RecordingError>; // a batch of one
 ```
+
+`record_batch` is required and all-or-nothing. The port is unsealed so applications can write test doubles; only the Diesel repository is a supported production store.
 
 ### OutboxReservePort
 
@@ -326,6 +328,404 @@ Recommended indexes:
 
 The primary key is UUID (not BIGSERIAL) because the event ID is generated before outbox storage and is reused as the idempotency key for subscriber retries. See [ADR-003](adr/003-uuid-v7-identifiers.md).
 
+## Recording
+
+Applications record outbound events through three entry points. All of them apply
+the same rules, and recording one event is a batch of one.
+
+| Entry point                                     | Takes                | Runs on                                                         |
+| ----------------------------------------------- | -------------------- | --------------------------------------------------------------- |
+| `OutboxRecorder::record_batch` (and `record`)   | `NewOutboxEnvelope`  | the store's own pooled connection, in its own transaction       |
+| `OutboxStorePort::record_batch` (and `record`)  | `NewOutboxEntry`     | the same                                                        |
+| `record_batch_on_connection` (`diesel` feature) | `NewOutboxEnvelope`  | the caller's Diesel connection, inside the caller's transaction |
+
+### What a batch guarantees
+
+- **All or nothing.** A batch's new rows commit together or not at all.
+- **What success means.** Each event was newly inserted by this call, or was
+  already stored with matching immutable content when the call checked it,
+  including when a concurrent writer stored it first. There is no per-event
+  result, so a new insert and a matching replay look the same. Success does not
+  promise that a replayed row still exists at return or at the caller's commit:
+  a concurrent deletion can remove it afterwards.
+- **Empty batches** succeed without acquiring a pooled connection or writing
+  rows. On the caller-connection path an empty batch still needs an open
+  transaction.
+- **No maximum batch size** is enforced, and database statement limits do not
+  limit it (large batches are written in several statements). See
+  [batch size](#batch-size).
+- **No ordering.** Rows get a scheduling time as they are converted, and
+  consumers take the oldest scheduled first, so batch order is not preserved.
+  The outbox does not guarantee publication order, and callers must not infer one
+  from a batch.
+- **No deadlocks between batches** that hold no other locks, at `READ COMMITTED`,
+  whatever order their events are supplied in. This assumes the documented
+  schema without application-added locking triggers, constraints or concurrent
+  schema changes, and it does not extend to transactions that already hold
+  locks, including from earlier recording calls. The reasoning is in
+  [outbox-recording-deadlock-reasoning.md](outbox-recording-deadlock-reasoning.md).
+- **Supported stores.** Only the Diesel PostgreSQL repository is a supported
+  production recording store. `OutboxStorePort` stays unsealed so applications
+  can write test doubles, but third-party production recording stores are
+  unsupported. Custom implementations of the reservation, processing, sweep and
+  publisher ports are unaffected. Without the `diesel` feature the recorder, the
+  port and `RecordingError` remain, but no supported store exists.
+
+### Validation
+
+These rules apply on every path. The whole batch is validated before a pooled
+connection is acquired or the database is touched, and invalid input takes
+precedence over connection state and stored-row conflicts. If several input
+defects exist, which of the applicable validation errors is returned is
+unspecified. A valid caller-connection request, including an empty batch, then
+checks that a transaction is open. One invalid event rejects the whole batch, and
+nothing is written.
+
+| Input                                                                                    | Result   |
+| ---------------------------------------------------------------------------------------- | -------- |
+| The same event ID twice in one batch, even if identical                                  | Rejected |
+| Entry ID differs from its metadata event ID (only expressible through the storage port)  | Rejected |
+| Payload that isn't exactly one RFC 8259 JSON object, with only JSON whitespace around it | Rejected |
+| Duplicate key within one object, after decoding escapes                                  | Rejected |
+| Lone surrogate escape, or more than 127 nested containers counting the outermost         | Rejected |
+| Numbers of any magnitude, and `\u0000` escapes in a payload                              | Accepted |
+| NUL character in a metadata string (routing key, event type, source, content type)       | Rejected |
+| Blank routing key (`str::trim().is_empty()`)                                             | Rejected |
+| Sequence outside 1 to `i64::MAX`                                                         | Rejected |
+| No sequence                                                                              | Accepted |
+
+Accepted payloads are stored exactly as supplied. `content_type` grants no
+exemption: every payload must be a JSON object, whatever its content type says.
+Accepted routing keys are not trimmed.
+
+### Replay
+
+The event ID is the identity of a row. A new event ID creates a new row even if
+its message ID is reused. Envelope conversion defaults an absent message ID to the
+event ID before comparison, so omitting it and supplying the event ID replay
+equivalently. The other optional compared fields distinguish absence from
+presence, including an empty string, and metadata strings compare exactly,
+without trimming or Unicode normalization.
+
+When a batch contains an event ID that is already stored:
+
+| Field                                                       | Rule                                                     |
+| ----------------------------------------------------------- | -------------------------------------------------------- |
+| Stored metadata                                             | Must be readable, and its event ID must equal the row ID |
+| Payload                                                     | Must be equivalent (below)                               |
+| Message ID, routing key, event type, content type, sequence | Must match                                               |
+| Correlation ID, causation ID, source                        | May differ; the stored values are kept                   |
+| Timestamps and delivery state                               | Ignored                                                  |
+
+**Payload equivalence.** Object keys compare decoded, in any order. Array order
+matters. Strings compare decoded, without Unicode normalization. **Numbers compare
+by exact written form**, so `1` and `1.0`, `1e2` and `1E2`, `1e2` and `1e+2`, and
+`0` and `-0` all conflict, and two integers that differ only in the last digit of
+a huge number conflict too. Whitespace between tokens does not matter. Validation
+and comparison give the same results whatever `serde_json` features an application
+enables, and they do not change how other code parses JSON. They apply to
+recording only, never to reservation or delivery.
+
+- A matching replay succeeds and leaves the stored row untouched, whatever its
+  delivery state. It neither creates another row nor resets or reschedules
+  delivery; existing publication and retry work proceeds unchanged.
+- A conflicting replay fails the whole batch and never overwrites stored data.
+- Replay verification adds no row locks that block reservation, finalization or
+  stale sweeping of already committed replay rows, including in mixed batches and
+  while a caller's transaction stays open. It cannot remove locks or visibility
+  restrictions the caller established earlier. This is a database-lock guarantee,
+  not protection from shared-pool exhaustion. New rows written inside a caller's
+  transaction stay invisible to consumers until it commits.
+- Existing rows that break the payload rules, have unreadable metadata, or have a
+  metadata event ID that differs from the row ID keep their current reservation
+  and delivery behavior. Replaying one with a valid batch reports a conflict
+  (`stored_metadata`, `stored_event_id` or `payload`); an invalid batch is rejected
+  by validation first.
+
+### Retention
+
+Replay protection lasts only while the row is stored. After a row is deleted the
+same event ID can insert again and repeat publication. Retention must cover the
+supported retry and reconciliation horizon of every producer, and the outbox does
+not delete rows itself: whatever removes completed rows belongs to the
+application.
+
+### Failures
+
+Recording has its own error type, `RecordingError`, separate from reservation and
+publishing, with the same cases in every build. Backend errors do not convert into
+it implicitly, so a failure of the caller's own commit or of its other statements
+is never reported as a recording error. A database failure observed by a
+recording call, including an aborted transaction or a lost connection, is.
+`RecordingError::outcome()` returns `RecordingOutcome::NoRowsAdded` or
+`RecordingOutcome::Uncertain`.
+
+| Case                                                                    | `RecordingError`        | Identifies                                                          | Outcome of this attempt | Next step                                                         |
+| ----------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------- | ----------------------- | ----------------------------------------------------------------- |
+| Duplicate event ID                                                      | `DuplicateEventId`      | Event ID                                                            | No rows added           | Fix input                                                         |
+| Mismatched event ID                                                     | `MismatchedEventId`     | Both IDs                                                            | No rows added           | Fix input                                                         |
+| Invalid payload                                                         | `InvalidPayload`        | Event ID                                                            | No rows added           | Fix input                                                         |
+| Invalid metadata                                                        | `InvalidMetadata`       | Event ID, field                                                     | No rows added           | Fix input                                                         |
+| Replay conflict                                                         | `ReplayConflict`        | Event ID, differing field or stored-row defect                      | No rows added           | Fix input or investigate                                          |
+| No open transaction                                                     | `NoOpenTransaction`     |                                                                     | No rows added           | Fix the call                                                      |
+| Events neither inserted nor found afterwards (for example, deleted concurrently) | `MissingEvents` | All event IDs                                                       | No rows added           | May retry with the same event IDs; a retry can publish them again |
+| No connection                                                           | `NoConnection`          | Source error                                                        | No rows added           | May retry                                                         |
+| Database failure, rolled back                                           | `DatabaseRolledBack`    | Source error                                                        | No rows added           | May retry                                                         |
+| Database failure, uncertain                                             | `DatabaseUncertain`     | Source error                                                        | Uncertain               | Retry with the same event IDs                                     |
+
+A database-side timeout (`lock_timeout` or `statement_timeout`) is not a separate
+case. It appears as **Database failure, rolled back**, because the rollback to
+the savepoint (or of the transaction) succeeds, and the retained source is the
+database's own error. If that rollback cannot be confirmed, it is **Database
+failure, uncertain**.
+
+**Outcomes**
+
+- "No rows added" requires that nothing was written or that rollback succeeded.
+  Anything else, including any failed commit or failed rollback, is uncertain.
+  Conservative uncertainty calls for reconciliation or a same-ID replay; a false
+  "no rows added" invites replacement IDs and duplicate publication. Same-ID
+  replay prevents reinsertion only while the original row is retained.
+- Outcomes describe one attempt. After an uncertain attempt, a later negative
+  result cannot establish that the earlier attempt added no rows. A successful
+  retry while the original rows remain retained satisfies the recording
+  obligation, but does not prove the earlier attempt's commit or publication
+  history. After deletion a retry can insert and publish again; if retention is
+  not assured, reconcile or escalate rather than claim duplicate-safe recovery.
+  Inside a caller's transaction, how that transaction ends decides.
+- If a retry after an uncertain attempt reports a conflict, or retries run out,
+  "fix input" no longer applies: stop, keep the IDs and content, and escalate. The
+  outcome remains uncertain.
+
+**Retrying**
+
+- Choose event IDs and replay-compared content **once per logical operation,
+  before the first attempt**, and preserve or reconstruct them, together with any
+  unresolved outcome history, across handler reinvocations, delayed manual
+  redrives and process restarts. Never mint replacement IDs while the outcome is
+  uncertain.
+- Recording never retries internally. Callers may retry a limited number of times
+  where the table allows it. In a caller's transaction, retrying means ending it
+  and retrying all of it. Deadlocks cannot be told apart from other database
+  errors, so this rule covers all of them. Stable event IDs prevent reinsertion
+  only while the original rows are retained, and business writes need their own
+  retry safety.
+
+**Error content**
+
+- `RecordingError` implements `Error + Send + Sync + 'static`. Its variants and
+  auxiliary types are the same with and without `diesel`; retained backend errors
+  are reachable through `Error::source()` and downcasting without making Diesel an
+  unconditional dependency.
+- If a rollback fails, the uncertain error retains the rollback error, and
+  `source()` exposes it; the original failure is not required to be retained. Any
+  other failed recovery step or diagnostic probe retains the error that step
+  observed.
+- Crate-authored messages and fields never quote payload content, including
+  offending object keys. Backend-originated diagnostics are an explicit
+  exception: retained source errors are unchanged and never reduced to text, and
+  their bounded rendering in `Display` may contain sensitive database-reported
+  values. Truncation is not redaction, so treat source inspection and rendered
+  backend text as sensitive.
+- `Display` shows the event ID, the metadata field or fixed defect category, and
+  the outcome where they apply. Crate-authored details and rendered backend
+  messages are bounded (long messages and ID lists are truncated in `Display`
+  only). Complete sources and ID lists stay available as data, and `Debug`, full
+  source inspection and complete ID lists are not bounded.
+
+### Recording in a caller's transaction
+
+`record_batch_on_connection(&mut conn, &envelopes)` works on the caller's Diesel
+connection and needs no outbox pool.
+
+- After validation it requires an open transaction, **however it was opened**: a
+  Diesel `transaction`, or raw `BEGIN` as the very first statement. With none
+  open it writes nothing and returns `NoOpenTransaction`. An aborted transaction
+  or a lost connection is a database failure, never this error. Detection does not
+  read Diesel's tracked depth or any error text.
+- It never begins or commits the outer transaction; it uses one savepoint, named
+  `mulac_outbox_record`, and releases it. A caller savepoint with the same name is
+  shadowed while the batch runs and is intact afterwards.
+- Nothing is durable until the caller commits. A failed batch's new rows are
+  rolled back to the savepoint without undoing the caller's earlier work,
+  provided that rollback succeeds.
+- Validation errors and replay conflicts should propagate by default. Continuing
+  is an explicit exception: the business writes then commit without those events,
+  giving up the outbox guarantee for them.
+- Any other failure, apart from `NoOpenTransaction`, means abandoning the whole
+  transaction, even if the database would allow it to continue. Ignoring this can
+  make a commit report success after the database rolled back. Retry only after
+  the failed transaction has ended, and retry all of it.
+- Deadlocks can occur at `READ COMMITTED` when transactions already hold locks. A
+  concurrent write of the same event can raise a serialization failure above
+  `READ COMMITTED`. Both are reported as a rolled-back database failure whose
+  source is the original database error (Diesel's `DatabaseErrorKind::SerializationFailure`
+  for the latter).
+- The caller owns the outcome of its own commit. A backend error after its
+  transaction closure returned success is an uncertain commit; if the closure
+  failed, the transaction did not commit. Replaying outbox events does not make
+  business writes idempotent, so after an uncertain commit the caller must
+  reconcile or safely retry the complete business operation.
+
+### Pooled recording inside a caller's transaction
+
+`OutboxRecorder` and `OutboxStorePort` recording use the store's own pooled
+connection and their own transaction. Calling them while the application has a
+business transaction open on a different connection **commits the outbox rows
+independently**: if the business transaction later rolls back, those outbox rows
+stay committed and are published later, and messages already published cannot be
+retracted. To make business writes and outbox events commit or roll back
+together, record with `record_batch_on_connection` on the business transaction's
+connection.
+
+### Handler example
+
+`libs/outbox/examples/record_with_retry.rs` is the one handler example. CI
+compiles it and runs it against PostgreSQL (`libs/outbox/tests/handler_example.rs`
+includes the file itself). It shows:
+
+- a bounded retry loop over whole transactions, with one application-owned error
+  type that keeps recording failures, business/database failures and the caller's
+  own commit failure apart, before any explicit conversion into a handler or
+  subscriber error;
+- recording what the callback itself returned, so an outer rollback error cannot
+  replace the callback's failure or pass for a commit error;
+- `Plan` (event IDs and replay-compared content, chosen once) and `History`
+  (attempt outcomes and whether an uncertain outcome is unresolved), which the
+  application persists with the business operation so both survive reinvocation,
+  redrive and restart;
+- every recording case handled explicitly, with no wildcard;
+- event IDs logged whenever an outcome is uncertain, and escalation (not new IDs)
+  when a retry after an uncertain attempt conflicts or retries run out.
+
+### Waits, timeouts and blocking sessions
+
+Recording can **wait without limit** on a concurrent uncommitted write of the same
+event ID (another recording batch, or an application update of that row), and it
+holds its connection while it waits. The crate sets no timeout. Timeouts are the
+caller's, and so is the choice of whether recording shares a pool with consumers:
+a pool shared with consumers can be exhausted by waiting recorders, which stalls
+reservation. Prefer a separate pool for recording, or bound the wait.
+
+**Set a database-side timeout.**
+
+- *Pooled recording:* put the setting on the pool's connections, for example in
+  the URL given to `build_pool`: `postgres://…?options=-clock_timeout%3D5000`
+  (milliseconds; separate several settings with `%20`, as in
+  `-clock_timeout%3D5000%20-cstatement_timeout%3D30000`). Use a pool dedicated to
+  recording so consumers keep their own settings.
+- *Caller connection:* `SET LOCAL lock_timeout = '5s'` (or `statement_timeout`) in
+  the caller's transaction before recording. It ends with the transaction.
+
+**How a timeout appears.** As **Database failure, rolled back** in the Failures
+table: a `RecordingError::DatabaseRolledBack` whose `source()` is the database
+error ("canceling statement due to lock timeout", or "… statement timeout").
+Inside a caller's transaction the usual rule applies: abandon the transaction and
+retry all of it.
+
+**A caller that stops waiting without receiving a result** (for example a
+client-side timeout that drops the call, or a cancelled task) must treat the
+attempt as **uncertain**. The connection may stay occupied until the database
+call ends.
+
+**Identify the blocking session** while a recording call is waiting:
+
+```sql
+SELECT blocked.pid   AS blocked_pid,
+       blocking.pid  AS blocking_pid,
+       blocking.state,
+       blocking.xact_start,
+       blocking.query AS blocking_last_query
+FROM pg_stat_activity AS blocked
+CROSS JOIN LATERAL unnest(pg_blocking_pids(blocked.pid)) AS b(pid)
+JOIN pg_stat_activity AS blocking ON blocking.pid = b.pid
+WHERE blocked.query LIKE '%outbox_entries%';
+```
+
+A blocking session that is `idle in transaction` is usually a caller that opened
+a transaction, recorded, and has not committed.
+
+### Recording from event subscribers
+
+An event subscriber that records must expect permanent conflicts, and must map
+`RecordingError` into the subscriber's error explicitly.
+
+- **TwoPhased eventing.** Propagating a conflict fails the event and retries it
+  with the same event ID and payload: earlier subscribers re-run, later ones never
+  run, and the exhausted event stays `Failed`.
+- **Direct eventing.** The error returns to the caller with no retry, and each
+  command execution assigns new event IDs. A subscriber that uses the delivered
+  event ID as its outbox event ID therefore gets replacement IDs if the caller
+  re-dispatches the command. After an uncertain outcome that is not a same-ID
+  retry and can publish a duplicate. Such a subscriber must take its outbox event
+  IDs and replay-compared content from something stable across command retries,
+  or the caller must reconcile or escalate instead of re-dispatching.
+
+`test_apps/outbox_subscriber_behavior` runs these cases against PostgreSQL.
+
+### Recovering from a permanent replay conflict
+
+The crate ships **no redrive or repair API**. Any requeue of an exhausted row is
+an application-owned database change, and deleting or rewriting stored outbox
+rows is not a safe conflict repair. The options, and what each gives up:
+
+| Option | Gives up |
+| ------ | -------- |
+| **Resubmit with the original replay-compared content**, if input validation and the stored-row replay checks pass | Needs that content to still exist. It neither repairs invalid stored rows nor restarts exhausted outbox publication. |
+| **Drop the event from the batch and continue** | The omitted candidate is not recorded by this attempt, so its outbox guarantee is lost. Any existing row with that ID, and its publication, are unaffected. |
+| **Use a new event ID with new content** | A separate message that consumers cannot deduplicate against the original by event ID alone, and which may duplicate the logical message if the original was or will be published. |
+| **Leave an exhausted TwoPhased source event `Failed` and escalate** | The source event stays blocked and later subscribers do not run. |
+
+Two different things are called "exhausted", and they recover differently:
+
+- **An exhausted source event (eventing).** A requeue re-runs the subscribers
+  from the start, so earlier subscribers repeat.
+- **Exhausted outbox publication.** A matching replay leaves `attempts` and
+  `status` unchanged, so recording again does not restart publication. Requeueing
+  is a database change by the application: the row must end up `Received` or
+  `Failed`, with `attempts` below the consumer's `max_attempts`, a `scheduled_at`
+  in the past, and `reservation_id` and `reserved_at` cleared. Doing so can
+  publish the message again.
+
+To investigate an uncertain outcome, inspect the event IDs and the compared
+content in the outbox:
+
+- matching retained rows establish current outbox presence, not business success
+  or broker delivery;
+- missing rows do not prove the events were never published;
+- a mixed result (some present, some missing) does not prove a partial commit.
+
+Coordinate retention and in-flight writers first, or preserve the uncertainty and
+escalate.
+
+### Batch size
+
+There is no enforced maximum, and statement limits do not limit a batch. A very
+large batch has costs:
+
+- **Memory.** The caller holds the whole input, and recording holds converted
+  copies of it. In the measurements, client peak memory was about three times the
+  payload size.
+- **One long transaction and a held connection.** A batch is a single transaction
+  on a single pooled connection from its first insert to its commit, and its rows
+  stay invisible until the commit. Recording time grows in proportion to the
+  batch. A long transaction also holds back vacuum cleanup.
+- **A delivery backlog.** Consumers take the oldest scheduled entries first, so a
+  very large batch is a burst of eligible rows at once.
+
+**Suggested size: about 1,000 to 5,000 events per batch.** In the measurements,
+throughput levelled off around 5,000 events (about 25,000 events per second;
+1,000 new events were about 20% slower) and did not improve above that, while
+larger batches added only memory and transaction time (5,000 events: about 0.2 s
+and 64 MiB of client peak memory; 50,000: about 2.3 s and 268 MiB; 200,000: about
+7.6 s and 944 MiB, with the database also growing by hundreds of MiB). Treat this
+as a starting point and measure with your own payloads and hardware.
+
+The measurements, with the PostgreSQL version and configuration, the payload
+distribution, the batch sizes and exactly what was and was not measured, are in
+[outbox-bulk-recording-measurements.md](outbox-bulk-recording-measurements.md).
+They are a record, not a performance threshold, and nothing in CI asserts them.
+
 ## Retry Policy
 
 Applies to all automatic `failed()` transitions, including conversion and publication failures:
@@ -338,7 +738,7 @@ Applies to all automatic `failed()` transitions, including conversion and public
 
 ## Delivery and Idempotency
 
-- The outbox acceptance boundary is durable storage of the `OutboxEntry`, or an idempotent conflict on an already-recorded `event_id`.
+- The outbox acceptance boundary is the commit of the recording transaction, or, for an already-recorded `event_id`, finding the stored row with matching content. For recording inside a caller's transaction it is the caller's commit.
 - The publication boundary is broker acceptance / publisher confirmation.
 - If broker acceptance succeeds but `completed()` fails, the entry may be retried and the same outbound message may be published again.
 - Consumers downstream of the external transport must treat `message_id` as an idempotency key when possible. By default, `message_id` equals `event_id`, unless the event dispatcher supplied a distinct outbound message ID.
@@ -375,13 +775,14 @@ HTTP features never enable `amqp`.
 
 ## Examples
 
-### Recording an event
+### Recording events
 
 ```rust
 let recorder = OutboxRecorder::new(repository);
-recorder.record(NewOutboxEnvelope {
+recorder.record_batch(&[NewOutboxEnvelope {
     payload: r#"{"user_id":"123"}"#.to_string(),
     metadata: NewOutboxMetadata {
+        sequence: None,
         event_id,
         message_id: None,
         correlation_id: Some(correlation_id),
@@ -391,8 +792,24 @@ recorder.record(NewOutboxEnvelope {
         source: Some("identity-service".to_string()),
         content_type: Some("application/json".to_string()),
     },
-}).await?;
+}])?;
 ```
+
+### Recording in the business transaction
+
+```rust
+conn.transaction::<_, diesel::result::Error, _>(|conn| {
+    diesel::insert_into(users::table).values(&user).execute(conn)?;
+    match record_batch_on_connection(conn, &events) {
+        Ok(()) => Ok(()),
+        // Abandon the whole transaction; do not convert the error implicitly.
+        Err(_) => Err(diesel::result::Error::RollbackTransaction),
+    }
+})?;
+```
+
+See `libs/outbox/examples/record_with_retry.rs` for the complete handler with a
+bounded retry loop.
 
 ### Publishing reserved entries
 

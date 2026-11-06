@@ -50,3 +50,7 @@ required-features = ["poem", "diesel"]
 [[example]]
 name = "record_with_retry"
 required-features = ["diesel"]
+
+[[example]]
+name = "measure_recording"
+required-features = ["diesel"]

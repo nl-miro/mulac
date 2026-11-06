@@ -102,8 +102,8 @@ Use `EventEntry` lifecycle states when using the TwoPhased variant (`received/re
 The outbox is the exit point for messages that need to leave the system boundary. It acts as an event subscriber that persists outbound work durably and publishes it to an external transport.
 
 **Behaviour:**
-1. The outbox receives an event from the event dispatcher as a subscriber.
-2. The outbox stores the event durably as an `OutboxEntry`.
+1. The outbox receives an event from the event dispatcher as a subscriber, or an application records events directly, singly or in batches, optionally inside its own database transaction.
+2. The outbox stores the event as an `OutboxEntry`. Pooled recording is durable when it returns; recording in a caller's transaction is durable only when the caller commits.
 3. An outbox consumer reserves the `OutboxEntry` for delivery.
 4. The outbox consumer publishes the outbound message to an external transport (for example AMQP) and waits for broker acceptance.
 5. After acceptance, the outbox marks the entry as `completed`.
@@ -119,7 +119,7 @@ The main model is `OutboxEntry`, a durable representation of outbound work.
 5. `dead` - explicit administrative terminal state; automatic failures remain `failed`.
 
 **Rules:**
-1. The outbox should consider an event accepted only after it has been stored durably.
+1. Recording succeeds only when each event was newly inserted or was already stored with matching immutable content. A conflicting replay is rejected and never overwrites the stored row. Pooled recording is durable when it returns; recording in a caller's transaction is durable only if and when that transaction commits.
 2. A reserved entry should not be processed by more than one consumer at the same time.
 3. If broker acceptance succeeds but marking `completed` fails, the entry can be retried and the outbound message may be published again; external consumers must tolerate duplicates.
 4. Both transport and transformation failures use `failed`; the attempt cap bounds retries without removing failure evidence.

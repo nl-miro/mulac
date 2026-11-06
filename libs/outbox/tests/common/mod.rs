@@ -58,6 +58,17 @@ impl TestDb {
         )
     }
 
+    /// The URL up to and including the `options` value, so more `-c` settings can
+    /// be appended to it (`%20-cname%3Dvalue`). `application_name` follows it, so
+    /// this puts it first.
+    pub fn url_with_options(&self) -> String {
+        let sep = if self.base.contains('?') { '&' } else { '?' };
+        format!(
+            "{}{sep}application_name={}&options=-csearch_path%3D{}",
+            self.base, self.schema, self.schema
+        )
+    }
+
     pub fn conn(&self) -> PgConnection {
         PgConnection::establish(&self.url()).expect("connect to test schema")
     }

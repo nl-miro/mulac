@@ -22,8 +22,16 @@ use crate::application::prelude::{
 use crate::execution::prelude::ReservableOutboxSpec;
 use uuid::Uuid;
 
-/// Atomic recording port. Production recording is supported only by Diesel;
-/// this unsealed port also supports application test doubles.
+/// Atomic recording port. Production recording is supported only by the Diesel
+/// PostgreSQL repository; this unsealed port also supports application test
+/// doubles.
+///
+/// `record_batch` is all-or-nothing: either every new event is stored, or none
+/// is. An event ID that is already stored succeeds only if its immutable content
+/// matches; a conflicting replay fails the whole batch and never overwrites. A
+/// failure that cannot confirm its rollback or commit must say so (uncertain),
+/// never "no rows added". `record` is a batch of one and must not be implemented
+/// as an independent call. See the recording section of `docs/outbox-spec.md`.
 pub trait OutboxStorePort: Send + Sync {
     fn record_batch(
         &self,

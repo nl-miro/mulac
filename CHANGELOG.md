@@ -7,23 +7,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
+### Added
 
-- Outbox recording now returns feature-independent `RecordingError` rather than
-  the reservation/publishing `OutboxError`; callers must explicitly map errors.
-- Recording test doubles must implement the atomic `record_batch` operation.
-  Third-party production recording stores are unsupported.
-- Single and batch recording reject duplicate IDs, ID mismatches, non-object or
-  malformed JSON, duplicate decoded keys, excessive nesting, invalid Unicode,
-  blank routing keys, metadata NULs, and invalid sequence bounds.
-- Diesel pooled recording verifies immutable replay content rather than silently
-  accepting conflicting event IDs. Numeric spellings are compared exactly.
-  Producers must preserve IDs, payload, message IDs, routing, sequence and content
-  type across retries. Old-format payload producers need a coordinated cutover;
-  deleting or rewriting retained rows is not a safe repair.
-- Rolling deployments may intermittently accept conflicts on old instances;
-  rolling back does not undo published messages.
+- Atomic batch recording for the outbox: `OutboxRecorder::record_batch` (envelopes),
+  `OutboxStorePort::record_batch` (entries) and, with the `diesel` feature,
+  `record_batch_on_connection`, which records on the caller's own Diesel connection
+  inside the caller's transaction so business writes and outbox events commit or
+  roll back together. Recording one event is a batch of one.
+- `RecordingError` and `RecordingOutcome` (`NoRowsAdded` or `Uncertain`), separate
+  from the reservation and publishing `OutboxError`.
+- A handler example with a bounded retry loop (`examples/record_with_retry.rs`), the
+  reasoning for the deadlock guarantee, release-build batch-size measurements, and
+  specification sections on recording, timeouts, blocking sessions and recovery.
+- A dedicated PostgreSQL CI job that runs every outbox database suite from a required
+  inventory, and package-isolated `serde_json` feature and feature-combination checks.
 
+### Changed (breaking)
+
+- **Recording returns `RecordingError`.** Existing matches on the old recording errors
+  stop compiling. Applications that convert recording failures into the kernel's
+  `OutboxError` (it is still re-exported by the kernel, which is unchanged) must now
+  convert them explicitly; backend errors never convert implicitly.
+- **Third-party production recording stores are unsupported.** Only the Diesel
+  PostgreSQL repository is. `OutboxStorePort` stays unsealed for test doubles, which
+  must adopt the required `record_batch` operation and the recording error type.
+  Custom implementations of the reservation, processing, sweep and publisher ports are
+  unaffected.
+- **New validation applies to single-event recording too, with no opt-out.** Whole
+  batches are validated before any database access. They reject: a repeated event ID
+  (batch calls only), an entry ID that differs from its metadata event ID, a payload
+  that is not exactly one JSON object, duplicate decoded keys, lone surrogates, more
+  than 127 nested containers, NUL in a metadata string, a blank routing key, and a
+  sequence outside 1 to `i64::MAX`. Sequence bounds, blank routing keys through the
+  recorder, and NUL in metadata or raw NUL in a payload were already failing
+  (the last two as database errors); everything else previously succeeded.
+- **Payloads must be JSON objects.** Producers of non-object payloads have no direct
+  path: unchanged they are rejected, and wrapped they conflict with their stored rows
+  and change the bytes consumers receive. Inventory retryable and exhausted source
+  events and retained requests that may reuse old IDs, not just pending outbox rows.
+  Finish old-format processing before cutover or keep an explicit old-format recovery
+  procedure, and coordinate with consumers before upgrading. Deleting or rewriting
+  existing outbox rows is not a safe conflict repair.
+- **Conflicting replays now fail.** Recording an existing event ID previously always
+  succeeded and kept the stored row. It now succeeds only if the immutable content
+  matches (payload by exact written form, message ID, routing key, event type, content
+  type, sequence), including for existing rows with mismatched event IDs or unreadable
+  metadata, which now conflict.
+- **Retries must keep the same content.** Producers that rebuild an event on retry with
+  regenerated payload fields (such as a timestamp), fresh message IDs or sequences, or
+  differently written numbers will now conflict on every retry. Audit them before
+  upgrading. A later deploy that changes an event's payload shape, routing or content
+  type does the same to in-flight redeliveries. A fresh event ID on retry causes no
+  conflict but creates another row that can publish a duplicate.
+- **Event subscribers that record must expect permanent conflicts.** Under TwoPhased
+  eventing, propagating one fails the event and retries it with the same event ID and
+  payload: earlier subscribers re-run, later ones never run, and the exhausted event
+  stays `Failed`. Under Direct eventing the error returns to the caller with no retry,
+  and each command execution assigns new event IDs. A subscriber that uses the delivered
+  event ID as its outbox event ID therefore gets replacement IDs if the caller
+  re-dispatches the command; after an uncertain outcome that can publish a duplicate.
+  Such a subscriber must take its IDs and replay-compared content from something stable
+  across command retries, or the caller must reconcile or escalate.
+- **Rolling upgrades look intermittent.** Old instances accept conflicts that new ones
+  reject, so failures appear on some requests only. Rolling a version back needs no
+  schema rollback, but it does not reverse already published bytes or restore the
+  stricter recording guarantees on old instances.
 
 ## [0.5.0] - 2026-11-05
 

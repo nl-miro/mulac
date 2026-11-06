@@ -4,6 +4,7 @@ mod common;
 use common::*;
 use diesel::connection::SimpleConnection;
 use diesel::prelude::*;
+use diesel::r2d2::{ConnectionManager, Pool};
 use mulac_outbox::prelude::*;
 use std::sync::{Arc, Barrier};
 use std::thread;
@@ -270,4 +271,123 @@ fn serialization_failure_above_read_committed_is_retained_and_a_retry_succeeds()
     record_batch_on_connection(&mut conn, &[envelope(id)]).expect("retry");
     conn.batch_execute("COMMIT").unwrap();
     assert_eq!(db.count(), 1);
+}
+
+fn pid(conn: &mut PgConnection) -> i32 {
+    #[derive(QueryableByName)]
+    struct P {
+        #[diesel(sql_type = diesel::sql_types::Integer)]
+        pid: i32,
+    }
+    diesel::sql_query("SELECT pg_backend_pid() AS pid")
+        .get_result::<P>(conn)
+        .unwrap()
+        .pid
+}
+
+/// A database-side timeout ends the wait. It appears as a rolled-back database
+/// failure whose retained source is the original database error.
+#[test]
+#[ignore = "requires OUTBOX_TEST_DATABASE_URL"]
+fn database_timeouts_bound_the_wait_and_appear_as_rolled_back_database_failures() {
+    let db = TestDb::new();
+    let id = Uuid::now_v7();
+    let _holder = holder(&db, &[id]);
+
+    let check = |err: RecordingError, what: &str| {
+        assert!(
+            matches!(err, RecordingError::DatabaseRolledBack(_)),
+            "{what}: {err:?}"
+        );
+        assert_eq!(err.outcome(), RecordingOutcome::NoRowsAdded);
+        let source = std::error::Error::source(&err).unwrap();
+        assert!(
+            source.downcast_ref::<diesel::result::Error>().is_some(),
+            "{what}"
+        );
+        source.to_string()
+    };
+
+    // Pooled recording: the timeout is set on the pool's connections through the URL.
+    for (setting, expected) in [
+        ("lock_timeout%3D300", "lock timeout"),
+        ("statement_timeout%3D300", "statement timeout"),
+    ] {
+        let pool = Pool::builder()
+            .max_size(2)
+            .min_idle(Some(0))
+            .build(ConnectionManager::<PgConnection>::new(format!(
+                "{}%20-c{setting}",
+                db.url_with_options()
+            )))
+            .unwrap();
+        // The URL carries the schema option first; append the timeout to it.
+        let started = std::time::Instant::now();
+        let err = DieselPgOutboxRepository::new(pool)
+            .record_batch(&[entry(id)])
+            .unwrap_err();
+        let text = check(err, setting);
+        assert!(text.contains(expected), "{setting}: {text}");
+        assert!(started.elapsed() < std::time::Duration::from_secs(5));
+    }
+
+    // Caller connection: SET LOCAL inside the caller's transaction.
+    for (setting, expected) in [
+        ("lock_timeout", "lock timeout"),
+        ("statement_timeout", "statement timeout"),
+    ] {
+        let mut conn = db.conn();
+        conn.batch_execute(&format!("BEGIN; SET LOCAL {setting} = '300ms'"))
+            .unwrap();
+        let err = record_batch_on_connection(&mut conn, &[envelope(id)]).unwrap_err();
+        let text = check(err, setting);
+        assert!(text.contains(expected), "{setting}: {text}");
+        conn.batch_execute("ROLLBACK").unwrap();
+    }
+}
+
+/// The blocking-session query printed in `docs/outbox-spec.md` finds the holder.
+#[test]
+#[ignore = "requires OUTBOX_TEST_DATABASE_URL"]
+fn the_documented_blocking_session_query_identifies_the_holder() {
+    #[derive(QueryableByName, Debug)]
+    struct Row {
+        #[diesel(sql_type = diesel::sql_types::Integer)]
+        blocked_pid: i32,
+        #[diesel(sql_type = diesel::sql_types::Integer)]
+        blocking_pid: i32,
+        #[diesel(sql_type = diesel::sql_types::Nullable<diesel::sql_types::Text>)]
+        state: Option<String>,
+    }
+    let spec = include_str!("../../../docs/outbox-spec.md");
+    let section = spec
+        .split("### Waits, timeouts and blocking sessions")
+        .nth(1)
+        .expect("documented section");
+    let sql = section
+        .split("```sql\n")
+        .nth(1)
+        .and_then(|rest| rest.split("```").next())
+        .expect("a documented sql block")
+        .trim_end_matches(';')
+        .to_string();
+
+    let db = TestDb::new();
+    let id = Uuid::now_v7();
+    let mut held = holder(&db, &[id]);
+    let holder_pid = pid(&mut held);
+    let repo = db.repo();
+    let waiter = thread::spawn(move || repo.record(&entry(id)));
+    wait_blocked(&db, 1);
+
+    let rows = diesel::sql_query(sql)
+        .load::<Row>(&mut db.conn())
+        .expect("run documented query");
+    let found = rows.iter().find(|r| r.blocking_pid == holder_pid);
+    let found = found.unwrap_or_else(|| panic!("holder {holder_pid} not found in {rows:?}"));
+    assert_eq!(found.state.as_deref(), Some("idle in transaction"));
+    assert_ne!(found.blocked_pid, holder_pid);
+
+    held.batch_execute("COMMIT").unwrap();
+    join(waiter).expect("waiter completes once the holder commits");
 }

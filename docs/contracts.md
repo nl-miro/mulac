@@ -145,16 +145,16 @@ The application must schedule a sweeper. It releases reservations older than its
 ## Outbox
 
 **Accepts:**
-An `EventEnvelope` — received as a subscriber of the Event Dispatcher; the Outbox owns the transformation to an outbound message for the external transport. The Outbox uses the `routing key` field from the `EventEnvelope` metadata to resolve the outbound transport destination; a missing or unresolvable routing key is a caller error and the `EventEnvelope` is rejected at acceptance time.
+An `EventEnvelope` — received as a subscriber of the Event Dispatcher; the Outbox owns the transformation to an outbound message for the external transport. The Outbox uses the `routing key` field from the `EventEnvelope` metadata to resolve the outbound transport destination; a missing or unresolvable routing key is a caller error and the `EventEnvelope` is rejected at acceptance time. The payload must be a JSON object.
 
 **Transformation contract:**
 - Each accepted `EventEnvelope` maps to exactly one outbound message; cardinality is always 1:1.
-- Routing key errors are caught at acceptance before an `OutboxEntry` is created; the `EventEnvelope` is rejected and no durable record is written.
+- Routing key, metadata and payload errors are caught at acceptance before an `OutboxEntry` is created; the `EventEnvelope` is rejected and no durable record is written.
 - Post-acceptance conversion/serialisation errors use `failed(entry_id)`, like other item failures, preserving evidence for operator inspection.
 - Transport failures (broker unavailable, broker rejection after message delivery) follow the standard [entry retry policy](#entry-retry-policy).
 
 **Produces:**
-- Stage 1: a durable `OutboxEntry` — the event is stored durably upon acceptance
+- Stage 1: a durable `OutboxEntry` — stored durably when a pooled recording call returns, or when the caller's own transaction commits for recording on the caller's connection
 - Stage 2: an outbound message accepted by the external transport — the outbox consumer publishes the message and waits for broker acceptance
 
 **Consumer-facing operations:**
@@ -168,13 +168,16 @@ An `EventEnvelope` — received as a subscriber of the Event Dispatcher; the Out
 The application must schedule a sweeper. It releases reservations older than its configured timeout to `failed`, preserving attempts and clearing reservation fields. Entries at the attempt cap are not automatically retried.
 
 **Guarantees:**
-- Acceptance is signalled only after the `OutboxEntry` is durably stored
+- Pooled recording signals success only after its own commit succeeded, or after each already-stored event was found with matching content (a conflicting replay is rejected and never overwrites)
+- Recording in a caller's transaction is durable only when the caller commits; success from the recording call alone is not durability
+- A batch is all-or-nothing, and an outcome that cannot be confirmed is reported as uncertain, never as "no rows added"
 - Delivery to the external transport is at-least-once; if broker acceptance succeeds but the `completed` transition fails, the entry is retried and the outbound message may be published again
 - A `reserved` `OutboxEntry` will not be concurrently claimed by another consumer
 - No ordering guarantee across entries or after retries; delivery order is not guaranteed
 
 **Requires from collaborators:**
-- Event Dispatcher must not consider the event delivered until the Outbox confirms durable storage of the `OutboxEntry`
+- Event Dispatcher must not consider the event delivered until recording succeeded and, when it recorded in a caller's transaction, that transaction committed
+- Callers keep the same event IDs and replay-compared content across every retry of one logical operation; see [the outbox specification](outbox-spec.md#recording)
 - Outbox consumer must call `completed` only after the broker has accepted the message; calling `completed` before acceptance risks message loss
 - Outbox consumer calls `failed(entry_id)` for all processing errors, including conversion and transport failures
 - Behaviour beyond broker acceptance is outside the Outbox contract boundary
