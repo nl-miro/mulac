@@ -17,7 +17,7 @@ default-configured PostgreSQL 16 container, which is what its service container 
 ```sh
 export OUTBOX_TEST_DATABASE_URL=postgres://user:pw@localhost:5432/db   # disposable database
 make test-outbox-database    # 13 suites, 87 cases; preflight and discovered/executed counts
-make check-outbox-serde      # payload corpus under 5 serde_json feature configurations
+make check-outbox-serde      # payload corpus under all 8 serde_json feature configurations
 make check-outbox-features   # default/no/all/API/HTTP builds; diesel absent when disabled
 make check test-libs         # database-free gates used by the existing CI
 python3 scripts/check_outbox_commit_cut.py   # manual check: withheld COMMIT acknowledgment
