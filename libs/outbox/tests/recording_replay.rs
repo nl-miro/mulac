@@ -62,9 +62,14 @@ fn each_compared_field_conflicts_alone_and_leaves_no_new_rows() {
                 m
             };
             change(&mut replay);
-            let err = api
-                .record(&db, &[envelope(Uuid::now_v7()), replay])
-                .expect_err("conflict");
+            // Batch APIs also carry a fresh event, to show it is rolled back with
+            // the conflict; a single-event API can only replay the one event.
+            let attempt = if api.is_single() {
+                vec![replay]
+            } else {
+                vec![envelope(Uuid::now_v7()), replay]
+            };
+            let err = api.record(&db, &attempt).expect_err("conflict");
             assert!(
                 matches!(err, RecordingError::ReplayConflict { event_id, field: f } if event_id == id && f == *field),
                 "{api:?} {field}: {err:?}"
