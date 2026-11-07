@@ -28,6 +28,14 @@
 //!   retries the whole transaction with the same plan; if a later attempt
 //!   reports a conflict, or retries run out, it stops and escalates, and the
 //!   history stays unresolved.
+//! * **A later success does not resolve an earlier uncertain attempt.** It
+//!   satisfies the recording obligation ([`History::recorded`]) but cannot show
+//!   whether the earlier attempt committed or published, so
+//!   [`History::unresolved`] stays set until the application has reconciled.
+//! * **Retention is a precondition, stated by the plan.** A retry with the same
+//!   IDs adds nothing only while the earlier rows still exist. [`Plan`] carries
+//!   `retention_assured`; when it is false the loop never retries an uncertain
+//!   outcome and escalates for reconciliation instead.
 use diesel::prelude::*;
 use mulac_outbox::prelude::*;
 use std::num::NonZeroU32;
@@ -40,6 +48,13 @@ pub struct Plan {
     /// a repeated attempt finds its own earlier write instead of adding another.
     pub operation_id: Uuid,
     pub events: Vec<NewOutboxEnvelope>,
+    /// Set only when nothing deletes outbox rows before the supported retry and
+    /// reconciliation horizon ends (no cleanup job, manual purge or retention
+    /// policy shorter than it). Same-ID replay prevents a second insert, and
+    /// so a second publication, only while the original row exists. When this
+    /// is false an uncertain outcome is escalated for reconciliation, never
+    /// retried.
+    pub retention_assured: bool,
 }
 
 /// What earlier attempts established. Persist it with the [`Plan`]: while
@@ -48,7 +63,12 @@ pub struct Plan {
 #[derive(Default, Debug)]
 pub struct History {
     pub attempts: Vec<Attempt>,
+    /// An attempt had an uncertain outcome. Only the application clears it,
+    /// after reconciling; a later successful attempt never does.
     pub unresolved: bool,
+    /// A later attempt succeeded, so the recording obligation is satisfied
+    /// (while the rows stay retained). Independent of `unresolved`.
+    pub recorded: bool,
     /// Event IDs are logged whenever an attempt's outcome is uncertain.
     pub logged: Vec<String>,
 }
@@ -77,6 +97,13 @@ pub enum HandlerError {
         event_ids: Vec<Uuid>,
         reason: &'static str,
         last: Box<HandlerError>,
+    },
+    /// The outcome is unresolved and the plan does not assure retention, so a
+    /// same-ID retry could insert and publish again. Reconcile first. `last` is
+    /// the failure that made the attempt uncertain, if this call had one.
+    RetentionNotAssured {
+        event_ids: Vec<Uuid>,
+        last: Option<Box<HandlerError>>,
     },
 }
 
@@ -108,7 +135,7 @@ pub fn policy(error: &HandlerError) -> Policy {
         },
         HandlerError::Business(_) => Policy::Retry,
         HandlerError::Commit(_) => Policy::RetryUncertain,
-        HandlerError::Escalate { .. } => Policy::Stop,
+        HandlerError::Escalate { .. } | HandlerError::RetentionNotAssured { .. } => Policy::Stop,
     }
 }
 
@@ -150,6 +177,13 @@ fn attempt(
     }
 }
 
+fn unretained(plan: &Plan, last: Option<HandlerError>) -> HandlerError {
+    HandlerError::RetentionNotAssured {
+        event_ids: plan.events.iter().map(|e| e.metadata.event_id).collect(),
+        last: last.map(Box::new),
+    }
+}
+
 fn escalate(plan: &Plan, reason: &'static str, last: HandlerError) -> HandlerError {
     HandlerError::Escalate {
         event_ids: plan.events.iter().map(|e| e.metadata.event_id).collect(),
@@ -177,7 +211,17 @@ fn escalate(plan: &Plan, reason: &'static str, last: HandlerError) -> HandlerErr
 /// attempt, so a restarted process or a delayed redrive reuses both. While
 /// `History::unresolved` is set the operation may already have committed:
 /// never replace the plan's IDs, and treat a later "fix your input" failure as
-/// an escalation, not as proof that nothing was stored.
+/// an escalation, not as proof that nothing was stored. A successful retry sets
+/// `History::recorded` but leaves `unresolved` set: it cannot show what the
+/// earlier attempt did, and only the application clears it, after reconciling.
+///
+/// # Retention is a precondition
+///
+/// Retrying an uncertain outcome with the same IDs is duplicate-safe only while
+/// the earlier rows are retained. [`Plan::retention_assured`] states that. If it
+/// is false, this function does not run another attempt while the history is
+/// unresolved, and does not retry an uncertain failure; it returns
+/// [`HandlerError::RetentionNotAssured`] so the application reconciles first.
 ///
 /// `max_attempts` cannot be zero, so there is always a last failure to report.
 pub fn handle(
@@ -189,12 +233,15 @@ pub fn handle(
 ) -> Result<(), HandlerError> {
     let mut last = None;
     for _ in 0..max_attempts.get() {
+        if history.unresolved && !plan.retention_assured {
+            return Err(unretained(plan, last));
+        }
         let error = match attempt(pool, plan, business) {
             Ok(()) => {
                 history.attempts.push(Attempt::Committed);
-                // This attempt committed business writes and outbox rows
-                // together; the business write must itself be safe to repeat.
-                history.unresolved = false;
+                // The recording obligation is met. An earlier uncertain attempt
+                // stays unresolved: this success cannot show what it did.
+                history.recorded = true;
                 return Ok(());
             }
             Err(error) => error,
@@ -217,6 +264,9 @@ pub fn handle(
                 let line = format!("outbox outcome uncertain for events {ids:?}");
                 eprintln!("{line}");
                 history.logged.push(line);
+                if !plan.retention_assured {
+                    return Err(unretained(plan, Some(error)));
+                }
             }
         }
         last = Some(error);
@@ -239,6 +289,9 @@ pub fn for_subscriber(error: &HandlerError) -> String {
         } => {
             format!("escalate ({reason}) for events {event_ids:?}")
         }
+        HandlerError::RetentionNotAssured { event_ids, .. } => {
+            format!("outcome uncertain and retention not assured; reconcile events {event_ids:?}")
+        }
     }
 }
 
@@ -250,6 +303,8 @@ fn main() {
     let pool = build_pool(&url).expect("pool");
     let plan = Plan {
         operation_id: Uuid::now_v7(),
+        // Only true if nothing deletes outbox rows within the retry horizon.
+        retention_assured: true,
         events: vec![NewOutboxEnvelope {
             payload: r#"{"order":1}"#.into(),
             metadata: NewOutboxMetadata {

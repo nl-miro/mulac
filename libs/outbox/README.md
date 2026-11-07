@@ -197,8 +197,11 @@ stay available as data.
 first attempt, and keep them (and any unresolved outcome) across reinvocation,
 redrive and restart. Never mint replacement IDs while an outcome is uncertain.
 Recording never retries internally. After an uncertain attempt, a conflict or
-exhausted retries means stop and escalate. A retry with the same IDs can publish
-them again.
+exhausted retries means stop and escalate. A retry with the same IDs adds nothing
+only while the earlier rows are retained, so retrying an uncertain outcome
+requires retention to be assured (the example's `Plan::retention_assured`);
+otherwise reconcile first. A later successful retry satisfies the recording
+obligation but does not resolve the earlier uncertain attempt.
 
 **In a caller's transaction**, `record_batch_on_connection` needs an open
 transaction (however it was opened, including raw `BEGIN`) and returns

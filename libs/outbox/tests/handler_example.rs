@@ -62,6 +62,7 @@ fn plan(ids: &[Uuid]) -> Plan {
     Plan {
         operation_id: Uuid::now_v7(),
         events: envelopes(ids),
+        retention_assured: true,
     }
 }
 
@@ -149,6 +150,7 @@ fn business_and_events_commit_together_and_the_history_is_clear() {
     .expect("handled");
     assert_eq!((orders(&db), db.count()), (1, 2));
     assert_eq!(history.attempts, [Attempt::Committed]);
+    assert!(history.recorded);
     assert!(!history.unresolved);
 }
 
@@ -172,7 +174,7 @@ fn a_rejected_input_is_returned_once_and_rolls_the_business_write_back() {
 
 #[test]
 #[ignore = "requires OUTBOX_TEST_DATABASE_URL"]
-fn an_uncertain_attempt_is_retried_with_the_same_ids_and_resolves_on_success() {
+fn an_uncertain_attempt_is_retried_with_the_same_ids_and_stays_unresolved_after_success() {
     let db = setup();
     let ids = ids(1);
     kill_on_insert(&db, ids[0], true);
@@ -181,7 +183,11 @@ fn an_uncertain_attempt_is_retried_with_the_same_ids_and_resolves_on_success() {
     handle(&db.pool(), &plan, &mut history, attempts(3), &business)
         .expect("second attempt succeeds");
     assert_eq!(history.attempts, [Attempt::Uncertain, Attempt::Committed]);
-    assert!(!history.unresolved);
+    assert!(history.recorded, "the recording obligation is satisfied");
+    assert!(
+        history.unresolved,
+        "a later success cannot show what the uncertain attempt did"
+    );
     assert!(
         history.logged[0].contains(&ids[0].to_string()),
         "event IDs are logged"
@@ -266,6 +272,96 @@ fn exhausted_retries_after_uncertain_attempts_stay_uncertain_with_the_same_ids()
         plan.events[0].metadata.event_id, ids[0],
         "the plan was never regenerated"
     );
+}
+
+#[test]
+#[ignore = "requires OUTBOX_TEST_DATABASE_URL"]
+fn a_conflict_on_a_reinvocation_after_a_successful_retry_still_escalates() {
+    let db = setup();
+    let ids = ids(1);
+    kill_on_insert(&db, ids[0], true);
+    let plan = plan(&ids);
+    let mut history = History::default();
+    handle(&db.pool(), &plan, &mut history, attempts(3), &business).expect("retry succeeds");
+    assert!(history.recorded && history.unresolved);
+
+    // The application persisted the history; a later reinvocation rebuilds the
+    // event with different content, which conflicts with the stored row.
+    let mut changed = plan.events.clone();
+    changed[0].payload = r#"{"regenerated":true}"#.into();
+    let again = Plan {
+        operation_id: plan.operation_id,
+        events: changed,
+        retention_assured: true,
+    };
+    let error = handle(&db.pool(), &again, &mut history, attempts(3), &business).unwrap_err();
+    match error {
+        HandlerError::Escalate { reason, last, .. } => {
+            assert_eq!(reason, "failed after an uncertain attempt");
+            assert!(matches!(
+                *last,
+                HandlerError::Recording(RecordingError::ReplayConflict { .. })
+            ));
+        }
+        other => panic!("expected escalation, got {other:?}"),
+    }
+    assert!(history.unresolved);
+}
+
+#[test]
+#[ignore = "requires OUTBOX_TEST_DATABASE_URL"]
+fn an_uncertain_attempt_is_not_retried_when_retention_is_not_assured() {
+    let db = setup();
+    let ids = ids(1);
+    kill_on_insert(&db, ids[0], true);
+    let mut plan = plan(&ids);
+    plan.retention_assured = false;
+    let mut history = History::default();
+    let error = handle(&db.pool(), &plan, &mut history, attempts(3), &business).unwrap_err();
+    match error {
+        HandlerError::RetentionNotAssured { event_ids, last } => {
+            assert_eq!(event_ids, ids, "the plan's IDs, never replacements");
+            assert!(matches!(
+                last.as_deref(),
+                Some(HandlerError::Recording(RecordingError::DatabaseUncertain(
+                    _
+                )))
+            ));
+        }
+        other => panic!("expected RetentionNotAssured, got {other:?}"),
+    }
+    assert_eq!(history.attempts, [Attempt::Uncertain], "no second attempt");
+    assert!(history.unresolved && !history.recorded);
+    assert_eq!((orders(&db), db.count()), (0, 0));
+    assert!(for_subscriber(&unretained_error(&ids)).contains("retention not assured"));
+}
+
+#[test]
+#[ignore = "requires OUTBOX_TEST_DATABASE_URL"]
+fn an_unresolved_history_without_assured_retention_runs_no_attempt() {
+    let db = setup();
+    let ids = ids(1);
+    let mut plan = plan(&ids);
+    plan.retention_assured = false;
+    let mut history = History {
+        attempts: vec![Attempt::Uncertain],
+        unresolved: true,
+        ..History::default()
+    };
+    let error = handle(&db.pool(), &plan, &mut history, attempts(3), &business).unwrap_err();
+    assert!(matches!(
+        error,
+        HandlerError::RetentionNotAssured { last: None, .. }
+    ));
+    assert_eq!(history.attempts, [Attempt::Uncertain]);
+    assert_eq!((orders(&db), db.count()), (0, 0), "nothing was attempted");
+}
+
+fn unretained_error(ids: &[Uuid]) -> HandlerError {
+    HandlerError::RetentionNotAssured {
+        event_ids: ids.to_vec(),
+        last: None,
+    }
 }
 
 #[test]
@@ -358,7 +454,11 @@ fn an_unacknowledged_commit_is_retried_without_repeating_a_keyed_business_write(
     );
     assert_eq!(history.attempts.first(), Some(&Attempt::Uncertain));
     assert_eq!(history.attempts.last(), Some(&Attempt::Committed));
-    assert!(!history.unresolved);
+    assert!(history.recorded);
+    assert!(
+        history.unresolved,
+        "the lost acknowledgment stays unresolved"
+    );
     // The first attempt really committed; the retry added neither business
     // work nor outbox rows.
     assert_eq!((orders(&db), db.count()), (1, 2));

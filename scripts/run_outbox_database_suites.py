@@ -32,7 +32,7 @@ INVENTORY = [
     ("recording_replay", LIBS, ["--test", "recording_replay"], [], 7),
     ("recording_validation", LIBS, ["--test", "recording_validation"], [], 6),
     ("recording_failures", LIBS, ["--test", "recording_failures"], [], 9),
-    ("handler_example (documented retry loop)", LIBS, ["--test", "handler_example"], [], 10),
+    ("handler_example (documented retry loop)", LIBS, ["--test", "handler_example"], [], 13),
     ("subscriber_behavior (TwoPhased and Direct)", SUBSCRIBER, ["--test", "subscriber_behavior"], [], 3),
 ]
 

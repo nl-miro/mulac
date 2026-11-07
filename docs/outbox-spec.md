@@ -590,10 +590,15 @@ includes the file itself). It shows:
   subscriber error;
 - recording what the callback itself returned, so an outer rollback error cannot
   replace the callback's failure or pass for a commit error;
-- `Plan` (event IDs and replay-compared content, chosen once) and `History`
-  (attempt outcomes and whether an uncertain outcome is unresolved), which the
+- `Plan` (event IDs and replay-compared content, chosen once, and whether row
+  retention is assured) and `History` (attempt outcomes, whether an uncertain
+  outcome is unresolved, and whether the obligation is recorded), which the
   application persists with the business operation so both survive reinvocation,
-  redrive and restart;
+  redrive and restart. A later success sets `recorded` but never clears
+  `unresolved`; only the application does, after reconciling;
+- retention as an explicit precondition: when the plan does not assure that the
+  rows outlive the retry horizon, the loop never retries an uncertain outcome and
+  returns an escalation for reconciliation instead;
 - every recording case handled explicitly, with no wildcard;
 - event IDs logged whenever an outcome is uncertain, and escalation (not new IDs)
   when a retry after an uncertain attempt conflicts or retries run out;
